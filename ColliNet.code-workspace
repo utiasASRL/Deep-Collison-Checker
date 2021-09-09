@@ -1,0 +1,34 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python.autoComplete.extraPaths": [
+			"src/classifier/src/cpp_wrappers/cpp_neighbors",
+			"src/classifier/src/cpp_wrappers/cpp_subsampling",
+			"src/classifier/src/cpp_wrappers",
+			"/opt/ros/noetic/lib",
+			"/opt/ros/noetic/lib/python3/dist-packages",
+			"/opt/ros/noetic/lib/python3/dist-packages/rospy",
+			"/opt/ros/noetic/lib/**",
+			"/home/hth/catkin_ws/devel/lib/python3/dist-packages"
+		],
+		"files.associations": {
+			"random": "cpp",
+			"ostream": "cpp",
+			"*.tcc": "cpp"
+		},
+		"python.analysis.extraPaths": [
+			"src/classifier/src/cpp_wrappers/cpp_neighbors",
+			"src/classifier/src/cpp_wrappers/cpp_subsampling",
+			"src/classifier/src/cpp_wrappers",
+			"/opt/ros/noetic/lib",
+			"/opt/ros/noetic/lib/python3/dist-packages",
+			"/opt/ros/noetic/lib/python3/dist-packages/rospy",
+			"/opt/ros/noetic/lib/**",
+			"/home/hth/catkin_ws/devel/lib/python3/dist-packages"
+		]
+	}
+}
