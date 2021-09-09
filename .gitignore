@@ -1,7 +1,7 @@
 SOGM-3D-2D-Net/results
-Data/KPConv_data/**
-Data/KPConv_results/**
-Data/Simulation/**
+Data/KPConv_data/*
+Data/KPConv_results/*
+Data/Simulation/*
 
 **/desktop.ini
 git_login.sh

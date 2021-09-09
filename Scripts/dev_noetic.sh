@@ -34,8 +34,6 @@ docker_args="${docker_args} --gpus all "
 if [ "$detach" = true ] ; then
     # args for detached docker
     docker_args="-d ${docker_args}"
-    now=`date +%Y-%m-%d_%H-%M-%S`
-    mkdir -p $PWD/../Data/KPConv_results/Log_"$now"
 fi
 
 # Create folder for simulation if not already there
@@ -63,11 +61,6 @@ $volumes \
 $other_args \
 --name "$USER-noetic_pytorch-dev" \
 noetic_pytorch_$USER
-
-# Attach a log parameters and log the detached docker
-if [ "$detach" = true ] ; then
-    docker logs -f "$USER-training-$ROSPORT" &> $PWD/../../KPConv_results/Log_"$now"/log.txt &
-fi
 
 source ~/.bashrc
 

@@ -125,6 +125,7 @@ RUN python3 setup.py install
 #RUN apt-get install pyqt5-dev-tools pyqt5-dev -y --no-install-recommends
 
 RUN pip3 install open3d
+RUN pip3 install autopep8 flake8
 
 # RUN export QT_PLUGIN_PATH=/usr/lib/qt/plugins
 # RUN echo "export QT_PLUGIN_PATH=/usr/lib/qt/plugins" >> ~/.bashrc
