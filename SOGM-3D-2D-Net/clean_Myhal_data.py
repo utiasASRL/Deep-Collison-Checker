@@ -22,22 +22,15 @@
 #
 
 # Common libs
+from genericpath import isdir
 import numpy as np
 from utils.ply import read_ply
 
 #from mayavi import mlab
-import imageio
-import pickle
-import time
-from os import listdir, makedirs
+from os import listdir, makedirs, remove
 from os.path import join, exists
 
-import open3d as o3d
-import matplotlib.pyplot as plt
-#from datasets.MyhalCollision import *
-from scipy.spatial.transform import Rotation as scipyR
-
-from mpl_toolkits.mplot3d import Axes3D
+import shutil
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -110,12 +103,53 @@ if __name__ == '__main__':
     #   |---loc_pose.ply  # ply file containing the localization poses (x, y, z, qx, qy, qz, qw)
     #
 
+    # Additional necessary file
+    #
+    #   - Lidar calibration file:
+    #       Modify the file located at Data/Simulation/calibration/jackal_calib.csv according to your data
+    #
+    #
+    #
+    #
+
 
     # Path to the data
     data_path = '../Data/Simulation/simulated_runs'
 
-
+    # List folders in the data
     simu_folders = [f for f in listdir(data_path)]
 
+    # Container for all the pathes to be removed
+    pathes_to_remove = []
 
+    for simu_folder in simu_folders:
+
+        simu_path = join(data_path, simu_folder)
+        files_dirs = [f for f in listdir(simu_path)]
+
+        for f in files_dirs:
+            if f not in ['sim_frames', 'logs-' + simu_folder, 'gt_pose.ply', 'loc_pose.ply']:
+                pathes_to_remove.append(join(simu_path, f))
+
+
+        logs_path = join(simu_path, 'logs-' + simu_folder)
+
+        if exists(logs_path):
+            files_dirs = [f for f in listdir(logs_path)]
+            for f in files_dirs:
+                if f not in ['map_traj.ply', 'pointmap_00000.ply']:
+                    pathes_to_remove.append(join(logs_path, f))
+
+    print('Do you want to remove these pathes:')
+    for rm_path in pathes_to_remove:
+        print(rm_path)
+
+    confirm = input('\nType \"y\" to confirm you want to delete all listed files\n')
+    
+    if (confirm == 'y'):
+        for rm_path in pathes_to_remove:
+            if isdir(rm_path):
+                shutil.rmtree(rm_path)
+            else:
+                remove(rm_path)
 
