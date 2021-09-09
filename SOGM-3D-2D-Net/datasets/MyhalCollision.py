@@ -75,7 +75,6 @@ class MyhalCollisionSlam:
 
         # Data path
         self.original_path = '../Data/Simulation'
-        # self.data_path = '../../Data/Myhal_Sim'
         self.data_path = self.original_path
         self.days_folder = join(self.original_path, 'simulated_runs')
         self.frame_folder_name = 'sim_frames'
@@ -275,10 +274,18 @@ class MyhalCollisionSlam:
 
             # Load gt from ply files
             gt_ply_file = join(self.days_folder, day, 'gt_pose.ply')
+
+            if not exists(gt_ply_file):
+                print('No groundtruth poses found at ' + gt_ply_file)
+                print('Using localization poses instead')
+                gt_ply_file = join(self.days_folder, day, 'loc_pose.ply')
+
+            if not exists(gt_ply_file):
+                raise ValueError('No localization poses found at ' + gt_ply_file)
+
             data = read_ply(gt_ply_file)
             gt_T = np.vstack([data['pos_x'], data['pos_y'], data['pos_z']]).T
-            gt_Q = np.vstack(
-                [data['rot_x'], data['rot_y'], data['rot_z'], data['rot_w']]).T
+            gt_Q = np.vstack([data['rot_x'], data['rot_y'], data['rot_z'], data['rot_w']]).T
 
             # Times
             day_gt_t = data['time']
@@ -325,10 +332,13 @@ class MyhalCollisionSlam:
 
             # Load loc from ply files
             loc_ply_file = join(self.days_folder, day, 'loc_pose.ply')
+
+            if not exists(loc_ply_file):
+                raise ValueError('No localization poses found at ' + loc_ply_file)
+
             data = read_ply(loc_ply_file)
             loc_T = np.vstack([data['pos_x'], data['pos_y'], data['pos_z']]).T
-            loc_Q = np.vstack(
-                [data['rot_x'], data['rot_y'], data['rot_z'], data['rot_w']]).T
+            loc_Q = np.vstack([data['rot_x'], data['rot_y'], data['rot_z'], data['rot_w']]).T
 
             # Times
             day_loc_t = data['time']
@@ -1722,9 +1732,7 @@ class MyhalCollisionSlam:
             makedirs(map_folder)
 
         # List of the updated maps
-        map_names = [
-            f for f in listdir(map_folder) if f.startswith('map_update_')
-        ]
+        map_names = [f for f in listdir(map_folder) if f.startswith('map_update_')]
 
         # First check if we never initiated the map
         if len(map_names) == 0:

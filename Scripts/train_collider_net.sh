@@ -21,7 +21,7 @@ esac
 done
 
 # Path to the Network result folder
-RES_FOLDER = "$PWD/../SOGM-3D-2D-Net/results"
+RES_FOLDER="$PWD/../SOGM-3D-2D-Net/results"
 
 ##########################
 # Start docker container #

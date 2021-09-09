@@ -17,3 +17,5 @@ Have some tutorial guides
  - Guide to show the results of the training
  - Guide to run simulator with a trained model
  - Guide for the development with visual studio: script to forward the tcp ports + visual studio attach + open workspace + Install extension in remote contatiner
+
+

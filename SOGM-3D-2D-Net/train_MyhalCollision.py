@@ -282,59 +282,6 @@ if __name__ == '__main__':
     # Day used as map
     map_day = '2020-10-02-13-39-05'
 
-    # train_days_RandFlow = ['2021-05-06-23-59-54',
-    #                        '2021-05-07-15-57-43',
-    #                        '2021-05-07-16-36-30',
-    #                        '2021-05-07-17-11-09',
-    #                        '2021-05-07-17-38-28',
-    #                        '2021-05-07-18-09-24',
-    #                        '2021-05-07-18-38-39',
-    #                        '2021-05-07-19-07-27',
-    #                        '2021-05-07-20-34-07',
-    #                        '2021-05-07-21-47-10',
-    #                        '2021-05-07-22-33-29',
-    #                        '2021-05-09-14-44-16',
-    #                        '2021-05-09-16-08-30',
-    #                        '2021-05-09-16-24-32',
-    #                        '2021-05-09-17-18-27',
-    #                        '2021-05-09-17-47-36',
-    #                        '2021-05-09-18-14-51',
-    #                        '2021-05-09-18-44-39',
-    #                        '2021-05-09-20-10-07',
-    #                        '2021-05-09-20-45-36']
-
-    # train_days_RandBounce = ['2021-04-28-18-23-06',
-    #                          '2021-04-28-18-47-43',
-    #                          '2021-04-28-19-39-19',
-    #                          '2021-04-28-20-21-31',
-    #                          '2021-04-28-20-47-04',
-    #                          '2021-04-28-21-35-47',
-    #                          '2021-04-28-22-49-13',
-    #                          '2021-04-28-23-20-09',
-    #                          '2021-04-29-00-09-28',
-    #                          '2021-04-29-01-07-16',
-    #                          '2021-04-29-01-29-55',
-    #                          '2021-04-29-13-57-12',
-    #                          '2021-04-29-14-18-35',
-    #                          '2021-04-29-15-04-42',
-    #                          '2021-04-29-16-02-50',
-    #                          '2021-04-29-16-34-37']
-    # train_days_RandWand = ['2021-04-29-17-33-18',
-    #                        '2021-04-29-17-57-13',
-    #                        '2021-04-29-18-40-09',
-    #                        '2021-04-29-20-06-31',
-    #                        '2021-04-29-20-34-10',
-    #                        '2021-04-29-20-45-23',
-    #                        '2021-04-29-21-50-52',
-    #                        '2021-04-29-22-16-57',
-    #                        '2021-04-29-23-05-39',
-    #                        '2021-04-29-23-47-01',
-    #                        '2021-04-30-00-21-20',
-    #                        '2021-04-30-01-05-32',
-    #                        '2021-04-30-14-00-38',
-    #                        '2021-04-30-14-26-29',
-    #                        '2021-04-30-15-21-09']
-
     train_days_RandBounce = ['2021-05-15-23-15-09',
                              '2021-05-15-23-33-25',
                              '2021-05-15-23-54-50',
@@ -355,85 +302,37 @@ if __name__ == '__main__':
                              '2021-05-17-05-26-10',
                              '2021-05-17-05-41-45']
 
-    train_days_RandWand = ['2021-05-17-14-04-52',
-                           '2021-05-17-14-21-56',
-                           '2021-05-17-14-44-46',
-                           '2021-05-17-15-26-04',
-                           '2021-05-17-15-50-45',
-                           '2021-05-17-16-14-26',
-                           '2021-05-17-17-02-17',
-                           '2021-05-17-17-27-02',
-                           '2021-05-17-17-53-42',
-                           '2021-05-17-18-46-44',
-                           '2021-05-17-19-02-37',
-                           '2021-05-17-19-39-19',
-                           '2021-05-17-20-14-57',
-                           '2021-05-17-20-48-53',
-                           '2021-05-17-21-36-22',
-                           '2021-05-17-22-16-13',
-                           '2021-05-17-22-40-46',
-                           '2021-05-17-23-08-01',
-                           '2021-05-17-23-48-22',
-                           '2021-05-18-00-07-26',
-                           '2021-05-18-00-23-15',
-                           '2021-05-18-00-44-33',
-                           '2021-05-18-01-24-07']
-
-    train_days_RandFlow = ['2021-06-02-19-55-16',
-                           '2021-06-02-20-33-09',
-                           '2021-06-02-21-09-48',
-                           '2021-06-02-22-05-23',
-                           '2021-06-02-22-31-49',
-                           '2021-06-03-03-51-03',
-                           '2021-06-03-14-30-25',
-                           '2021-06-03-14-59-20',
-                           '2021-06-03-15-43-06',
-                           '2021-06-03-16-48-18',
-                           '2021-06-03-18-00-33',
-                           '2021-06-03-19-07-19',
-                           '2021-06-03-19-52-45',
-                           '2021-06-03-20-28-22',
-                           '2021-06-03-21-32-44',
-                           '2021-06-03-21-57-08']
-
 
     ######################
     # Automatic Annotation
     ######################
 
     # Choose the dataset
-    train_days = np.array(train_days_RandFlow)
+    train_days = np.array(train_days_RandBounce)
     val_inds = [0, 1, 2]
     train_inds = [i for i in range(len(train_days)) if i not in val_inds]
 
-    # Check if we need to redo annotation (only if there is no video)
+    # Check if we need to redo annotation (only if there is no collison folder)
     redo_annot = False
     for day in train_days:
-        annot_path = join('../../../Myhal_Simulation/collisions', day)
+        annot_path = join('../Data/Simulation/collisions', day)
         if not exists(annot_path):
             redo_annot = True
             break
 
     # train_days = ['2020-10-20-16-30-49']
-    #redo_annot = True
+    # redo_annot = True
     if redo_annot:
 
         # Initiate dataset
         slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day)
-        #slam_dataset = MyhalCollisionDataset(first_day='2020-06-24-14-36-49', last_day='2020-06-24-14-40-33')
 
-        # Create a refined map from the map_day
-        # slam_dataset.refine_map()
+        # Create a refined map from the map_day.
+        # UNCOMMENT THIS LINE if you are using your own data for the first time
+        # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud 
+        # like this one: Data/Simulation/slam_offline/2020-10-02-13-39-05/map_update_0001.ply
 
-        # Groundtruth mapping
-        #slam_dataset.debug_angular_velocity()
-        #slam_dataset.gt_mapping() # can you add all frames at onec in this function?
-
-        # Groundtruth annotation
-        #annotation_process(slam_dataset, on_gt=True)
-
-        # SLAM mapping
-        #slam_dataset.pointmap_slam()
+        # slam_dataset.refine_map()  
 
         # Groundtruth annotation
         annotation_process(slam_dataset, on_gt=False)
@@ -442,7 +341,7 @@ if __name__ == '__main__':
 
         slam_dataset.collision_annotation()
 
-        a = 1 / 0
+        print('annotation finished')
 
     ##############
     # Prepare Data
