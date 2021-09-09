@@ -1466,7 +1466,7 @@ def comparison_metrics(list_of_paths, list_of_names=None):
         #saved_res_inds = []
 
         # List of the chkp to do
-        todo_inds = [ind for ind in chkp_inds if ind not in saved_res_inds]
+        to_do_inds = [ind for ind in chkp_inds if ind not in saved_res_inds]
         to_load_inds = [ind for ind in chkp_inds if ind in saved_res_inds]
 
         # Results
@@ -1494,7 +1494,7 @@ def comparison_metrics(list_of_paths, list_of_names=None):
         # Or ...
         ########
 
-        if len(todo_inds) > 0:
+        if len(to_do_inds) > 0:
 
             ############
             # Choose GPU
@@ -1583,7 +1583,7 @@ def comparison_metrics(list_of_paths, list_of_names=None):
 
             for chkp_i, chkp in enumerate(chkps):
 
-                if chkp_inds[chkp_i] not in todo_inds:
+                if chkp_inds[chkp_i] not in to_do_inds:
                     continue
 
                 # Load new checkpoint weights
