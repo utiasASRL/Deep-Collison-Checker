@@ -339,6 +339,7 @@ if __name__ == '__main__':
 
         # TODO: Loop closure for aligning days together when not simulation
 
+        # Annotation of preprocessed 2D+T point clouds for SOGM generation
         slam_dataset.collision_annotation()
 
         print('annotation finished')

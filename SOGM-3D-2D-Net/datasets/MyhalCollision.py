@@ -2239,10 +2239,7 @@ class MyhalCollisionSlam:
 
         return
 
-    def collision_annotation(self, dl_2D=0.03, start_T=-1.0, future_T=5.0, input_frame_n=3):
-
-        # Here we are testing things for now. Annotate future of points in all the scene
-        # For the specific collision annotation, define a radius of interference
+    def collision_annotation(self, dl_2D=0.03, start_T=-1.0, future_T=5.0):
 
         ###############
         # STEP 0 - Init
@@ -2491,10 +2488,10 @@ class MyhalCollisionDataset(PointCloudDataset):
         ##########################
 
         # Dataset folder
-        self.path = '../../../Data/MyhalSim'
+        self.path = '../Data/KPConv_data'
 
         # Original data path
-        self.original_path = '../../../Myhal_Simulation'
+        self.original_path = '../Data/Simulation'
 
         # Type of task conducted on this dataset
         self.dataset_task = 'collision_prediction'
