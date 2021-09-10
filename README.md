@@ -9,7 +9,9 @@ In this repository, we share the implementation of the paper [Learning Spatiotem
 ![Intro figure](./Data/github_im.png)
 
 
-## Setup
+## Setup 
+
+### Step 1: Docker Image
 
 For convenience we provide a Dockerfile which builds a docker image able to run the code. To build this image simply run the following commands:
 
@@ -22,6 +24,22 @@ The image will be built following the provided Dockerfile. YOu might need to ada
 
 Note that the username inside the docker image is automatically copied from the one used to build the image, to avoid the permission conflicts happening when creating files as root inside a container.
 
+
+### Step 2: Cpp wrappers 
+
+Our code uses c++ wrappers, like the original KPConv repo. They are very esay to compile. First start a docker container with:
+
+```
+cd Scripts
+./run_in_container.sh - " "
+```
+
+Then Go to the cpp_wrappers folder and start the compile script.
+
+```
+cd cpp_wrappers
+./compile_wrappers.sh
+```
 
 ## Data
 

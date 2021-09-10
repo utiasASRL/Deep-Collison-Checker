@@ -177,12 +177,12 @@ def batch_grid_subsampling(points, batches_len, features=None, labels=None,
 
     else:
         s_points, s_len, s_features, s_labels = cpp_subsampling.subsample_batch(points,
-                                                                              batches_len,
-                                                                              features=features,
-                                                                              classes=labels,
-                                                                              sampleDl=sampleDl,
-                                                                              max_p=max_p,
-                                                                              verbose=verbose)
+                                                                                batches_len,
+                                                                                features=features,
+                                                                                classes=labels,
+                                                                                sampleDl=sampleDl,
+                                                                                max_p=max_p,
+                                                                                verbose=verbose)
         if random_grid_orient:
             i0 = 0
             for bi, length in enumerate(s_len):
@@ -613,10 +613,10 @@ if __name__ == '__main__':
     # Init #
     ########
 
-    chosen_log = 'results/Log_2020-08-14_10-02-36'
+    chosen_log = 'results/Log_2020-08-14_10-02-36'  # Chose the log you want to test here
 
-    # Get a list of frames to test
-    day = '2020-08-08-12-35-31'
+    # Choose which session you want to test the model on on
+    day = '2021-05-15-23-15-09'
     frames_folder = '../../Myhal_Simulation/simulated_runs/{:s}/sim_frames'.format(day)
 
     # Get frame names and timestamps
@@ -630,7 +630,7 @@ if __name__ == '__main__':
     # Online tester
     tester = OnlineTester(0, 0, chosen_log)
 
-    #########
+    ######### 
     # Start #
     #########
 
