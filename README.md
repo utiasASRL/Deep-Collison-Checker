@@ -1,5 +1,15 @@
 # Deep-Collison-Checker
 
+In this repository, we share the implementation of the paper [Learning Spatiotemporal Occupancy Grid Maps for Lifelong Navigation in Dynamic Scenes](https://arxiv.org/abs/2108.10585). This code is a minimalist version made with two objectives:
+ - Easily reproduce the results presented in the paper
+ - Possiblity to apply the network to other datasets
+
+
+
+![Intro figure](./Data/github_im.png)
+
+
+## Introduction
 
 Have a scheme of the original file system and the corresponding docker volumes
 
