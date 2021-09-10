@@ -55,9 +55,16 @@ If you want to use our network on your own data, the first simple solution is to
 
 
 
-## Reproduce the paper results
+## Run the Annotation and Network
 
+We provide a script to run the code inside a docker container using the image in the `Docker` folder. Simply start it with:
 
+```
+cd Scripts
+./run_in_container.sh
+```
+
+Without any argument, this script runs the command: `python3 train_MyhalCollision.py` inside the `SOGM-3D-2D-Net` folder
 
 We provide scripts for three experiments: ModelNet40, S3DIS and SemanticKitti. The instructions to run these 
 experiments are in the [doc](./doc) folder.
