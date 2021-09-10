@@ -30,6 +30,7 @@ cd ..
 # python3 setup.py build_ext --inplace
 # cd ..
 
+
 # Compile cpp icp normals
 cd cpp_slam
 python3 setup.py build_ext --inplace
