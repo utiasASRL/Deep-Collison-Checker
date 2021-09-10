@@ -11,7 +11,17 @@ In this repository, we share the implementation of the paper [Learning Spatiotem
 
 ## Setup
 
-For convenience we provide a Dockerfile which builds a docker image able to run the code. Please refer to [./Docker/README.md](./Docker) for detailed setup instructions
+For convenience we provide a Dockerfile which builds a docker image able to run the code. To build this image simply run the following commands:
+
+```
+cd Docker
+./docker_build.sh
+```
+
+The image will be built following the provided Dockerfile. YOu might need to adapt this file depending on your system. In particular, you might need to change the version of CUDA and thus Pytorch depending on your GPU.
+
+Note that the username inside the docker image is automatically copied from the one used to build the image, to avoid the permission conflicts happening when creating files as root inside a container.
+
 
 ## Data
 
