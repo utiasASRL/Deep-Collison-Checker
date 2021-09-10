@@ -1968,182 +1968,29 @@ def comparison_metrics(list_of_paths, list_of_names=None):
 #       \*****************/
 #
 
-
-def collider_tests_1(old_result_limit):
+def Bouncers_logs():
     """
-    A lot have been going on, we know come back to basics and experiment with bouncers. In this experiment, bouncers have various speeds, and we try different loss weights
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-04-14_18-48-28'
-    end = 'Log_2021-04-21_15-05-54'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Bouncer-Loss=1/1',
-                  'Bouncer-Loss=0.5/4',
-                  'Bouncer-Loss=0.5/4-NEW_METRIC',
-                  'Bouncer-Loss=1/2-NEW_METRIC',
-                  'Bouncer-Loss=1/2-NEW_METRIC',
-                  'Bouncer-Loss=1/2-NEW_METRIC',
-                  'test'
-                  ]
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_tests_2(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-04-21_15-05-54'
-    end = 'Log_2021-04-30_11-07-40'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Bouncer-Loss=1/2-v2',
-                  'Bouncer-Loss=1/2-v0',
-                  'Bouncer-Loss=1/2-v1',
-                  'Bouncer-5frames-failed',
-                  'Bouncer-5frames-Loss=1/8-v2',
-                  ]
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_tests_Bouncers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-04-30_11-07-41'
-    end = 'Log_2021-05-02_10-19-22'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Bouncer-5frames',
-                  'Bouncer-3frames']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_tests_Wanderers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-05-03_17-57-57'
-    end = 'Log_2021-05-10_10-00-22'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Wand-indep',
-                  'Wand-shared',
-                  'Wand-indep-5frames',
-                  'Wand-indep-d120',
-                  'Wand-indep-d120-loss*50',
-                  'test']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_tests_Followers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-05-10_10-57-57'
-    end = 'Log_2021-05-13_10-00-22'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-    logs = np.insert(logs, 5, 'results/Log_2021-06-01_21-33-07')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Followers-v2',
-                  'Followers-v0',
-                  'Followers-v1',
-                  'Followers-v1',
-                  'Followers-v2',
-                  'Followers-v2-pred>0.1',
-                  'test']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_final_Bouncers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
     """
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2021-05-24_13-59-19'
-    end = 'Log_2021-05-24_13-59-20'
+    end = 'Log_3021-05-24_13-59-20'
 
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
+    # Path to the results logs
+    res_path = 'results'
 
+    # Gathering names
     logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
-    logs = np.insert(logs, 1, 'results/Log_2021-05-27_17-23-43')
-    logs = np.insert(logs, 3, 'results/Log_2021-05-31_18-55-24')
+
+    # Optinally add some specific folder that is not between start and end 
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
     logs = logs.astype('<U50')
 
     # Give names to the logs (for legends)
     logs_names = ['Bouncer-v0',
                   'Bouncer-v1',
-                  'Bouncer-v2-pred>0.03',
-                  'Bouncer-v2-pred>0.1']
+                  'Bouncer-v2',
+                  'etc']
 
     # logs_names = ['No Mask',
     #               'GT-Mask',
@@ -2153,105 +2000,6 @@ def collider_final_Bouncers(old_result_limit):
 
     return logs, logs_names
 
-
-def collider_final_Wanderers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-05-24_15-46-47'
-    end = 'Log_2021-05-24_15-46-48'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = np.insert(logs, 0, 'results/Log_2021-05-29_11-14-27')
-    logs = np.insert(logs, 1, 'results/Log_2021-05-29_11-15-00')
-    # logs = np.insert(logs, 3, 'results/Log_2021-05-31_18-56-33')
-    logs = logs.astype('<U50')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Wanderer-v0',
-                  'Wanderer-v1',
-                  'Wanderer-v2-pred>0.03',
-                  'Wanderer-v2-pred>0.1']
-
-    # logs_names = ['No Mask',
-    #               'GT-Mask',
-    #               'Active-Mask']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-
-def collider_final_Followers(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-06-04_11-13-12'
-    end = 'Log_2021-08-05_11-13-12'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-    logs = np.insert(logs, 0, 'results/Log_2021-06-01_21-33-07')
-
-    # Give names to the logs (for legends)
-    logs_names = ['old-Followers',
-                  'Followers-v2-f-loss-10(322)',
-                  'Followers-v2-f-loss-1',
-                  'Followers-v2-f-loss-100',
-                  'Followers-v2-10-2Dnet221',
-                  'Followers-v2-10-2Dnet443',
-                  'Followers-no-3D-loss',
-                  'Followers-shared_weights',
-                  'Followers-T=5.0',
-                  'Followers-443-loss50.0<0.03',
-                  'test']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
-
-    
-def collider_behaviors(old_result_limit):
-    """
-    Nouveau loss, et nouvelles valeur de validation pour ces tests
-    """
-
-    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-06-04_11-13-12'
-    end = 'Log_2021-06-04_11-13-14'
-
-    if end < old_result_limit:
-        res_path = 'old_results'
-    else:
-        res_path = 'results'
-
-    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
-    logs = logs.astype('<U50')
-    logs = np.insert(logs, 0, 'results/Log_2021-05-24_13-59-19')
-    logs = np.insert(logs, 1, 'results/Log_2021-05-24_15-46-47')
-
-    # Give names to the logs (for legends)
-    logs_names = ['Bouncers',
-                  'Wanderers',
-                  'FlowFollowers']
-
-    logs_names = np.array(logs_names[:len(logs)])
-
-    return logs, logs_names
 
     
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2273,6 +2021,9 @@ def wanted_Bouncers(chosen_log):
     seq_inds = test_dataset.all_inds[:, 0]
     frame_inds = test_dataset.all_inds[:, 1]
 
+
+    #######################################################################
+    # Here choose which frame from which sequence you want to show and save
     wanted_s = ['2021-05-15-23-15-09',
                 '2021-05-15-23-33-25',
                 '2021-05-15-23-33-25',
@@ -2283,6 +2034,7 @@ def wanted_Bouncers(chosen_log):
                 750,
                 100,
                 500]
+    #######################################################################
 
     wanted_inds = []
     for seq, f_i in zip(wanted_s, wanted_f):
@@ -2297,192 +2049,33 @@ def wanted_Bouncers(chosen_log):
     return wanted_inds
 
 
-def wanted_Wanderers(chosen_log):
-
-    # Get training and validation days
-    config = Config()
-    config.load(chosen_log)
-    val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
-
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
-    seq_inds = test_dataset.all_inds[:, 0]
-    frame_inds = test_dataset.all_inds[:, 1]
-
-    wanted_s = ['2021-05-17-14-04-52',
-                '2021-05-17-14-04-52',
-                '2021-05-17-14-04-52',
-                '2021-05-17-14-04-52',
-                '2021-05-17-14-04-52',
-                '2021-05-17-14-21-56',
-                '2021-05-17-14-44-46',
-                '2021-05-17-14-44-46']
-    wanted_f = [50,
-                150,
-                200,
-                700,
-                350,
-                50,
-                1550]
-
-    wanted_inds = []
-    for seq, f_i in zip(wanted_s, wanted_f):
-        s_i = np.argwhere(val_days == seq)[0][0]
-        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
-        w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i - 2, w_i, w_i + 2, w_i + 4]
-
-    return wanted_inds
-
-
-def wanted_Flow1(chosen_log):
-
-    # Get training and validation days
-    config = Config()
-    config.load(chosen_log)
-    val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
-
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
-    seq_inds = test_dataset.all_inds[:, 0]
-    frame_inds = test_dataset.all_inds[:, 1]
-
-    wanted_s = ['2021-05-06-23-59-54',
-                '2021-05-06-23-59-54',
-                '2021-05-06-23-59-54']
-    wanted_f = [1400,
-                1450,
-                1900]
-
-    wanted_inds = []
-    for seq, f_i in zip(wanted_s, wanted_f):
-        s_i = np.argwhere(val_days == seq)[0][0]
-        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
-        w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i - 2, w_i, w_i + 2, w_i + 4]
-
-    return wanted_inds
-
-
-def wanted_Flow2(chosen_log):
-
-    # Get training and validation days
-    config = Config()
-    config.load(chosen_log)
-    val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
-
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
-    seq_inds = test_dataset.all_inds[:, 0]
-    frame_inds = test_dataset.all_inds[:, 1]
-
-    wanted_s = ['2021-06-02-21-09-48',
-                '2021-06-02-21-09-48',
-                '2021-06-02-21-09-48',
-                '2021-06-02-20-33-09',
-                '2021-06-02-20-33-09']
-    wanted_f = [250,
-                700,
-                1350, 
-                100, 
-                350]
-
-    wanted_inds = []
-    for seq, f_i in zip(wanted_s, wanted_f):
-        s_i = np.argwhere(val_days == seq)[0][0]
-        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
-        w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i - 2, w_i, w_i + 2, w_i + 4]
-
-    return wanted_inds
-
-
-def wanted_Flow3(chosen_log):
-
-    # Get training and validation days
-    config = Config()
-    config.load(chosen_log)
-    val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
-
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
-    seq_inds = test_dataset.all_inds[:, 0]
-    frame_inds = test_dataset.all_inds[:, 1]
-
-    wanted_s = ['2021-06-02-20-33-09',
-                '2021-06-02-20-33-09',
-                '2021-06-02-20-33-09',
-                '2021-06-02-20-33-09',
-                '2021-06-02-20-33-09',
-                '2021-06-02-21-09-48',
-                '2021-06-02-21-09-48']
-    wanted_f = [50,
-                300,
-                350, 
-                560, 
-                650, 
-                450, 
-                550]
-
-    wanted_inds = []
-    for seq, f_i in zip(wanted_s, wanted_f):
-        s_i = np.argwhere(val_days == seq)[0][0]
-        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
-        w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i - 2, w_i, w_i + 2, w_i + 4]
-
-    return wanted_inds
-
 
 if __name__ == '__main__':
 
-    ######################################################
-    # Choose a list of log to plot together for comparison
-    ######################################################
+    ######################################
+    # Step 1: Choose what you want to plot
+    ######################################
 
-    # Old result limit
-    old_res_lim = 'Log_2020-05-04_19-17-59'
+    # plotting = 'evo'  # Evolution of predictions from checkpoints to checkpoints
 
-    # My logs: choose the logs to show
-    # logs, logs_names = collider_final_Bouncers(old_res_lim)
-    # wanted_inds = None
+    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    # # FOR BOUNCER VISU (use collider_tests_Followers)
-    # logs, logs_names = collider_final_Bouncers(old_res_lim)
-    # logs = logs[[2]]
-    # logs_names = logs_names[[2]]
-    # wanted_inds = wanted_Bouncers(logs[0])
+    # plotting = 'PR'  # Comparison of the performances with good metrics
 
-    # # FOR WANDERERS VISU (use collider_tests_Followers)
-    # logs, logs_names = collider_final_Wanderers(old_res_lim)
-    # logs = logs[[2]]
-    # logs_names = logs_names[[2]]
-    # wanted_inds = wanted_Wanderers(logs[0])
-
-    # FOR FLOW1 VISU
-    logs, logs_names = collider_tests_Followers(old_res_lim)
-    logs = logs[[4]]
-    logs_names = logs_names[[4]]
-    wanted_inds = wanted_Flow1(logs[0])
-    
-    # # FOR FLOW2 VISU
-    # logs, logs_names = collider_behaviors(old_res_lim)
-    # logs = logs[[2]]
-    # logs_names = logs_names[[2]]
-    # wanted_inds = wanted_Flow2(logs[0])
-    
-    # # FOR FLOW3 VISU
-    # logs, logs_names = collider_final_Followers(old_res_lim)
-    # logs = logs[[9]]
-    # logs_names = logs_names[[9]]
-    # print(logs)
-    # print(logs_names)
-    # wanted_inds = wanted_Flow3(logs[0])
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
-    ######################################################
-    # Choose a list of log to plot together for comparison
-    ######################################################
+    ##################################################
+    # Step 2: Choose which results you want to compare
+    ##################################################
+
+    # Function returning the names of the log folders that we want to plot
+    logs, logs_names = Bouncers_logs()
+
+
+    # Function returning the a few specific frames to show as gif
+    if plotting == 'gifs':
+        wanted_inds = wanted_Bouncers(logs[0])
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None
@@ -2499,14 +2092,10 @@ if __name__ == '__main__':
         else:
             plot_dataset = this_dataset
 
+
     ################
     # Plot functions
-    # ##############
-
-    # plotting = 'evo'
-    plotting = 'gifs'
-    # plotting = 'PR'
-    # plotting = 'conv'
+    ################
 
     if plotting == 'evo':
         # Evolution of predictions from checkpoints to checkpoints

@@ -11,19 +11,19 @@ In this repository, we share the implementation of the paper [Learning Spatiotem
 
 ## Setup
 
-For convenience we provide a Dockerfile which builds a docker image able to run the code. Please refer to [Docker/README.md](./Docker) for detailed setup instructions
+For convenience we provide a Dockerfile which builds a docker image able to run the code. Please refer to [./Docker/README.md](./Docker) for detailed setup instructions
 
 ## Data
 
 ### Preprocessed data for fast reproducable results
 
-We provide preprocessed data coming from our simulator. Simply download this [zip file]() and extract its content in the `Data` folder. 
+We provide preprocessed data coming from our simulator. Simply download this [zip file]() and extract its content in the `./Data` folder. 
 
-You should end up with the folder `Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
+You should end up with the folder `./Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
 
-In the folder `Data/Simulation/slam_offline`, we provide the preprocessed results of the mapping session. A `.ply` file containing the pointmap of the environment.
+In the folder `./Data/Simulation/slam_offline`, we provide the preprocessed results of the mapping session. A *.ply* file containing the pointmap of the environment.
 
-Eventually the folder `Data/Simulation/calibration` contains the lidar extrinsec calibration.
+Eventually the folder `./Data/Simulation/calibration` contains the lidar extrinsec calibration.
 
 
 ### Instructions to apply on a different dataset
@@ -31,8 +31,8 @@ Eventually the folder `Data/Simulation/calibration` contains the lidar extrinsec
 If you want to use our network on your own data, the first simple solution is to reproduce the exact same format for your own data. 
 
 1) modify the calibration file according to your own lidar calibration. 
-2) Create a file `Data/Simulation/slam_offline/YOUR_DATE/map_update_0001.ply`. See our [pointmap creation code](SOGM-3D-2D-Net/datasets/MyhalCollision.py#L1724) for how to create such a map. 
-3) Organise every data folder in `Data/Simulation/simulated_runs` as follows:
+2) Create a file `./Data/Simulation/slam_offline/YYYY-MM-DD-HH-MM-SS/map_update_0001.ply`. See our [pointmap creation code](SOGM-3D-2D-Net/datasets/MyhalCollision.py#L1724) for how to create such a map. 
+3) Organise every data folder in `./Data/Simulation/simulated_runs` as follows:
 
 ```
     #   YYYY-MM-DD-HH-MM-SS
@@ -44,7 +44,7 @@ If you want to use our network on your own data, the first simple solution is to
     #   |
     #   |---sim_frames
     #   |   |
-    #   |   |---XXXX.XXXX.ply  # ply file for each frame point cloud (x, y, z) in lidar corrdinates.
+    #   |   |---XXXX.XXXX.ply  # .ply file for each frame point cloud (x, y, z) in lidar corrdinates.
     #   |   |---XXXX.XXXX.ply
     #   |   |--- ...
     #   |
@@ -53,61 +53,63 @@ If you want to use our network on your own data, the first simple solution is to
     #   |---loc_pose.ply  # localization poses (x, y, z, qx, qy, qz, qw)
 ```
 
+4) You will have to modify the paths ans parameters according to your new data [here](SOGM-3D-2D-Net/train_MyhalCollision.py#L283-L303). Also choose which folder you use as validation [here](SOGM-3D-2D-Net/train_MyhalCollision.py#L312)
+
+5) There might be errors along the way, try to follow the code execution and correct the possible mistakes
 
 
 ## Run the Annotation and Network
 
-We provide a script to run the code inside a docker container using the image in the `Docker` folder. Simply start it with:
+We provide a script to run the code inside a docker container using the image in the `./Docker` folder. Simply start it with:
 
 ```
 cd Scripts
 ./run_in_container.sh
 ```
 
-Without any argument, this script runs the command: `python3 train_MyhalCollision.py` inside the `SOGM-3D-2D-Net` folder
+This script runs a command inside the `./SOGM-3D-2D-Net` folder. Without any argument the command is: `python3 train_MyhalCollision.py`. This script first annotated the data and creates preprocessed 2D+T point clouds in `./Data/Simulation/collisions`. Then it starts the training on this data, generating SOGMs from the preprocessed 2D+T clouds
 
-We provide scripts for three experiments: ModelNet40, S3DIS and SemanticKitti. The instructions to run these 
-experiments are in the [doc](./doc) folder.
+You can choose to execute another command inside the docker container with the argument `-c`. For example, you can plot the current state of your network training with:
 
-* [Object Classification](./doc/object_classification_guide.md): Instructions to train KP-CNN on an object classification
- task (Modelnet40).
- 
-* [Scene Segmentation](./doc/scene_segmentation_guide.md): Instructions to train KP-FCNN on a scene segmentation 
- task (S3DIS).
- 
-* [SLAM Segmentation](./doc/slam_segmentation_guide.md): Instructions to train KP-FCNN on a slam segmentation 
- task (SemanticKitti).
- 
-* [Pretrained models](./doc/pretrained_models_guide.md): We provide pretrained weights and instructions to load them.
- 
-* [Visualization scripts](./doc/visualization_guide.md): For now only one visualization script has been implemented: 
-the kernel deformations display.
+```
+cd Scripts
+./run_in_container.sh -c "python3 collider_plots.py"
+```
+
+You can also add the argument -d to run the container in detach mode (very practical as the training lasts several hours).
 
 
+## Building a dev environment using Docker and VSCode
+
+We provide a simple way to develop over our code using Docker and VSCode. First start a docker container specifically for development:
+
+```
+cd Scripts
+./dev_noetic.sh -d
+```
+
+Then then attach visual studio code to this container named `$USER-noetic_pytorch-dev`. For this you need to install the docker extension, then go to the list of docker containers running, right click on `$USER-noetic_pytorch-dev`, and `attach visual studio code`.
+
+You can even do it over shh by forwarding the right port. Execute the following commands (On windows, it can be done using MobaXterm local terminal):
+
+```
+set DOCKER_HOST="tcp://localhost:23751"
+ssh -i "path_to_your_ssh_key" -NL localhost:23751:/var/run/docker.sock  user@your_domain_or_ip
+```
+
+The list of docker running on your remote server should appear in the list of your local VSCode. YOu will probably need the extensions `Remote-SSH` and `Remote-Containers`.
 
 
+## Going further
 
-## Introduction
+If you are interested in using this code with our simulator, you can go to the two following repositories:
 
-Hugues Thomas, Matthieu Gallet de Saint Aurin, Jian Zhang, Timothy D. Barfoot
+- [https://github.com/utiasASRL/MyhalSimulator](https://github.com/utiasASRL/MyhalSimulator)
 
+- [https://github.com/utiasASRL/MyhalSimulator-DeepCollider](https://github.com/utiasASRL/MyhalSimulator-DeepCollider)
 
-Have a scheme of the original file system and the corresponding docker volumes
+The first one contains the code to run our Gazebo simulations, and the second on contains the code to perform online predictions within the simulator. Note though, that these repositories are still in developpement and are not as easily run as this one.
 
-Have an instalation guide
-
- - Set up the docker images
- - Compile the cpp wrappers for KPConv
- - Set up the catkin workspaces
-
-Have some tutorial guides
-
- - Guide to run the training script alone with preprocessed data that we provide
- - Guide to run the simulator alone and generate data
- - Guide to run the training script on the generated data
- - Guide to show the results of the training
- - Guide to run simulator with a trained model
- - Guide for the development with visual studio: script to forward the tcp ports + visual studio attach + open workspace + Install extension in remote contatiner
 
 ## Reference
 
