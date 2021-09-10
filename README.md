@@ -11,10 +11,53 @@ In this repository, we share the implementation of the paper [Learning Spatiotem
 
 ## Setup
 
-For convenience we provide a Dockerfile which builds a docker image able to run the code. Please refer to [Docker/README.md](./Docker/README.md) for detailed setup instructions
+For convenience we provide a Dockerfile which builds a docker image able to run the code. Please refer to [Docker/README.md](./Docker) for detailed setup instructions
+
+## Data
+
+### Preprocessed data for fast reproducable results
+
+We provide preprocessed data coming from our simulator. Simply download this [zip file]() and extract its content in the `Data` folder. 
+
+You should end up with the folder `Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
+
+In the folder `Data/Simulation/slam_offline`, we provide the preprocessed results of the mapping session. A `.ply` file containing the pointmap of the environment.
+
+Eventually the folder `Data/Simulation/calibration` contains the lidar extrinsec calibration.
 
 
-## Experiments
+### Instructions to apply on a different dataset
+
+If you want to use our network on your own data, the first simple solution is to reproduce the exact same format for your own data. 
+
+1) modify the calibration file according to your own lidar calibration. 
+2) Create a file `Data/Simulation/slam_offline/YOUR_DATE/map_update_0001.ply`. See our [pointmap creation code](SOGM-3D-2D-Net/datasets/MyhalCollision.py#L1724) for how to create such a map. 
+3) Organise every data folder in `Data/Simulation/simulated_runs` as follows:
+
+```
+    #   YYYY-MM-DD-HH-MM-SS
+    #   |
+    #   |---logs-YYYY-MM-DD-HH-MM-SS
+    #   |   |
+    #   |   |---map_traj.ply         # (OPTIONAL) map_poses = loc_poses (x, y, z, qx qy, qz, qw)
+    #   |   |---pointmap_00000.ply   # (OPTIONAL) pointmap of this particular session
+    #   |
+    #   |---sim_frames
+    #   |   |
+    #   |   |---XXXX.XXXX.ply  # ply file for each frame point cloud (x, y, z) in lidar corrdinates.
+    #   |   |---XXXX.XXXX.ply
+    #   |   |--- ...
+    #   |
+    #   |---gt_pose.ply  # (OPTIONAL) groundtruth poses (x, y, z, qx, qy, qz, qw)
+    #   |
+    #   |---loc_pose.ply  # localization poses (x, y, z, qx, qy, qz, qw)
+```
+
+
+
+## Reproduce the paper results
+
+
 
 We provide scripts for three experiments: ModelNet40, S3DIS and SemanticKitti. The instructions to run these 
 experiments are in the [doc](./doc) folder.
