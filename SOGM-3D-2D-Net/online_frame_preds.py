@@ -43,11 +43,13 @@ from kernels.kernel_points import create_3D_rotations
 import cpp_wrappers.cpp_subsampling.grid_subsampling as cpp_subsampling
 import cpp_wrappers.cpp_neighbors.radius_neighbors as cpp_neighbors
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Utility functions
 #       \***********************/
 #
+
 
 def grid_subsampling(points, features=None, labels=None, sampleDl=0.1, verbose=0):
     """
