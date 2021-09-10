@@ -4,7 +4,7 @@ In this repository, we share the implementation of the paper [Learning Spatiotem
  - Easily reproduce the results presented in the paper
  - Possiblity to apply the network to other datasets
 
-
+ As shown in the next figure, in this repo, we provide the code for our **automated annotation** and **network training**. The whole simulation is ignored, and we provide preprocessed data instead. 
 
 ![Intro figure](./Data/github_im.png)
 
