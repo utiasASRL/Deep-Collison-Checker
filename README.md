@@ -45,7 +45,7 @@ cd cpp_wrappers
 
 ### Preprocessed data for fast reproducable results
 
-We provide preprocessed data coming from our simulator. Simply download this [zip file]() and extract its content in the `./Data` folder. 
+We provide preprocessed data coming from our simulator. Simply download this [zip file (~13GB)](https://drive.google.com/file/d/14sKVC3UnxmLTbJi3IJcFGhGPMTDKNWq9/view?usp=sharing) and extract its content in the `./Data` folder. 
 
 You should end up with the folder `./Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
 
@@ -58,7 +58,7 @@ Eventually the folder `./Data/Simulation/calibration` contains the lidar extrins
 
 If you want to use our network on your own data, the first simple solution is to reproduce the exact same format for your own data. 
 
-1) modify the calibration file according to your own lidar calibration. 
+1) modify the calibration file according to your own lidar calibration.
 2) Create a file `./Data/Simulation/slam_offline/YYYY-MM-DD-HH-MM-SS/map_update_0001.ply`. See our [pointmap creation code](SOGM-3D-2D-Net/datasets/MyhalCollision.py#L1724) for how to create such a map. 
 3) Organise every data folder in `./Data/Simulation/simulated_runs` as follows:
 
