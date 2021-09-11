@@ -45,7 +45,7 @@ cd cpp_wrappers
 
 ### Preprocessed data for fast reproducable results
 
-We provide preprocessed data coming from our simulator. Simply download this [zip file (~13GB)](https://drive.google.com/file/d/14sKVC3UnxmLTbJi3IJcFGhGPMTDKNWq9/view?usp=sharing) and extract its content in the `./Data` folder. 
+We provide preprocessed data coming from our simulator. Simply download this zip file (~13GB) [google drive link](https://drive.google.com/file/d/14sKVC3UnxmLTbJi3IJcFGhGPMTDKNWq9/view?usp=sharing) [direct link](ftp://asrl3.utias.utoronto.ca/2021-Myhal-Simulation/simulation_data.zip) and extract its content in the `./Data` folder. 
 
 You should end up with the folder `./Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
 
