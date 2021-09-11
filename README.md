@@ -49,16 +49,6 @@ We provide preprocessed data coming from our simulator as a zip file (~13GB):
 - [google drive link](https://drive.google.com/file/d/14sKVC3UnxmLTbJi3IJcFGhGPMTDKNWq9/view?usp=sharing)
 - ftp link: `wget ftp://asrl3.utias.utoronto.ca/2021-Myhal-Simulation/simulated_data.zip`
 
-
-- [direct link](http://asrl3.utias.utoronto.ca:5000/fbsharing/Uac4OjJn)
-
-- [direct link 2 ](http://128.100.201.179:5000/fbsharing/Uac4OjJn)
-
-- ftp link: `wget ftp://128.100.201.179/2021-Myhal-Simulation/simulated_data.zip`
-
-
-ftp://asrl3.utias.utoronto.ca/2021-Myhal-Simulation/simulation_data.zip
-
 Extract the content in the `./Data` folder. You should end up with the folder `./Data/Simulation/simulated_runs`, containing 20 dated folders. The first one contains the mapping session of the environment. The rest are sessions performed among Bouncers.
 
 In the folder `./Data/Simulation/slam_offline`, we provide the preprocessed results of the mapping session. A *.ply* file containing the pointmap of the environment.
