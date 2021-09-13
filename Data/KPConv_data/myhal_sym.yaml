@@ -1,0 +1,31 @@
+# This file is covered by the LICENSE file in the root of this project.
+labels: 
+  0 : "uncertain"
+  1 : "ground"
+  2 : "still"
+  3 : "longT"
+  4 : "shortT"
+color_map: # bgr
+  0 : [209, 209, 209]
+  1 : [122, 122, 122]
+  2 : [255, 255, 0]
+  3 : [0, 98, 255]
+  4 : [255, 0, 0]
+learning_map:
+  0: 0
+  1: 1
+  2: 2
+  3: 3
+  4: 4
+learning_map_inv: # inverse of previous map
+  0: 0
+  1: 1
+  2: 2
+  3: 3
+  4: 4
+learning_ignore: # Ignore classes
+  0: True
+  1: False
+  2: False
+  3: False
+  4: False

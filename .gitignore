@@ -2,6 +2,8 @@ SOGM-3D-2D-Net/results
 
 Data/*
 !Data/github_im.png
+!Data/KPConv_data
+Data/KPConv_data/*
 !Data/KPConv_data/myhal_sym.yaml
 
 
