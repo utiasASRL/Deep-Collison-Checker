@@ -112,61 +112,40 @@ def pcd_update_from_ply(ply_name, pcd, H_frame, scalar_field='classif'):
 
 if __name__ == '__main__':
 
-    train_days_RandWand = ['2021-03-19-22-58-27',
-                           '2021-03-19-23-07-18',
-                           '2021-03-19-23-26-42',
-                           '2021-03-19-23-47-49',
-                           '2021-03-19-23-54-55',
-                           '2021-03-20-00-12-29',
-                           '2021-03-20-00-25-03',
-                           '2021-03-20-00-38-13',
-                           '2021-03-20-00-50-36',
-                           '2021-03-20-01-12-54',
-                           '2021-03-20-01-21-43',
-                           '2021-03-20-01-33-11',
-                           '2021-03-20-02-01-40',
-                           '2021-03-20-02-09-17',
-                           '2021-03-20-02-26-40']
-
-    train_days_RandFlow_old = ['2021-03-23-18-25-53',
-                               '2021-03-23-18-46-44',
-                               '2021-03-23-19-00-19',
-                               '2021-03-23-19-10-40',
-                               '2021-03-23-19-24-04',
-                               '2021-03-23-19-30-09',
-                               '2021-03-23-19-41-16',
-                               '2021-03-23-19-52-42',
-                               '2021-03-23-20-05-42',
-                               '2021-03-23-20-12-16',
-                               '2021-03-23-20-24-52',
-                               '2021-03-23-20-35-45',
-                               '2021-03-23-20-44-11',
-                               '2021-03-23-20-57-59']
-
-    train_days_RandFlow = ['2021-03-26-16-53-44',
-                           '2021-03-26-17-22-31',
-                           '2021-03-26-18-02-18',
-                           '2021-03-26-18-58-03',
-                           '2021-03-26-19-22-03',
-                           '2021-03-26-20-09-03',
-                           '2021-03-26-21-07-18',
-                           '2021-03-26-21-34-51',
-                           '2021-03-26-22-20-38']
+    train_days_RandBounce = ['2021-05-15-23-15-09',
+                             '2021-05-15-23-33-25',
+                             '2021-05-15-23-54-50',
+                             '2021-05-16-00-44-53',
+                             '2021-05-16-01-09-43',
+                             '2021-05-16-20-37-47',
+                             '2021-05-16-20-59-49',
+                             '2021-05-16-21-22-30',
+                             '2021-05-16-22-26-45',
+                             '2021-05-16-22-51-06',
+                             '2021-05-16-23-34-15',
+                             '2021-05-17-01-21-44',
+                             '2021-05-17-01-37-09',
+                             '2021-05-17-01-58-57',
+                             '2021-05-17-02-34-27',
+                             '2021-05-17-02-56-02',
+                             '2021-05-17-03-54-39',
+                             '2021-05-17-05-26-10',
+                             '2021-05-17-05-41-45']
 
 
 
     # List of days we want to create video from
-    my_days = train_days_RandFlow
+    my_days = train_days_RandBounce
 
     #day_list = day_list[1:]
 
     # Path of the original simu
-    simu_path = '../../../Myhal_Simulation/simulated_runs/'
+    simu_path = '../Data/Simulation/simulated_runs/'
 
     # path of the classified frames
-    path = '../../../Myhal_Simulation/annotated_frames'
-    #path = '../../../Myhal_Simulation/predicted_frames'
-    #path = '../../../Myhal_Simulation/simulated_runs'
+    path = '../Data/Simulation/annotated_frames'
+    #path = '../Data/Simulation/predicted_frames'
+    #path = '../Data/Simulation/simulated_runs'
 
     # Name of folder where frames are stored (if any)
     if path.endswith('annotated_frames') or path.endswith('predicted_frames'):
@@ -180,7 +159,7 @@ if __name__ == '__main__':
         raise ValueError('wrong path for frames video')
 
     # Path where we save the videos
-    res_path = '../../../Myhal_Simulation/annot_videos'
+    res_path = '../Data/Simulation/annot_videos'
     if not exists(res_path):
         makedirs(res_path)
 
