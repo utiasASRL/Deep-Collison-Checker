@@ -2157,13 +2157,11 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    # plotting = 'evo'  # Evolution of predictions from checkpoints to checkpoints
-
-    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
     # plotting = 'PR'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
@@ -2197,12 +2195,8 @@ if __name__ == '__main__':
     ################
     # Plot functions
     ################
-
-    if plotting == 'evo':
-        # Evolution of predictions from checkpoints to checkpoints
-        evolution_gifs(logs[1])
         
-    elif plotting == 'gifs':
+    if plotting == 'gifs':
         # Comparison of last checkpoints of each logs
         comparison_gifs(logs, wanted_inds=wanted_inds)
         #comparison_gifs(logs[[2]])
