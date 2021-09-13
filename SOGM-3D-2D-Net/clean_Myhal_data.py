@@ -70,15 +70,8 @@ def load_gt_poses(simu_path, day):
     return day_gt_t, day_gt_H
 
 
-# ----------------------------------------------------------------------------------------------------------------------
-#
-#           Main Call
-#       \***************/
-#
-
-
-if __name__ == '__main__':
-
+def remove_files():
+    
     # In this script we take the data from the simulator which has a lot of redundancy
     # and we remove every unecessary file to make it a minimal dataset, such as one 
     # coming from another source that the simulator.
@@ -111,7 +104,6 @@ if __name__ == '__main__':
     #
     #
     #
-
 
     # Path to the data
     data_path = '../Data/Simulation/simulated_runs'
@@ -152,4 +144,21 @@ if __name__ == '__main__':
                 shutil.rmtree(rm_path)
             else:
                 remove(rm_path)
+
+    return
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#
+#           Main Call
+#       \***************/
+#
+
+
+if __name__ == '__main__':
+
+    remove_files()
+
+    
 
