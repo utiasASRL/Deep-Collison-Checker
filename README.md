@@ -43,6 +43,8 @@ cd cpp_wrappers
 
 ## Data
 
+git filter-branch --prune-empty -d /dev/shm/scratch  --index-filter "git rm --cached -f --ignore-unmatch core" --tag-name-filter cat -- --all
+
 ### Preprocessed data for fast reproducable results
 
 We provide preprocessed data coming from our simulator as a zip file (~13GB): 
