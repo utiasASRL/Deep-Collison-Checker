@@ -3,6 +3,8 @@ Data/KPConv_data/*
 Data/KPConv_results/*
 Data/Simulation/*
 
+SOGM-3D-2D-Net/core
+
 **/desktop.ini
 git_login.sh
 **/build/**
