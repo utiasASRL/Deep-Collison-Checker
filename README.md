@@ -62,7 +62,7 @@ Alternatively, we provide ftp links, for direct download:
 
 First download the map and calibration files. Extract the content in the `./Data` folder. In the folder `./Data/Simulation/slam_offline`, we you will find the preprocessed results of the mapping session: a *.ply* file containing the pointmap of the environment. The folder `./Data/Simulation/calibration` contains the lidar extrinsec calibration.
 
-Then, choose which serssions you want (if not all of them), downlaod and extract them in the `./Data` folder too. You should end up with the folder `./Data/Simulation/simulated_runs`, containing sessions named by dates: `YYYY-MM-DD-HH-MM-SS`.
+Then, choose which sessions you want (if not all of them), download and extract them in the `./Data` folder too. You should end up with the folder `./Data/Simulation/simulated_runs`, containing sessions named by dates: `YYYY-MM-DD-HH-MM-SS`.
 
 
 ### Instructions to apply on a different dataset
