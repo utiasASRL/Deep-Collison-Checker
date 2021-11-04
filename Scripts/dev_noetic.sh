@@ -59,7 +59,7 @@ other_args="-v $XSOCK:$XSOCK \
 docker run $docker_args \
 $volumes \
 $other_args \
---name "$USER-noetic_pytorch-dev" \
+--name "dev-$USER-noetic_pytorch" \
 noetic_pytorch_$USER
 
 source ~/.bashrc

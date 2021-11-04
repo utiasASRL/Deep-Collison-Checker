@@ -31,7 +31,7 @@ Our code uses c++ wrappers, like the original KPConv repo. They are very esay to
 
 ```
 cd Scripts
-./run_in_container.sh - " "
+./run_in_container.sh -c " "
 ```
 
 Then Go to the cpp_wrappers folder and start the compile script.
