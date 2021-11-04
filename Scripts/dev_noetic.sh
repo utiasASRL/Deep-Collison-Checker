@@ -49,11 +49,9 @@ other_args="-v $XSOCK:$XSOCK \
     -v $XAUTH:$XAUTH \
     --net=host \
     --privileged \
-	  -e XAUTHORITY=${XAUTH} \
+	-e XAUTHORITY=${XAUTH} \
     -e DISPLAY=$DISPLAY \
-    -e ROS_MASTER_URI=http://$HOSTNAME:$rosport \
-    -e GAZEBO_MASTER_URI=http://$HOSTNAME:$gazport \
-    -e ROSPORT=$rosport "
+    -w /home/$USER/Deep-Collison-Checker"
 
 # Execute the command in docker (Example of command: ./master.sh -ve -m 2 -p Sc1_params -t A_tour)
 docker run $docker_args \
@@ -62,5 +60,4 @@ $other_args \
 --name "dev-$USER-noetic_pytorch" \
 noetic_pytorch_$USER
 
-source ~/.bashrc
 

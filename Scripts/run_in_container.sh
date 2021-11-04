@@ -53,9 +53,6 @@ other_args="-v $XSOCK:$XSOCK \
     --privileged \
 	-e XAUTHORITY=${XAUTH} \
     -e DISPLAY=$DISPLAY \
-    -e ROS_MASTER_URI=http://$HOSTNAME:$rosport \
-    -e GAZEBO_MASTER_URI=http://$HOSTNAME:$gazport \
-    -e ROSPORT=$rosport \
     -w /home/$USER/Deep-Collison-Checker/SOGM-3D-2D-Net"
 
 # python command started in the docker
