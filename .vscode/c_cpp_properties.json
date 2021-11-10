@@ -9,7 +9,7 @@
             "includePath": [
                 "/opt/ros/noetic/include/**",
                 "/usr/include/**",
-                "/usr/include/python3.6/*",
+                "/usr/include/python3.8/*",
                 "${workspaceFolder}/**"
             ],
             "defines": [],

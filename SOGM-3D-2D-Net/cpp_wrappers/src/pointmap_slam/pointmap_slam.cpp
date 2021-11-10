@@ -443,6 +443,171 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 
 
 
+Eigen::MatrixXd call_on_real_sequence(string& frame_names,
+	vector<double>& frame_times,
+	Eigen::MatrixXd& odom_H,
+	vector<PointXYZ>& init_pts,
+	vector<PointXYZ>& init_normals,
+	vector<float>& init_scores,
+	SLAM_params& slam_params,
+	string save_path)
+{
+	// --------------------------------------------------------------------------------
+	//
+	//	This function start a SLAM on a sequence of frames that come from a simulator.
+	//	It uses the groundtruth to verify that the SLAM is not making any mistake.
+	//
+	// --------------------------------------------------------------------------------
+
+	////////////////////////
+	// Initiate variables //
+	////////////////////////
+
+	// Create a the SLAM class
+	PointMapSLAM mapper(slam_params, init_pts, init_normals, init_scores);
+
+	// Results container
+	Eigen::MatrixXd all_H = Eigen::MatrixXd::Zero(4 * frame_times.size(), 4);
+
+	// Timing
+	float fps = 0.0;
+	float fps_regu = 0.9;
+
+
+	////////////////
+	// Start SLAM //
+	////////////////
+
+	// Frame index
+	size_t frame_i = 0;
+	clock_t last_disp_t1 = clock();
+
+	// Loop on the lines of "frame_names" string
+	istringstream iss(frame_names);
+	for (string line; getline(iss, line);)
+	{
+
+		// Load frame
+		// **********
+
+		// Load ply file
+		vector<int> loc_labels = {0, 1, 2, 3};
+		vector<PointXYZ> f_pts;
+
+		if (slam_params.filtering)
+		{
+			vector<PointXYZ> raw_f_pts;
+			vector<float> float_scalar;
+			vector<int> categories;
+			string float_scalar_name = "";
+			string int_scalar_name = "cat";
+			load_cloud(line, raw_f_pts, float_scalar, float_scalar_name, categories, int_scalar_name);
+
+			// Only get point from valid categories
+			f_pts.reserve(raw_f_pts.size());
+			int i = 0;
+			for (auto& p: raw_f_pts)
+			{
+				// Add points with good labels
+				if (find(loc_labels.begin(), loc_labels.end(), categories[i]) != loc_labels.end())
+					f_pts.push_back(p);
+				i++;
+			}
+		}
+		else
+		{
+			load_cloud(line, f_pts);
+		}
+
+
+		// Map this frame
+		// **************
+
+		clock_t t0 = clock();
+
+		// Get odometry matrix (pose of the scanner in odometry world frame)
+		Eigen::Matrix4d H_OdomToScanner = odom_H.block(frame_i * 4, 0, 4, 4);
+
+		// Get frame pose and update map
+		mapper.add_new_frame(f_pts, H_OdomToScanner, 0);
+
+		// Save transform
+		all_H.block(frame_i * 4, 0, 4, 4) = mapper.last_H;
+
+		clock_t t1 = clock();
+
+		// // Debug: compare pose to gt
+		// // *************************
+
+		// // Get rotation and translation error
+		// Eigen::Matrix3d R2 = gt_init_H.block(0, 0, 3, 3);
+		// Eigen::Matrix3d R1 = mapper.last_H.block(0, 0, 3, 3);
+		// Eigen::Vector3d T2 = gt_init_H.block(0, 3, 3, 1);
+		// Eigen::Vector3d T1 = mapper.last_H.block(0, 3, 3, 1);
+		// R1 = R2 * R1.transpose();
+		// T1 = T2 - T1;
+		// float T_error = T1.norm();
+		// float R_error = acos((R1.trace() - 1) / 2);
+
+		// if (T_error > 1.0 || R_error > 10.0 * M_PI / 180)
+		// {
+		// 	cout << endl << "*************************************************" << endl;
+		// 	cout << "Error in the mapping:" << endl;
+		// 	cout << "T_error = " << T_error << endl;
+		// 	cout << "R_error = " << R_error << endl;
+		// 	cout << "Stopping mapping and saving debug frames" << endl;
+		// 	char buffer[100];
+		// 	sprintf(buffer, "Frame %d named %s", (int)frame_i, line);
+		// 	cout << string(buffer) << endl;
+		// 	cout <<"*************************************************" << endl << endl;
+		// 	save_cloud("debug_map.ply", mapper.map.cloud.pts, mapper.map.normals, mapper.map.scores);
+		// 	break;
+		// }
+
+		// if (frame_i % 100 == 0)
+		// {
+		// 	char buffer[100];
+		// 	sprintf(buffer, "cc_map_%05d.ply", (int)frame_i);
+		// 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
+		// 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+		// 	save_cloud(string(buffer), mapper.map.cloud.pts, mapper.map.normals, counts);
+		// }
+
+		// Timing
+		// ******
+
+		double duration = (t1 - t0) / (double)CLOCKS_PER_SEC;
+		fps = fps_regu * fps + (1.0 - fps_regu) / duration;
+
+		if (slam_params.verbose_time > 0 && (t1 - last_disp_t1) / (double)CLOCKS_PER_SEC > slam_params.verbose_time)
+		{
+			double remaining_sec = (frame_times.size() - frame_i) / fps;
+			int remaining_min = (int)floor(remaining_sec / 60.0);
+			remaining_sec = remaining_sec - remaining_min * 60.0;
+			char buffer[100];
+			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_i, frame_times.size(), fps, remaining_min, remaining_sec);
+			cout << string(buffer) << endl;
+			last_disp_t1 = t1;
+		}
+
+		frame_i++;
+
+	}
+
+
+	// Save map in a ply file init containers with results
+	size_t ns1 = 19;
+	size_t ns0 = save_path.size() - ns1;
+	string day_str = save_path.substr(ns0, ns1);
+	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
+	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, counts);
+
+	return all_H;
+}
+
+
+
 
 
 

@@ -1,8 +1,8 @@
 #
 #
-#      0=================================0
-#      |    Kernel Point Convolutions    |
-#      0=================================0
+#      0==============================0
+#      |    Deep Collision Checker    |
+#      0==============================0
 #
 #
 # ----------------------------------------------------------------------------------------------------------------------
@@ -74,10 +74,10 @@ class MyhalCollisionSlam:
         self.name = 'MyhalCollisionSlam'
 
         # Data path
-        self.original_path = '../Data/Simulation'
+        self.original_path = '../Data/Real'
         self.data_path = self.original_path
-        self.days_folder = join(self.original_path, 'simulated_runs')
-        self.frame_folder_name = 'sim_frames'
+        self.days_folder = join(self.original_path, 'runs')
+        self.frame_folder_name = 'velodyne_frames'
         self.map_day = map_day
 
         # List of days
@@ -1870,11 +1870,92 @@ class MyhalCollisionSlam:
     def init_map(self, map_folder, map_dl=0.03):
 
         # Map is initiated by removing movable points with its own trajectory
+        #   > Step 0: REdo the point map from scratch
         #   > Step 1: annotate short-term movables for each frame
         #   > Step 2: Do a pointmap slam without the short-term movables (enforce horizontal planar ground)
         #   > Step 3: Apply loop closure on the poses of this second slam
         #   > Step 4: With the corrected poses and the full point clouds, create a barycentre pointmap
         #   > Step 5: Remove the short-term movables from this good map.
+
+
+        #####################################
+        # Annotate short-term on original map
+        #####################################
+
+        print(self.map_f_names)
+
+        map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
+
+        print(map_t)
+        
+        correct_H = slam_on_sim_sequence(self.map_f_names,
+                                            map_t,
+                                            map_H,
+                                            map_t,
+                                            map_folder,
+                                            init_points=world_points,
+                                            init_normals=world_normals,
+                                            init_scores=world_scores,
+                                            map_voxel_size=map_dl,
+                                            frame_voxel_size=3 * map_dl,
+                                            motion_distortion=False,
+                                            filtering=True,
+                                            verbose_time=5,
+                                            icp_samples=600,
+                                            icp_pairing_dist=2.0,
+                                            icp_planar_dist=0.3,
+                                            icp_max_iter=100,
+                                            icp_avg_steps=5,
+                                            odom_H=odom_H)
+
+        # TODO: HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEERRRRRRRREEEEEEEEEEE
+
+        a = 1/0
+        
+
+
+        # Odometry is given as Scanner to Odom so we have to invert matrices
+        odom_H = [np.linalg.inv(odoH) for odoH in map_H]
+        odom_H = np.stack(odom_H, 0)
+
+        correct_H = slam_on_sim_sequence(new_frame_names,
+                                            map_t,
+                                            map_H,
+                                            map_t,
+                                            map_folder,
+                                            init_points=world_points,
+                                            init_normals=world_normals,
+                                            init_scores=world_scores,
+                                            map_voxel_size=map_dl,
+                                            frame_voxel_size=3 * map_dl,
+                                            motion_distortion=False,
+                                            filtering=True,
+                                            verbose_time=5,
+                                            icp_samples=600,
+                                            icp_pairing_dist=2.0,
+                                            icp_planar_dist=0.3,
+                                            icp_max_iter=100,
+                                            icp_avg_steps=5,
+                                            odom_H=odom_H)
+
+        # Apply offset so that traj is aligned with groundtruth
+        # correct_H = correct_H
+
+        # Save the new corrected trajectory
+        save_trajectory(
+            join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)),
+            correct_H)
+        with open(
+                join(map_folder,
+                        'correct_traj_{:s}.pkl'.format(self.map_day)),
+                'wb') as file:
+            pickle.dump(correct_H, file)
+
+
+
+
+
+
 
         #####################################
         # Annotate short-term on original map
@@ -1922,8 +2003,7 @@ class MyhalCollisionSlam:
             pointmap = PointMap(map_dl)
             data = read_ply(first_annot_name)
             pointmap.points = np.vstack((data['x'], data['y'], data['z'])).T
-            pointmap.normals = np.vstack(
-                (data['nx'], data['ny'], data['nz'])).T
+            pointmap.normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
             movable_prob = data['movable']
             movable_count = data['counts']
             print('OK')

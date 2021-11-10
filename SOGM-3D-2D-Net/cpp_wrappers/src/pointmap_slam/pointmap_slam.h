@@ -144,3 +144,12 @@ Eigen::MatrixXd call_on_sim_sequence(string &frame_names,
 									 vector<float> &init_scores,
 									 SLAM_params &slam_params,
 									 string save_path);
+
+Eigen::MatrixXd call_on_real_sequence(string &frame_names,
+									  vector<double> &frame_times,
+									  Eigen::MatrixXd &odom_H,
+									  vector<PointXYZ> &init_pts,
+									  vector<PointXYZ> &init_normals,
+									  vector<float> &init_scores,
+									  SLAM_params &slam_params,
+									  string save_path);
