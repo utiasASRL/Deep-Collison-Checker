@@ -86,7 +86,9 @@
 			"typeinfo": "cpp",
 			"variant": "cpp",
 			"*.ipp": "cpp",
-			"*.txx": "cpp"
+			"*.txx": "cpp",
+			"core": "cpp",
+			"numericaldiff": "cpp"
 		},
 		"python.analysis.extraPaths": [
 			"src/classifier/src/cpp_wrappers/cpp_neighbors",

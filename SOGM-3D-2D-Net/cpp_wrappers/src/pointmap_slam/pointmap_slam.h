@@ -113,6 +113,7 @@ public:
 	// Container for the motion corrected frame used to update the map
 	vector<PointXYZ> corrected_frame;
 	vector<double> corrected_scores;
+	float t_min, t_max;
 
 	// Methods
 	// *******

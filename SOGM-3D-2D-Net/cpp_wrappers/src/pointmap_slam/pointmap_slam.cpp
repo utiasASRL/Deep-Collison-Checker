@@ -220,8 +220,8 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ>& f_pts, vector<float>& f_ts, v
 
 	// Min and max times (dont loop on the whole frame as it is useless)
 	float loop_ratio = 0.01;
-	float t_min = f_ts[0];
-	float t_max = f_ts[0];
+	t_min = f_ts[0];
+	t_max = f_ts[0];
 	for (int j = 0; (float)j < loop_ratio * (float)f_ts.size();  j++)
 	{
 		if (f_ts[j] < t_min)
@@ -714,7 +714,8 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, 0);
 
 		// Save transform
-		all_H.block(frame_ind * 4, 0, 4, 4) = mapper.params.icp_params.last_transform0;
+		all_H.block(frame_ind * 4, 0, 4, 4) = mapper.params.icp_params.last_transform1;
+		all_times.push_back(mapper.t_max);
 
 		// Save position for loop closure
 		float closure_d =  2.0;
@@ -722,15 +723,14 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		float save_d = closure_d / 2;
 		float save_d2 = save_d * save_d;
 		float closure_t = 20.0;
-		PointXYZ current_position(mapper.params.icp_params.last_transform0(0, 3),
-								  mapper.params.icp_params.last_transform0(1, 3),
-								  mapper.params.icp_params.last_transform0(2, 3));
+		PointXYZ current_position(mapper.params.icp_params.last_transform1(0, 3),
+								  mapper.params.icp_params.last_transform1(1, 3),
+								  mapper.params.icp_params.last_transform1(2, 3));
 
 
 		if ((current_position - all_positions.back()).sq_norm() > save_d2)
 		{
 			all_positions.push_back(current_position);
-			all_times.push_back(frame_time);
 			all_f_inds.push_back(frame_ind);
 		}
 
@@ -743,7 +743,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		int closure_ind = -1;
 		for (size_t i = 0; i < all_positions.size(); i++)
 		{
-			if ((frame_time - all_times[i]) > closure_t)
+			if ((frame_time - all_times[all_f_inds[i]]) > closure_t)
 			{
 				PointXYZ diff = all_positions[i] - current_position;
 				diff.z = 0;
@@ -777,9 +777,21 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			mapper.params.icp_params.motion_distortion = mapper.params.motion_distortion;
 
 
-			// 3. Correct all transforms
+			// 3. Correct all transforms (assumnes a constant drift)
+			float inv_factor = 1.0 / (float)(frame_ind - closure_ind);
+			Eigen::Matrix4d delta_H = icp_results.transform * mapper.params.icp_params.last_transform1.inverse();
+			for (size_t i = closure_ind + 1; i <= frame_ind; i++)
+			{
+				float t = (float)(i - closure_ind) * inv_factor;
+				Eigen::Matrix4d dH = pose_interp(t, Eigen::Matrix4d::Identity(4, 4), delta_H, 0);
+				all_H.block(i * 4, 0, 4, 4) = dH * all_H.block(i * 4, 0, 4, 4);
+			}
 
 			// 4. Reupdate map with new transforms until current frame
+			TODO
+
+			// Update mapper.map
+			mapper.map = clean_map;
 
 
 		}
