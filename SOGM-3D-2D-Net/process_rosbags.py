@@ -130,7 +130,7 @@ def main(save_velo=True,
 
                 # Save
                 write_ply(ply_path,
-                          [points, intensity, rings, times],
+                          [points, intensity, rings.astype(np.int32), times],
                           ['x', 'y', 'z', 'intensity', 'ring', 'time'])
 
             t2 = RealTime.time()

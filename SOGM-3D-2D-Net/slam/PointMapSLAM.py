@@ -34,7 +34,7 @@ from os.path import exists, join, isdir
 # Other function of the project
 from utils.ply import read_ply, write_ply
 from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, \
-    slam_on_sim_sequence, ray_casting_annot
+    slam_on_sim_sequence, ray_casting_annot, slam_on_real_sequence
 from slam.dev_slam import normal_filtering, bundle_icp, frame_H_to_points, estimate_normals_planarity_debug, \
     cart2pol, get_odometry, ssc_to_homo, extract_ground, save_trajectory
 
@@ -1892,9 +1892,22 @@ def annotation_process(dataset,
         if not exists(out_folder):
             makedirs(out_folder)
 
-        # Load poses
-        map_t, map_H = dataset.load_map_poses(day)
+        # Frame names
         f_names = dataset.day_f_names[d]
+
+        #################
+        # Initial mapping
+        #################
+
+        try:
+            # Get map_poses
+            map_t, map_H = dataset.load_map_poses(day)
+
+        except FileNotFoundError as e:
+
+            # If not available perfrom an initial mapping
+            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in f_names], dtype=np.float64)
+            map_H = None
 
         # Verify which frames we need:
         frame_names = []
@@ -1922,7 +1935,8 @@ def annotation_process(dataset,
 
         # Remove the double inds form map_t and map_H
         map_t = np.delete(map_t, remove_inds, axis=0)
-        map_H = np.delete(map_H, remove_inds, axis=0)
+        if map_H is not None:
+            map_H = np.delete(map_H, remove_inds, axis=0)
 
         #########################
         # Step 2: Frame alignment
@@ -1931,31 +1945,59 @@ def annotation_process(dataset,
         # Align frames on the map
         cpp_map_name = join(out_folder, 'map_{:s}.ply'.format(day))
         cpp_traj_name = join(out_folder, 'correct_traj_{:s}.pkl'.format(day))
+
         # Always redo because map might have changed
         if not exists(cpp_traj_name):
 
             # Align on map and add the points of this day
-            # (Do not perform ICP to correct pose as it is already supposed to be good)
-            odom_H = [np.linalg.inv(odoH) for odoH in map_H]
-            odom_H = np.stack(odom_H, 0)
-            correct_H = slam_on_sim_sequence(frame_names,
-                                             map_t,
-                                             map_H,
-                                             map_t,
-                                             out_folder,
-                                             init_points=map_points,
-                                             init_normals=map_normals,
-                                             init_scores=map_scores,
-                                             map_voxel_size=map_dl,
-                                             frame_voxel_size=3 * map_dl,
-                                             motion_distortion=False,
-                                             filtering=False,
-                                             icp_samples=600,
-                                             icp_pairing_dist=2.0,
-                                             icp_planar_dist=0.3,
-                                             icp_max_iter=0,
-                                             icp_avg_steps=5,
-                                             odom_H=odom_H)
+
+            if map_H is None:
+                icp_max_iter = 100
+
+                if d == 0:
+                    init_H = np.array([[-1.0, 0.0, 0.0, 9.66],
+                                       [0.0, -1.0, 0.0, 0.00],
+                                       [0.0, 0.0, 1.0, 0.70],
+                                       [0.0, 0.0, 0.0, 1.00]], dtype=np.float64)
+
+                    odom_H = [np.linalg.inv(init_H) for _ in map_t]
+                    odom_H = np.stack(odom_H, 0)
+
+                elif d == 1:
+                    init_H = np.array([[0.989726383710, 0.14297442209, 0.00000000, 4.0],
+                                       [-0.14297442209, 0.98972638371, 0.00000000, 0.0],
+                                       [0.000000000000, 0.00000000000, 1.00000000, 0.9],
+                                       [0.000000000000, 0.00000000000, 0.00000000, 1.0]], dtype=np.float64)
+
+                    odom_H = [np.linalg.inv(init_H) for _ in map_t]
+                    odom_H = np.stack(odom_H, 0)
+
+                else:
+                    raise ValueError('Initial alignment not implemented')
+                    odom_H = None
+
+            else:
+                # (Do not perform ICP to correct pose as it is already supposed to be good)
+                icp_max_iter = 0
+                odom_H = [np.linalg.inv(odoH) for odoH in map_H]
+                odom_H = np.stack(odom_H, 0)
+
+            correct_H = slam_on_real_sequence(frame_names,
+                                              map_t,
+                                              out_folder,
+                                              init_points=map_points,
+                                              init_normals=map_normals,
+                                              init_scores=map_scores,
+                                              map_voxel_size=map_dl,
+                                              frame_voxel_size=3 * map_dl,
+                                              motion_distortion=True,
+                                              filtering=False,
+                                              icp_samples=600,
+                                              icp_pairing_dist=2.0,
+                                              icp_planar_dist=0.3,
+                                              icp_max_iter=icp_max_iter,
+                                              icp_avg_steps=5,
+                                              odom_H=odom_H)
 
             # Save traj
             with open(cpp_traj_name, 'wb') as file:

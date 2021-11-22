@@ -463,14 +463,22 @@ public:
 		update_idx = 0;
 	}
 	PointMap(const float dl0,
-		const float max_dist0,
-		vector<PointXYZ>& init_points,
-		vector<PointXYZ>& init_normals,
-		vector<float>& init_scores) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
+			 const float max_dist0,
+			 vector<PointXYZ> &init_points,
+			 vector<PointXYZ> &init_normals,
+			 vector<float> &init_scores) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
 		dl = dl0;
 		update_idx = -1;
-		update(init_points, init_normals, init_scores);
+		update(init_points, init_normals, init_scores, -1);
+	}
+
+	PointMap(const PointMap &map0,
+			 const size_t max_ind) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
+	{
+		dl = map0.dl;
+		update_idx = max_ind;
+		copy_until(map0, max_ind);
 	}
 
 	// Size of the map (number of point/voxel in the map)
@@ -506,7 +514,7 @@ public:
 	}
 
 	// Update map with a set of new points
-	void update(vector<PointXYZ>& points0, vector<PointXYZ>& normals0, vector<float>& scores0)
+	void update(vector<PointXYZ>& points0, vector<PointXYZ>& normals0, vector<float>& scores0, int ind0)
 	{
 
 		// Reserve new space if needed
@@ -548,12 +556,69 @@ public:
 			// Update the point count
 			if (samples.count(k0) < 1)
 			{
-				init_sample(k0, p, normals0[i], scores0[i], update_idx);
+				init_sample(k0, p, normals0[i], scores0[i], ind0);
 				num_added++;
 			}
 			else
 			{
 				update_sample(samples[k0], p, normals0[i], scores0[i]);
+			}
+			i++;
+		}
+
+		// Update tree
+		tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
+
+		// Update frame count
+		update_idx++;
+
+	}
+
+	// Update map with a set of new points
+	void copy_until(const PointMap &map0, const size_t max_ind)
+	{
+		// Reserve new space if needed
+		if (samples.size() < 1)
+			samples.reserve(10 * map0.cloud.pts.size());
+		if (cloud.pts.capacity() < cloud.pts.size() + map0.cloud.pts.size())
+		{
+			cloud.pts.reserve(cloud.pts.capacity() + map0.cloud.pts.size());
+			counts.reserve(counts.capacity() + map0.cloud.pts.size());
+			normals.reserve(normals.capacity() + map0.cloud.pts.size());
+			scores.reserve(scores.capacity() + map0.cloud.pts.size());
+		}
+
+		// Initialize variables
+		float inv_dl = 1 / dl;
+		size_t i = 0;
+		VoxKey k0;
+		size_t num_added = 0;
+
+		for (auto& p : map0.cloud.pts)
+		{
+			// Stop when reaching the current index
+			if (map0.counts[i] > max_ind)
+				break;
+
+			// Position of point in sample map
+			PointXYZ p_pos = p * inv_dl;
+
+			// Corresponding key
+			k0.x = (int)floor(p_pos.x);
+			k0.y = (int)floor(p_pos.y);
+			k0.z = (int)floor(p_pos.z);
+
+			// check angle
+
+			// Update the point count
+			if (samples.count(k0) < 1)
+			{
+				init_sample(k0, p, map0.normals[i], map0.scores[i], map0.counts[i]);
+				num_added++;
+			}
+			else
+			{
+				update_sample(samples[k0], p, map0.normals[i], map0.scores[i]);
 			}
 			i++;
 		}

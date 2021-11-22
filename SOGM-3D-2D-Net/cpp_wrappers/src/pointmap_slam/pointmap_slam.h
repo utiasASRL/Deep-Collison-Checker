@@ -64,6 +64,8 @@ public:
 	float r_scale;
 	int outl_rjct_passes;
 	float outl_rjct_thresh;
+	vector<float> polar_r2s;
+	float min_theta_radius;
 
 	// Methods
 	// *******
@@ -72,6 +74,7 @@ public:
 	SLAM_params()
 	{
 		lidar_n_lines = 32;
+		min_theta_radius = 0.015;
 		map_voxel_size = 0.08;
 		frame_voxel_size = 0.2;
 		motion_distortion = false;
@@ -79,8 +82,8 @@ public:
 		verbose_time = -1;
 		H_velo_base = Eigen::Matrix4d::Identity(4, 4);
 
-		h_scale = 0.5;
-		r_scale = 4.0;
+		h_scale = 0.3;
+		r_scale = 10.0;
 		outl_rjct_passes = 2;
 		outl_rjct_thresh = 0.003;
 	}
@@ -104,6 +107,13 @@ public:
 	// Current pose correction from odometry to map
 	Eigen::Matrix4d H_OdomToMap;
 
+	// Indice of frame
+	int frame_i;
+
+	// Container for the motion corrected frame used to update the map
+	vector<PointXYZ> corrected_frame;
+	vector<double> corrected_scores;
+
 	// Methods
 	// *******
 
@@ -118,21 +128,26 @@ public:
 		if (init_points.size() > 0)
 		{
 			map.update_idx = -1;
-			map.update(init_points, init_normals, init_scores);
+			map.update(init_points, init_normals, init_scores, -1);
 		}
 
 		// Dummy first last_H
 		last_H = Eigen::Matrix4d::Identity(4, 4);
 		H_OdomToMap = Eigen::Matrix4d::Identity(4, 4);
+		frame_i = 0;
 	}
 
 	// Mapping functions
 	void init_map() { return; }
-	void add_new_frame(vector<PointXYZ> &f_pts, Eigen::Matrix4d &H_OdomToScanner, int verbose = 0);
+	void add_new_frame(vector<PointXYZ> &f_pts, vector<float>& f_ts, vector<int>& f_rings, Eigen::Matrix4d &H_OdomToScanner, int verbose = 0);
 };
 
 // Function declaration
 // ********************
+
+void load_annot(std::string& dataPath,
+	std::vector<int>& int_scalar,
+	std::string& int_scalar_name);
 
 Eigen::MatrixXd call_on_sim_sequence(string &frame_names,
 									 vector<double> &frame_times,

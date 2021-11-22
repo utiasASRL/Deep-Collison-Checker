@@ -6,6 +6,7 @@
 #include <random>
 #include <unordered_set>
 #include <numeric>
+#include <chrono>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -52,6 +53,9 @@ public:
 
 	// Initial transformation
 	Eigen::Matrix4d init_transform;
+	Eigen::Matrix4d last_transform0;
+	Eigen::Matrix4d last_transform1;
+	float last_time;
 
 	// Methods
 	// *******
@@ -69,6 +73,9 @@ public:
 		init_phi = 0.0;
 		motion_distortion = false;
 		init_transform = Eigen::Matrix4d::Identity(4, 4);
+		last_transform0 = Eigen::Matrix4d::Identity(4, 4);
+		last_transform1 = Eigen::Matrix4d::Identity(4, 4);
+		last_time = 0;
 	}
 };
 
@@ -152,8 +159,8 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 	ICP_params& params,
 	ICP_results& results);
 
-void PointToMapICP(vector<PointXYZ>& tgt_pts,
-	vector<float>& tgt_w,
+void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
+	vector<double>& tgt_w,
 	PointMap& map,
 	ICP_params& params,
 	ICP_results& results);

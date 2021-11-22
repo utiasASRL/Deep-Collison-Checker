@@ -633,7 +633,7 @@ def evolution_gifs(chosen_log):
 
     # Get training and validation days
     val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
+    val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
 
     # Util ops
     softmax = torch.nn.Softmax(1)
@@ -1010,7 +1010,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
 
         # Get training and validation days
         val_path = join(chosen_log, 'val_preds')
-        val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
+        val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
 
         # Util ops
         softmax = torch.nn.Softmax(1)
@@ -1286,7 +1286,6 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
 
     for frame_i, w_i in enumerate(wanted_inds):
    
-
         if True:  # Plot gifs
 
             # Colorize and zoom both preds and gts
@@ -1322,11 +1321,15 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
                 # Init plt
                 images.append(axes[ax_i].imshow(merged_imgs[log_i, 0]))
 
-                # # Save gif for the videos
-                # seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-                # frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
-                # im_name = 'results/Log_{:s}/gif_{:s}_{:s}_{:d}.gif'.format(seq_name, seq_name, frame_name, ax_i)
-                # imageio.mimsave(im_name, merged_imgs[log_i], fps=20)
+                # Save gif for the videos
+                seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+                frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+
+                sogm_folder = '../Data/Real/sogm_preds/Log_{:s}'.format(seq_name)
+                if not exists(sogm_folder):
+                    makedirs(sogm_folder)
+                im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, ax_i))
+                imageio.mimsave(im_name, merged_imgs[log_i], fps=20)
 
             def animate(i):
                 for ax_i, log_i in enumerate(c_showed):
@@ -1494,7 +1497,7 @@ def comparison_metrics(list_of_paths, list_of_names=None):
 
         # Get training and validation days
         val_path = join(chosen_log, 'val_preds')
-        val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
+        val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
 
         # Util ops
         softmax = torch.nn.Softmax(1)
@@ -2109,7 +2112,11 @@ def wanted_Bouncers(chosen_log):
     config = Config()
     config.load(chosen_log)
     val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f.split('_')[0] for f in listdir(val_path) if f.endswith('pots.ply')])
+    val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
+
+    print([f for f in listdir(val_path) if f.endswith('pots.ply')])
+
+    print(val_days)
 
     test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
     seq_inds = test_dataset.all_inds[:, 0]
@@ -2119,27 +2126,28 @@ def wanted_Bouncers(chosen_log):
     #######################################################################
     # Here choose which frame from which sequence you want to show and save
     # These are the one that we show in the paper
-    wanted_s = ['2021-05-15-23-15-09',
-                '2021-05-15-23-33-25',
-                '2021-05-15-23-33-25',
-                '2021-05-15-23-54-50',
-                '2021-05-15-23-54-50']
-    wanted_f = [300,
-                600,
-                750,
-                100,
+    wanted_s = ['2021-11-04_10-03-09',
+                '2021-11-04_10-03-09',
+                '2021-11-04_10-03-09',
+                '2021-11-04_10-03-09',
+                '2021-11-04_10-03-09']
+    wanted_f = [100,
+                200,
+                300,
+                400,
                 500]
     #######################################################################
 
     wanted_inds = []
     for seq, f_i in zip(wanted_s, wanted_f):
+
+        if (f_i + 4 >= frame_inds.shape[0]):
+            raise ValueError('Error: Asking frame number {:d} for sequence {:s}, with only {:d} frames'.format(f_i, seq, frame_inds.shape[0]))
+
         s_i = np.argwhere(val_days == seq)[0][0]
         mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
         w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i - 2, w_i, w_i + 2, w_i + 4]
-
-    # TMP
-    wanted_inds = [1400] + wanted_inds
+        wanted_inds += [w_i - 4, w_i, w_i + 4]
 
     return wanted_inds
 
@@ -2157,11 +2165,11 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
     # plotting = 'PR'  # Comparison of the performances with good metrics
 
-    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################

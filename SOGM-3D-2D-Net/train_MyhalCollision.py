@@ -119,9 +119,9 @@ class MyhalCollisionConfig(Config):
     loss2D_version = 2
 
     # Specification of the 2D networks composition
-    init_2D_levels = 4      # 3
-    init_2D_resnets = 3     # 2
-    prop_2D_resnets = 3     # 2
+    init_2D_levels = 3      # 3
+    init_2D_resnets = 2     # 2
+    prop_2D_resnets = 2     # 2
 
     # Path to a pretrained 3D network. if empty, ignore, if 'todo', then only train 3D part of the network.
     #pretrained_3D = 'Log_2021-01-27_18-53-05'
@@ -209,10 +209,10 @@ class MyhalCollisionConfig(Config):
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
-    epoch_steps = 500
+    epoch_steps = 100
 
     # Number of validation examples per epoch
-    validation_size = 30
+    validation_size = 10
 
     # Number of epoch between each checkpoint
     checkpoint_gap = 20
@@ -275,16 +275,24 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = GPU_ID
     chosen_gpu = int(GPU_ID)
 
+    print(chosen_gpu)
+
     ###################
     # Training sessions
     ###################
 
     # Day used as map
-    map_day = '2021-11-04_09-56-16'
+    # map_day = '2021-11-04_09-56-16'
+    # train_days = ['2021-11-04_10-03-09',
+    #               '2021-11-04_10-06-45']
 
+    map_day = '2021-11-16_19-42-45'
     train_days = ['2021-11-04_10-03-09',
-                  '2021-11-04_10-06-45']
-
+                  '2021-11-04_10-06-45',
+                  '2021-11-04_09-56-16',
+                  '2021-11-16_20-08-59',
+                  '2021-11-17_10-21-56',
+                  '2021-11-17_10-45-12',]
 
     ######################
     # Automatic Annotation
@@ -294,7 +302,7 @@ if __name__ == '__main__':
     train_days = np.array(train_days)
 
     # Validation sessions
-    val_inds = [0, 1, 2]
+    val_inds = [0]
     train_inds = [i for i in range(len(train_days)) if i not in val_inds]
 
     # Check if we need to redo annotation (only if there is no collison folder)
@@ -305,8 +313,7 @@ if __name__ == '__main__':
             redo_annot = True
             break
 
-    # train_days = ['2020-10-20-16-30-49']
-    # redo_annot = True
+    redo_annot = True
     if redo_annot:
 
         # Initiate dataset
@@ -314,7 +321,7 @@ if __name__ == '__main__':
 
         # Create a refined map from the map_day.
         # UNCOMMENT THIS LINE if you are using your own data for the first time
-        # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud 
+        # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud
         # like this one: Data/Simulation/slam_offline/2020-10-02-13-39-05/map_update_0001.ply
 
         slam_dataset.refine_map()

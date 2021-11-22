@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as scipyR
 from sklearn.neighbors import KDTree
 from slam.PointMapSLAM import PointMap, extract_map_ground, extract_ground
-from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, slam_on_sim_sequence, ray_casting_annot, get_lidar_visibility
+from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, slam_on_sim_sequence, ray_casting_annot, get_lidar_visibility, slam_on_real_sequence
 from slam.dev_slam import frame_H_to_points, interp_pose, rot_trans_diffs, normals_orientation, save_trajectory, RANSAC
 from utils.ply import read_ply, write_ply
 from utils.mayavi_visu import save_future_anim, fast_save_future_anim
@@ -135,13 +135,13 @@ class MyhalCollisionSlam:
         # Load GT poses
         ###############
 
-        if verbose:
-            print('\nLoading days groundtruth poses...')
-        t0 = time.time()
-        self.gt_t, self.gt_H = self.load_gt_poses()
-        t2 = time.time()
-        if verbose:
-            print('Done in {:.1f}s\n'.format(t2 - t0))
+        # if verbose:
+        #     print('\nLoading days groundtruth poses...')
+        # t0 = time.time()
+        # self.gt_t, self.gt_H = self.load_gt_poses()
+        # t2 = time.time()
+        # if verbose:
+        #     print('Done in {:.1f}s\n'.format(t2 - t0))
 
         ################
         # Load loc poses
@@ -433,17 +433,22 @@ class MyhalCollisionSlam:
 
         # Safe check for points equal to zero
         hr = np.sqrt(np.sum(points[:, :2]**2, axis=1))
-        points = points[hr > 1e-6]
-
         if np.sum((hr < 1e-6).astype(np.int32)) > 0:
+            points = points[hr > 1e-6]
             print('Warning: lidar frame with invalid points: frame_names[i].')
             a = 1 / 0
         return points
 
-    def load_frame_points_labels(self, frame_path):
+    def load_frame_points_labels(self, frame_path, label_path=None):
 
-        data = read_ply(frame_path)
-        points = np.vstack((data['x'], data['y'], data['z'])).T
+        data_p = read_ply(frame_path)
+        points = np.vstack((data_p['x'], data_p['y'], data_p['z'])).T
+
+        if label_path is None:
+            data = data_p
+        else:
+            data = read_ply(label_path)
+
 
         if 'category' in data.dtype.names:
             labels = data['category']
@@ -454,10 +459,9 @@ class MyhalCollisionSlam:
 
         # Safe check for points equal to zero
         hr = np.sqrt(np.sum(points[:, :2]**2, axis=1))
-        labels = labels[hr > 1e-6]
-        points = points[hr > 1e-6]
-
         if np.sum((hr < 1e-6).astype(np.int32)) > 0:
+            labels = labels[hr > 1e-6]
+            points = points[hr > 1e-6]
             print('Warning: lidar frame with invalid points: frame_names[i].')
             a = 1 / 0
 
@@ -1742,6 +1746,12 @@ class MyhalCollisionSlam:
             # Stop computation here as we have nothing to train on
             a = 1 / 0
 
+        else:
+
+            print('Error: Refine map not modified for motion distorsion yet')
+
+            a = 1/0
+
         # Now check if these days were already used for updating
         day_movable_names = [
             f for f in listdir(map_folder) if f.startswith('last_movables_')
@@ -1878,93 +1888,55 @@ class MyhalCollisionSlam:
         #   > Step 5: Remove the short-term movables from this good map.
 
 
-        #####################################
-        # Annotate short-term on original map
-        #####################################
+        #################
+        # Initial mapping
+        #################
 
-        print(self.map_f_names)
+        try:
+            # Get map_poses
+            from_nav = True
+            map_t, map_H = self.load_map_poses(self.map_day)
 
-        map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
+        except FileNotFoundError as e:
 
-        print(map_t)
-        
-        correct_H = slam_on_sim_sequence(self.map_f_names,
-                                            map_t,
-                                            map_H,
-                                            map_t,
-                                            map_folder,
-                                            init_points=world_points,
-                                            init_normals=world_normals,
-                                            init_scores=world_scores,
-                                            map_voxel_size=map_dl,
-                                            frame_voxel_size=3 * map_dl,
-                                            motion_distortion=False,
-                                            filtering=True,
-                                            verbose_time=5,
-                                            icp_samples=600,
-                                            icp_pairing_dist=2.0,
-                                            icp_planar_dist=0.3,
-                                            icp_max_iter=100,
-                                            icp_avg_steps=5,
-                                            odom_H=odom_H)
+            # If not available perfrom an initial mapping
+            from_nav = False
+            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
+            init_map_pkl = join(map_folder, 'map0_traj_{:s}.pkl'.format(self.map_day))
 
-        # TODO: HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEERRRRRRRREEEEEEEEEEE
+            if exists(init_map_pkl):
+                with open(init_map_pkl, 'rb') as file:
+                    map_H = pickle.load(file)
+            
+            else:
 
-        a = 1/0
-        
+                map_H = slam_on_real_sequence(self.map_f_names,
+                                              map_t,
+                                              map_folder,
+                                              map_voxel_size=map_dl,
+                                              frame_voxel_size=3 * map_dl,
+                                              motion_distortion=True,
+                                              filtering=False,
+                                              verbose_time=5.0,
+                                              icp_samples=600,
+                                              icp_pairing_dist=2.0,
+                                              icp_planar_dist=0.3,
+                                              icp_max_iter=100,
+                                              icp_avg_steps=5)
 
+                # Save the trajectory
+                save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
+                with open(init_map_pkl, 'wb') as file:
+                    pickle.dump(map_H, file)
 
-        # Odometry is given as Scanner to Odom so we have to invert matrices
-        odom_H = [np.linalg.inv(odoH) for odoH in map_H]
-        odom_H = np.stack(odom_H, 0)
-
-        correct_H = slam_on_sim_sequence(new_frame_names,
-                                            map_t,
-                                            map_H,
-                                            map_t,
-                                            map_folder,
-                                            init_points=world_points,
-                                            init_normals=world_normals,
-                                            init_scores=world_scores,
-                                            map_voxel_size=map_dl,
-                                            frame_voxel_size=3 * map_dl,
-                                            motion_distortion=False,
-                                            filtering=True,
-                                            verbose_time=5,
-                                            icp_samples=600,
-                                            icp_pairing_dist=2.0,
-                                            icp_planar_dist=0.3,
-                                            icp_max_iter=100,
-                                            icp_avg_steps=5,
-                                            odom_H=odom_H)
-
-        # Apply offset so that traj is aligned with groundtruth
-        # correct_H = correct_H
-
-        # Save the new corrected trajectory
-        save_trajectory(
-            join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)),
-            correct_H)
-        with open(
-                join(map_folder,
-                        'correct_traj_{:s}.pkl'.format(self.map_day)),
-                'wb') as file:
-            pickle.dump(correct_H, file)
-
-
-
-
-
-
+                # Rename the saved map file
+                old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
+                new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
+                os.rename(old_name, new_name)
 
         #####################################
         # Annotate short-term on original map
         #####################################
-
-        print('Load poses')
-
-        # Get map_poses
-        map_t, map_H = self.load_map_poses(self.map_day)
 
         # Verify which frames we need:
         frame_names = []
@@ -2013,9 +1985,13 @@ class MyhalCollisionSlam:
             print('Load pointmap')
 
             # Get the map
-            map_original_name = join(self.data_path, 'simulated_runs',
-                                     self.map_day, 'logs-' + self.map_day,
-                                     'pointmap_00000.ply')
+            if from_nav:
+                map_original_name = join(self.data_path, 'simulated_runs',
+                                         self.map_day, 'logs-' + self.map_day,
+                                         'pointmap_00000.ply')
+            else:
+                map_original_name = join(map_folder, 'map0_' + self.map_day + '.ply')
+
             data = read_ply(map_original_name)
             points = np.vstack((data['x'], data['y'], data['z'])).T
             normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
@@ -2092,21 +2068,22 @@ class MyhalCollisionSlam:
             t = [time.time()]
 
             # Load points
-            points, frame_labels = self.load_frame_points_labels(f_name)
+            points = self.load_frame_points(f_name)
 
             # Apply transf
             world_pts = np.hstack((points, np.ones_like(points[:, :1])))
-            world_pts = np.matmul(world_pts,
-                                  map_H[i].T).astype(np.float32)[:, :3]
+            world_pts = np.matmul(world_pts, map_H[i].T).astype(np.float32)[:, :3]
 
             # Get closest map points
             neighb_inds = np.squeeze(map_tree.query(world_pts, return_distance=False))
             frame_movable_prob = movable_prob[neighb_inds]
+            frame_ground_mask = ground_mask[neighb_inds]
 
             # Save frame with annotation
             categories = np.zeros(frame_movable_prob.shape, np.int32)
             categories[frame_movable_prob > 0.7] = 4
-            write_ply(new_f_name, [world_pts, categories], ['x', 'y', 'z', 'cat'])
+            categories[frame_ground_mask] = 1
+            write_ply(new_f_name, [categories], ['cat'])
 
             t += [time.time()]
             fps = fps_regu * fps + (1.0 - fps_regu) / (t[-1] - t[0])
@@ -2119,92 +2096,82 @@ class MyhalCollisionSlam:
                 last_t = t[-1]
         print('OK')
 
-        ###########################################
-        # Aligned the transformation on groundtruth
-        ###########################################
-        # This is not cheating as if we did not add ground truth, the map would be the ground truth
+        # ###########################################
+        # # Aligned the transformation on groundtruth
+        # ###########################################
+        # # This is not cheating as if we did not add ground truth, the map would be the ground truth
 
-        gt_t, gt_H = self.load_map_gt_poses()
+        # gt_t, gt_H = self.load_map_gt_poses()
 
-        # Do not align with the first frame in case it is not a good one
-        f_i0 = 3
-        f_t0 = map_t[f_i0]
+        # # Do not align with the first frame in case it is not a good one
+        # f_i0 = 3
+        # f_t0 = map_t[f_i0]
 
-        # Find closest gt poses
-        gt_i1 = np.argmin(np.abs(gt_t - f_t0))
-        if f_t0 < gt_t[gt_i1]:
-            gt_i0 = gt_i1 - 1
-        else:
-            gt_i0 = gt_i1
-            gt_i1 = gt_i0 + 1
+        # # Find closest gt poses
+        # gt_i1 = np.argmin(np.abs(gt_t - f_t0))
+        # if f_t0 < gt_t[gt_i1]:
+        #     gt_i0 = gt_i1 - 1
+        # else:
+        #     gt_i0 = gt_i1
+        #     gt_i1 = gt_i0 + 1
 
-        # Interpolate the ground truth pose at current time
-        interp_t = (f_t0 - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
-        frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
-        gt_H_velo_world = np.matmul(frame_H, self.H_velo_base)
+        # # Interpolate the ground truth pose at current time
+        # interp_t = (f_t0 - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
+        # frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
+        # gt_H_velo_world = np.matmul(frame_H, self.H_velo_base)
 
-        # Align everything
-        correction_H = np.matmul(gt_H_velo_world, np.linalg.inv(map_H[f_i0]))
-        map_H = [np.matmul(correction_H, mH) for mH in map_H]
-        map_H = np.stack(map_H, 0)
+        # # Align everything
+        # correction_H = np.matmul(gt_H_velo_world, np.linalg.inv(map_H[f_i0]))
+        # map_H = [np.matmul(correction_H, mH) for mH in map_H]
+        # map_H = np.stack(map_H, 0)
 
-        save_trajectory(
-            join(map_folder, 'init_traj_{:s}.ply'.format(self.map_day)), map_H)
+        # save_trajectory(
+        #     join(map_folder, 'init_traj_{:s}.ply'.format(self.map_day)), map_H)
 
-        # Save the grounbdtruth traj but of the velodyne pose
-        gt_H_velo_world = []
-        for f_i, f_t in enumerate(map_t):
+        # # Save the grounbdtruth traj but of the velodyne pose
+        # gt_H_velo_world = []
+        # for f_i, f_t in enumerate(map_t):
 
-            # Find closest gt poses
-            gt_i1 = np.argmin(np.abs(gt_t - f_t))
+        #     # Find closest gt poses
+        #     gt_i1 = np.argmin(np.abs(gt_t - f_t))
 
-            if gt_i1 == 0 or gt_i1 == len(gt_t) - 1:
-                continue
+        #     if gt_i1 == 0 or gt_i1 == len(gt_t) - 1:
+        #         continue
 
-            if f_t < gt_t[gt_i1]:
-                gt_i0 = gt_i1 - 1
-            else:
-                gt_i0 = gt_i1
-                gt_i1 = gt_i0 + 1
+        #     if f_t < gt_t[gt_i1]:
+        #         gt_i0 = gt_i1 - 1
+        #     else:
+        #         gt_i0 = gt_i1
+        #         gt_i1 = gt_i0 + 1
 
-            # Interpolate the ground truth pose at current time
-            interp_t = (f_t - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
-            frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
-            gt_H_velo_world.append(np.matmul(frame_H, self.H_velo_base))
+        #     # Interpolate the ground truth pose at current time
+        #     interp_t = (f_t - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
+        #     frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
+        #     gt_H_velo_world.append(np.matmul(frame_H, self.H_velo_base))
 
-        gt_H_velo_world = np.stack(gt_H_velo_world, 0)
-        save_trajectory(
-            join(map_folder, 'gt_traj_{:s}.ply'.format(self.map_day)),
-            gt_H_velo_world)
+        # gt_H_velo_world = np.stack(gt_H_velo_world, 0)
+        # save_trajectory(
+        #     join(map_folder, 'gt_traj_{:s}.ply'.format(self.map_day)),
+        #     gt_H_velo_world)
 
         ##########################
         # Make a horizontal ground
-        # ########################
+        ##########################
 
-        # Add the first frame in init point to avoid optimization problems
-        points, frame_labels = self.load_frame_points_labels(
-            new_frame_names[f_i0])
-        normals, planarity, linearity = polar_normals(points,
-                                                      radius=1.5,
-                                                      lidar_n_lines=31,
-                                                      h_scale=0.5,
-                                                      r_scale=1000.0)
-        norm_scores = planarity + linearity
-        points = points[norm_scores > 0.1]
-        normals = normals[norm_scores > 0.1]
-        world_points = np.hstack((points, np.ones_like(points[:, :1])))
-        world_points = np.matmul(world_points,
-                                 map_H[f_i0].T).astype(np.float32)[:, :3]
-        world_normals = np.matmul(normals,
-                                  map_H[f_i0][:3, :3].T).astype(np.float32)
-        world_scores = np.ones(world_points.shape[0], dtype=np.float32) * 0.1
+        # TODO HERE: Well it os not so horizontal...
+        # Maybe use something like imls for noise reduction on this flat surface
+        # instead of forcing globally flat ground, force local flat ground!
 
+        # Find the global transform that makes the ground flat and with height z = 0
+        global_correct_H = np.eye(4)
+        
         # Align all ground point on a horizontal plane (height does not matter so much as we correct it later)
         ground_points = pointmap.points[ground_mask]
-        heights = world_points[:, 2]
-        min_z = np.min(heights)
-        heights = heights[heights < min_z + 0.05]
-        ground_z = np.median(heights)
+        ground_pointsh = np.hstack((ground_points, np.ones_like(ground_points[:, :1])))
+        ground_points = np.matmul(ground_pointsh, global_correct_H.T).astype(np.float32)[:, :3]
+        
+        # Remove noise on the ground
+        ground_z = 0
         ground_points[:, 2] = ground_z
 
         # Only vertical normals
@@ -2215,14 +2182,39 @@ class MyhalCollisionSlam:
         ground_scores = np.ones(ground_points.shape[0],
                                 dtype=np.float32) * 0.99
 
+        # Add the first frame in init point to avoid optimization problems
+        # Hopefully during mapping the fist frame should not have motion distorsion
+        f_i0 = 1
+        points, labels = self.load_frame_points_labels(frame_names[f_i0], new_frame_names[f_i0])
+        normals, planarity, linearity = polar_normals(points,
+                                                      radius=1.5,
+                                                      lidar_n_lines=32,
+                                                      h_scale=0.5,
+                                                      r_scale=1000.0)
+        norm_scores = planarity + linearity
+        points = points[norm_scores > 0.1]
+        labels = labels[norm_scores > 0.1]
+        normals = normals[norm_scores > 0.1]
+
+        # Eliminate moving and ground points
+        points = points[labels == 0]
+        normals = normals[labels == 0]
+
+        # Reorient the first frame to be on the ground
+        frame_H = np.matmul(global_correct_H, map_H[f_i0])
+        world_points = np.hstack((points, np.ones_like(points[:, :1])))
+        world_points = np.matmul(world_points, frame_H.T).astype(np.float32)[:, :3]
+        world_normals = np.matmul(normals, frame_H[:3, :3].T).astype(np.float32)
+        world_scores = np.ones(world_points.shape[0], dtype=np.float32) * 0.1
+
         # Add ground to init points
         world_points = np.vstack((world_points, ground_points))
         world_normals = np.vstack((world_normals, ground_normals))
         world_scores = np.hstack((world_scores, ground_scores))
 
         # Save for debug
-        write_ply(join(map_folder,
-                       'horizontal_ground.ply'), [world_points, world_normals],
+        write_ply(join(map_folder, 'horizontal_ground.ply'),
+                  [world_points, world_normals],
                   ['x', 'y', 'z', 'nx', 'ny', 'nz'])
 
         print('OK')
@@ -2238,37 +2230,30 @@ class MyhalCollisionSlam:
             odom_H = [np.linalg.inv(odoH) for odoH in map_H]
             odom_H = np.stack(odom_H, 0)
 
-            correct_H = slam_on_sim_sequence(new_frame_names,
-                                             map_t,
-                                             map_H,
-                                             map_t,
-                                             map_folder,
-                                             init_points=world_points,
-                                             init_normals=world_normals,
-                                             init_scores=world_scores,
-                                             map_voxel_size=map_dl,
-                                             frame_voxel_size=3 * map_dl,
-                                             motion_distortion=False,
-                                             filtering=True,
-                                             verbose_time=5,
-                                             icp_samples=600,
-                                             icp_pairing_dist=2.0,
-                                             icp_planar_dist=0.3,
-                                             icp_max_iter=100,
-                                             icp_avg_steps=5,
-                                             odom_H=odom_H)
+            correct_H = slam_on_real_sequence(frame_names,
+                                              map_t,
+                                              map_folder,
+                                              init_points=world_points,
+                                              init_normals=world_normals,
+                                              init_scores=world_scores,
+                                              map_voxel_size=map_dl,
+                                              frame_voxel_size=3 * map_dl,
+                                              motion_distortion=True,
+                                              filtering=True,
+                                              verbose_time=5,
+                                              icp_samples=600,
+                                              icp_pairing_dist=2.0,
+                                              icp_planar_dist=0.3,
+                                              icp_max_iter=100,
+                                              icp_avg_steps=5,
+                                              odom_H=odom_H)
 
             # Apply offset so that traj is aligned with groundtruth
             # correct_H = correct_H
 
             # Save the new corrected trajectory
-            save_trajectory(
-                join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)),
-                correct_H)
-            with open(
-                    join(map_folder,
-                         'correct_traj_{:s}.pkl'.format(self.map_day)),
-                    'wb') as file:
+            save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
+            with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
                 pickle.dump(correct_H, file)
 
             # TODO: C++ function for creating a map with spherical barycenters of frames?
@@ -2276,25 +2261,19 @@ class MyhalCollisionSlam:
             # # Create a point map with all the points and sphere barycentres.
 
             # Instead just load c++ map and save it as the final result
-            data = read_ply(
-                join(map_folder, 'map_{:s}.ply'.format(self.map_day)))
+            data = read_ply(join(map_folder, 'map_{:s}.ply'.format(self.map_day)))
             pointmap.points = np.vstack((data['x'], data['y'], data['z'])).T
-            pointmap.normals = np.vstack(
-                (data['nx'], data['ny'], data['nz'])).T
+            pointmap.normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
             pointmap.scores = data['f1']
             pointmap.counts = data['f0']
-            write_ply(initial_map_file, [
-                pointmap.points, pointmap.normals, pointmap.scores,
-                pointmap.counts
-            ], ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
+            write_ply(initial_map_file,
+                      [pointmap.points, pointmap.normals, pointmap.scores, pointmap.counts],
+                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
 
         else:
 
             # Load traj
-            with open(
-                    join(map_folder,
-                         'correct_traj_{:s}.pkl'.format(self.map_day)),
-                    'rb') as f:
+            with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'rb') as f:
                 correct_H = pickle.load(f)
 
         # Optional stuff done for the ICRA video
@@ -2389,8 +2368,12 @@ class MyhalCollisionSlam:
                 makedirs(out_folder)
 
             # Load poses
-            map_t, map_H = self.load_map_poses(day)
             f_names = self.day_f_names[d]
+            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in f_names], dtype=np.float64)
+
+            cpp_traj_name = join(annot_folder, 'correct_traj_{:s}.pkl'.format(day))
+            with open(cpp_traj_name, 'rb') as f:
+                map_H = pickle.load(f)
 
             # Verify which frames we need:
             frame_names = []
@@ -2571,7 +2554,7 @@ class MyhalCollisionDataset(PointCloudDataset):
         self.path = '../Data/KPConv_data'
 
         # Original data path
-        self.original_path = '../Data/Simulation'
+        self.original_path = '../Data/Real'
 
         # Type of task conducted on this dataset
         self.dataset_task = 'collision_prediction'
@@ -2593,7 +2576,7 @@ class MyhalCollisionDataset(PointCloudDataset):
         self.frames = []
         for seq in self.sequences:
             if self.set == 'test':
-                velo_path = join(self.original_path, 'simulated_runs', seq, 'sim_frames')
+                velo_path = join(self.original_path, 'runs', seq, 'velodyne_frames')
             else:
                 velo_path = join(self.original_path, 'collisions', seq)
             frames = np.array([vf[:-7] for vf in listdir(velo_path) if vf.endswith('_2D.ply')])

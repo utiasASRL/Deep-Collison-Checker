@@ -1,6 +1,7 @@
 
 #include "icp.h"
 
+int count_iter = 0;
 
 
 // Utils
@@ -225,8 +226,6 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
 
 // ICP functions
 // *************
-
-
 
 void BundleICP(vector<PointXYZ>& points,
 	vector<PointXYZ>& normals,
@@ -719,7 +718,7 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 	map_cloud.pts = map_points;
 
 	// Tree parameters
-	nanoflann::KDTreeSingleIndexAdaptorParams tree_params(10 /* max leaf */);
+	nanoflann::KDTreeSingleIndexAdaptorParams tree_params(10);
 
 	// Vector of trees
 	PointXYZ_KDTree map_tree(3, map_cloud, tree_params);
@@ -749,7 +748,8 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 	results.transform = params.init_transform;
 
 	// Random generator
-	default_random_engine generator;
+  	unsigned seed = chrono::system_clock::now().time_since_epoch().count();
+	default_random_engine generator(seed);
 	discrete_distribution<int> distribution(tgt_w.begin(), tgt_w.end());
 
 	// Init result containers
@@ -1030,8 +1030,9 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 }
 
 
-void PointToMapICP(vector<PointXYZ>& tgt_pts,
-	vector<float>& tgt_w,
+
+void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
+	vector<double>& tgt_w,
 	PointMap& map,
 	ICP_params& params,
 	ICP_results& results)
@@ -1043,20 +1044,6 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 	float max_pair_d2 = params.max_pairing_dist * params.max_pairing_dist;
 	float max_planar_d = params.max_planar_dist;
 	size_t first_steps = params.avg_steps / 2 + 1;
-
-	// Get angles phi of each points for motion distortion
-	vector<float> phis;
-	float phi1 = 0;
-	if (params.motion_distortion)
-	{
-		phis.reserve(tgt_pts.size());
-		for (auto& p : tgt_pts)
-		{
-			phis.push_back(fmod(3 * M_PI / 2 - atan2(p.y, p.x), 2 * M_PI));
-			if (phis.back() > phi1)
-				phi1 = phis.back();
-		}
-	}
 
 	// Create search parameters
 	nanoflann::SearchParams search_params;
@@ -1076,20 +1063,35 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 	Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float*)aligned.data(), 3, N);
 
 	// Apply initial transformation
-	Eigen::Matrix3f R_init = (params.init_transform.block(0, 0, 3, 3)).cast<float>();
-	Eigen::Vector3f T_init = (params.init_transform.block(0, 3, 3, 1)).cast<float>();
-	aligned_mat = (R_init * targets_mat).colwise() + T_init;
-	results.transform = params.init_transform;
+	results.transform = params.init_transform;	
+	if (params.motion_distortion)	
+	{	
+		size_t i_inds = 0;	
+		for (auto& t : tgt_t)	
+		{	
+			Eigen::Matrix4d H_rect = pose_interp(t, params.last_transform0, results.transform, 0);			
+			Eigen::Matrix3f R_rect = (H_rect.block(0, 0, 3, 3)).cast<float>();	
+			Eigen::Vector3f T_rect = (H_rect.block(0, 3, 3, 1)).cast<float>();	
+			aligned_mat.col(i_inds) = (R_rect * targets_mat.col(i_inds)) + T_rect;	
+			i_inds++;	
+		}	
+	}	
+	else	
+	{	
+		Eigen::Matrix3f R_tot = (results.transform.block(0, 0, 3, 3)).cast<float>();	
+		Eigen::Vector3f T_tot = (results.transform.block(0, 3, 3, 1)).cast<float>();	
+		aligned_mat = (R_tot * targets_mat).colwise() + T_tot;	
+	}
 
 	// Random generator
-	default_random_engine generator;
+  	unsigned seed = chrono::system_clock::now().time_since_epoch().count();
+	default_random_engine generator(seed);
 	discrete_distribution<int> distribution(tgt_w.begin(), tgt_w.end());
 
 	// Init result containers
 	Eigen::Matrix4d H_icp;
 	results.all_rms.reserve(params.max_iter);
 	results.all_plane_rms.reserve(params.max_iter);
-
 
 	// Convergence varaibles
 	float mean_dT = 0;
@@ -1104,6 +1106,17 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 	clock_str.push_back("Optimization .... ");
 	clock_str.push_back("Regularization .. ");
 	clock_str.push_back("Result .......... ");
+	
+	// // Debug (save map.cloud.pts)
+	// string path = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+	// char buffer[100];
+	// char buffer_check[100];
+	// sprintf(buffer, "f_%03d_map.ply", int(count_iter));
+	// sprintf(buffer_check, "f_%03d_init.ply", int(count_iter));
+	// string filepath = path + string(buffer);
+	// string filepath_check = path + string(buffer_check);
+	// save_cloud(filepath, map.cloud.pts, map.normals);
+	// save_cloud(filepath_check, aligned, tgt_t);
 
 	for (size_t step = 0; step < max_it; step++)
 	{
@@ -1111,19 +1124,46 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 		// Association //
 		/////////////////
 
+		// vector<float> chosen_inds(aligned.size(), 0.0f);
+
 		// Pick random queries (use unordered set to ensure uniqueness)
 		vector<pair<size_t, size_t>> sample_inds;
 		if (params.n_samples < N)
 		{
+			// Random picking
 			unordered_set<size_t> unique_inds;
-			while (unique_inds.size() < params.n_samples)
+			int count_tries = 0;
+			while (unique_inds.size() < params.n_samples && count_tries < params.n_samples * 10)
+			{
 				unique_inds.insert((size_t)distribution(generator));
+				count_tries++;
+			}
+
+			// Debugging if we could not pick enough indices
+			if (unique_inds.size() < params.n_samples)
+			{
+				for (int iiii = 0; iiii < tgt_w.size(); iiii++)
+				{
+					if (tgt_w[iiii] > 20.5 || tgt_w[iiii] < 0.3)
+					cout << "tgt_w: " << iiii << " -> " << tgt_w[iiii] << endl;
+				}
+				count_tries = 0;
+				while (unique_inds.size() < params.n_samples && count_tries < params.n_samples)
+				{
+					size_t picked_ind = (size_t)distribution(generator);
+					unique_inds.insert(picked_ind);
+					count_tries++;
+					cout << count_tries << ": " << picked_ind << " -> " << unique_inds.size() << "/" << params.n_samples << endl;
+				}
+				throw std::invalid_argument( "Impossible to pick enough iccp samples" );
+			}
 
 			sample_inds = vector<pair<size_t, size_t>>(params.n_samples);
 			size_t i = 0;
 			for (const auto& ind : unique_inds)
 			{
 				sample_inds[i].first = ind;
+				// chosen_inds[ind] = 1.0f;
 				i++;
 			}
 		}
@@ -1210,17 +1250,21 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 
 		// Align targets taking motion distortion into account
 		if (params.motion_distortion)
-		{
-			size_t iphi = 0;
-			for (auto& phi : phis)
-			{
-				float t = (phi - params.init_phi) / (phi1 - params.init_phi);
-				Eigen::Matrix4d phi_H = pose_interp(t, params.init_transform, results.transform, 0);
-				Eigen::Matrix3f phi_R = (phi_H.block(0, 0, 3, 3)).cast<float>();
-				Eigen::Vector3f phi_T = (phi_H.block(0, 3, 3, 1)).cast<float>();
-				aligned_mat.col(iphi) = (phi_R * targets_mat.col(iphi)) + phi_T;
-				iphi++;
-			}
+		{	
+				
+			size_t i_inds = 0;	
+			for (auto& t : tgt_t)	
+			{	
+				Eigen::Matrix4d H_rect = pose_interp(t, params.last_transform0, results.transform, 0);			
+				Eigen::Matrix3f R_rect = (H_rect.block(0, 0, 3, 3)).cast<float>();	
+				Eigen::Vector3f T_rect = (H_rect.block(0, 3, 3, 1)).cast<float>();	
+				aligned_mat.col(i_inds) = (R_rect * targets_mat.col(i_inds)) + T_rect;	
+				i_inds++;	
+			}	
+			// debug distorted	
+			// Eigen::Matrix3f R_tot = (results.transform.block(0, 0, 3, 3)).cast<float>();	
+			// Eigen::Vector3f T_tot = (results.transform.block(0, 3, 3, 1)).cast<float>();	
+			// aligned_mat_dist = (R_tot * targets_mat).colwise() + T_tot;	
 		}
 		else
 		{
@@ -1300,77 +1344,23 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts,
 		}
 
 
-		///////////// DEBUG /////////////
-
-		//cout << "***********************" << endl;
-		//for (size_t i = 0; i < t.size() - 1; i++)
-		//{
-		//	double duration = 1000 * (t[i + 1] - t[i]) / (double)CLOCKS_PER_SEC;
-		//	cout << clock_str[i] << duration << " ms" << endl;
-		//}
-		//cout << " - - - - - - - - - - - - - ";
-		//for (size_t i = 0; i < t.size() - 1; i++)
-		//{
-		//	double duration = 1000 * (t[i + 1] - t[i]) / (double)CLOCKS_PER_SEC;
-		//	cout << duration << " ";
-		//}
-		//cout << endl;
-		//cout << "***********************" << endl;
-
-		//Eigen::Matrix3f R = H.block(0, 0, 3, 3);
-		//Eigen::Vector3f T = H.block(0, 3, 3, 1);
-		//cout << "dT = " << endl << T << endl;
-		//cout << "dR = " << endl << T << endl;
-
-
-		//if (step % 3 == 0)
-		//{
-		//	char buffer[100];
-		//	sprintf(buffer, "cc_aligned_%03d.ply", (int)step * 0);
-		//	save_cloud(string(buffer), aligned, phis);
-		//}
-
+		// ///////////// DEBUG /////////////
+		// if (step % 1 == 0 || step > max_it - 2)
+		// {
+		// 	string path = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+		// 	char buffer[100];
+		// 	// char buffer_dist[100];
+		// 	sprintf(buffer, "f_%03d_step_%03d.ply", (int)count_iter, int(step));
+		// 	// sprintf(buffer_dist, "frame_dist_%03d_%03d.ply", (int)count_iter, int(step));
+		// 	string filepath = path + string(buffer);
+		// 	// string filepath_dist = path + string(buffer_dist);
+		// 	save_cloud(filepath, aligned, chosen_inds);
+		// }
+		// /////////////////////////////////
 
 	}
-
-
-	// Final regularisation for good measure
-	//for (size_t b = 0; b < B; b++)
-	//{
-	//	Eigen::Matrix4d dH = Eigen::Matrix4d::Identity(4, 4);
-	//	for (size_t bb = b; bb < b + B; bb++)
-	//	{
-	//		size_t bb_0 = bb % B;
-	//		dH = dH * results.transforms[bb_0];
-	//		cout << " " << bb_0;
-	//	}
-
-	//	cout << endl << "dH" << b << " = " << endl;
-	//	cout << dH << endl;
-	//}
-
-	//vector<float> H_w(B, 1.0f);
-	//if (true)
-	//	H_w[0] = 0;
-	//average_poses(results.transforms, H_w);
-
-	//for (size_t b = 0; b < B; b++)
-	//{
-	//	Eigen::Matrix4d dH = Eigen::Matrix4d::Identity(4, 4);
-	//	for (size_t bb = b; bb < b + B; bb++)
-	//	{
-	//		size_t bb_0 = bb % B;
-	//		dH = dH * results.transforms[bb_0];
-	//		cout << " " << bb_0;
-	//	}
-
-	//	cout << endl << "dH" << b << " = " << endl;
-	//	cout << dH << endl;
-	//}
-
-
-
-
+	
+	count_iter++;
 
 }
 

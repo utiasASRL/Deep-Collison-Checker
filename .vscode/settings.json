@@ -27,6 +27,7 @@
         "build/**": true,
         "imgs/**": true,
         "scripts/**": true,
+        "Data/**": true,
         "logs/**": true
     
     },

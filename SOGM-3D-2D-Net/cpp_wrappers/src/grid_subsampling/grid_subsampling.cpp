@@ -2,10 +2,6 @@
 #include "grid_subsampling.h"
 
 
-
-
-
-
 void grid_subsampling_centers(vector<PointXYZ>& original_points,
 	vector<PointXYZ>& subsampled_points,
 	vector<size_t>& subsampled_inds,

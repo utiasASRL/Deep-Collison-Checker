@@ -21,18 +21,18 @@
 #       \**********************************/
 #
 
+import cpp_wrappers.cpp_lidar_utils.lidar_utils as cpp_lidar_utils
+import cpp_wrappers.cpp_slam.pointmap_slam as cpp_pointmap_slam
+import cpp_wrappers.cpp_pointmap.pointmap as cpp_pointmap
+import cpp_wrappers.cpp_icp.icp as cpp_icp
+import cpp_wrappers.cpp_polar_normals.polar_processing as cpp_polar_processing
+import numpy as np
 import os
 os.environ.update(OMP_NUM_THREADS='1',
                   OPENBLAS_NUM_THREADS='1',
                   NUMEXPR_NUM_THREADS='1',
                   MKL_NUM_THREADS='1',)
-import numpy as np
 
-import cpp_wrappers.cpp_polar_normals.polar_processing as cpp_polar_processing
-import cpp_wrappers.cpp_icp.icp as cpp_icp
-import cpp_wrappers.cpp_pointmap.pointmap as cpp_pointmap
-import cpp_wrappers.cpp_slam.pointmap_slam as cpp_pointmap_slam
-import cpp_wrappers.cpp_lidar_utils.lidar_utils as cpp_lidar_utils
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -42,11 +42,11 @@ import cpp_wrappers.cpp_lidar_utils.lidar_utils as cpp_lidar_utils
 
 
 def update_pointmap(points, normals, scores,
-                     map_points=None,
-                     map_normals=None,
-                     map_scores=None,
-                     map_counts=None,
-                     map_dl=1.0):
+                    map_points=None,
+                    map_normals=None,
+                    map_scores=None,
+                    map_counts=None,
+                    map_dl=1.0):
 
     if map_points is None:
         return cpp_pointmap.update_map(points, normals, scores,
@@ -58,6 +58,7 @@ def update_pointmap(points, normals, scores,
                                        map_scores=map_scores,
                                        map_counts=map_counts,
                                        map_dl=map_dl)
+
 
 def point_to_map_icp(points, weights,
                      map_points, map_normals, map_weights,
@@ -72,16 +73,16 @@ def point_to_map_icp(points, weights,
                      avg_steps=5):
 
     all_H, rms, planar_rms = cpp_icp.map_pt2pl(points, weights,
-                                                map_points, map_normals, map_weights,
-                                                init_H=init_H,
-                                                init_phi=init_phi,
-                                                n_samples=n_samples,
-                                                max_pairing_dist=max_pairing_dist,
-                                                max_iter=max_iter,
-                                                rotDiffThresh=rotDiffThresh,
-                                                transDiffThresh=transDiffThresh,
-                                                avg_steps=avg_steps,
-                                                motion_distortion=motion_distortion)
+                                               map_points, map_normals, map_weights,
+                                               init_H=init_H,
+                                               init_phi=init_phi,
+                                               n_samples=n_samples,
+                                               max_pairing_dist=max_pairing_dist,
+                                               max_iter=max_iter,
+                                               rotDiffThresh=rotDiffThresh,
+                                               transDiffThresh=transDiffThresh,
+                                               avg_steps=avg_steps,
+                                               motion_distortion=motion_distortion)
 
     all_H = all_H.T
     all_H = all_H.reshape(-1, 4, 4)
@@ -90,12 +91,12 @@ def point_to_map_icp(points, weights,
 
 
 def bundle_pt2pl_icp(frames, normals, weights,
-                          n_samples=1000,
-                          max_pairing_dist=0.2,
-                          max_iter=50,
-                          rotDiffThresh=0.004,
-                          transDiffThresh=0.02,
-                          avg_steps=5):
+                     n_samples=1000,
+                     max_pairing_dist=0.2,
+                     max_iter=50,
+                     rotDiffThresh=0.004,
+                     transDiffThresh=0.02,
+                     avg_steps=5):
 
     # Stack everything
     lengths = np.array([frame.shape[0] for frame in frames], dtype=np.int32)
@@ -103,14 +104,13 @@ def bundle_pt2pl_icp(frames, normals, weights,
     normals = np.vstack(normals)
     weights = np.vstack(weights)
 
-
-    H, rms , all_H = cpp_icp.bundle_pt2pl(frames, normals, weights, lengths,
-                                          n_samples=n_samples,
-                                          max_pairing_dist=max_pairing_dist,
-                                          max_iter=max_iter,
-                                          rotDiffThresh=rotDiffThresh,
-                                          transDiffThresh=transDiffThresh,
-                                          avg_steps=avg_steps)
+    H, rms, all_H = cpp_icp.bundle_pt2pl(frames, normals, weights, lengths,
+                                         n_samples=n_samples,
+                                         max_pairing_dist=max_pairing_dist,
+                                         max_iter=max_iter,
+                                         rotDiffThresh=rotDiffThresh,
+                                         transDiffThresh=transDiffThresh,
+                                         avg_steps=avg_steps)
 
     all_H = all_H.T
     all_H = all_H.reshape(-1, 4, len(lengths), 4)
@@ -175,7 +175,7 @@ def ray_casting_annot(frame_names,
                                                                       theta_dl=theta_dl,
                                                                       phi_dl=phi_dl,
                                                                       verbose_time=verbose_time)
-                                                                      #motion_distortion=motion_distortion)
+    #motion_distortion=motion_distortion)
 
     return movable_prob, movable_count
 
@@ -237,7 +237,67 @@ def slam_on_sim_sequence(f_names,
                                            odom_H=odom_H)
 
     H = H.T
-    H = np.stack([H[i*4:(i+1)*4, :] for i in range(H.shape[0] // 4)])
+    H = np.stack([H[i * 4:(i + 1) * 4, :] for i in range(H.shape[0] // 4)])
+
+    return H
+
+
+def slam_on_real_sequence(f_names,
+                          f_times,
+                          save_path,
+                          init_points=None,
+                          init_normals=None,
+                          init_scores=None,
+                          map_voxel_size=0.03,
+                          frame_voxel_size=0.1,
+                          motion_distortion=False,
+                          filtering=False,
+                          verbose_time=5.0,
+                          icp_samples=400,
+                          icp_pairing_dist=2.0,
+                          icp_planar_dist=0.3,
+                          icp_avg_steps=3,
+                          icp_max_iter=50,
+                          H_velo_base=None,
+                          odom_H=None):
+
+    # Stack frame names in one gig string
+    stacked_f_names = "\n".join([f for f in f_names])
+
+    if (init_points is None) or (init_normals is None) or (init_scores is None):
+        init_points = np.zeros((0, 3), dtype=np.float32)
+        init_normals = np.zeros((0, 3), dtype=np.float32)
+        init_scores = np.zeros((0,), dtype=np.float32)
+
+    if H_velo_base is None:
+        H_velo_base = np.eye(4, dtype=np.float64)
+
+    if odom_H is None:
+        odom_H = np.zeros((len(f_names), 4, 4), dtype=np.float64)
+
+    print('Starting slam')
+
+    H = cpp_pointmap_slam.map_real_sequence(stacked_f_names,
+                                            f_times,
+                                            save_path,
+                                            init_points,
+                                            init_normals,
+                                            init_scores,
+                                            map_voxel_size=map_voxel_size,
+                                            frame_voxel_size=frame_voxel_size,
+                                            motion_distortion=motion_distortion,
+                                            filtering=filtering,
+                                            verbose_time=verbose_time,
+                                            icp_samples=icp_samples,
+                                            icp_pairing_dist=icp_pairing_dist,
+                                            icp_planar_dist=icp_planar_dist,
+                                            icp_avg_steps=icp_avg_steps,
+                                            icp_max_iter=icp_max_iter,
+                                            H_velo_base=H_velo_base,
+                                            odom_H=odom_H)
+
+    H = H.T
+    H = np.stack([H[i * 4:(i + 1) * 4, :] for i in range(H.shape[0] // 4)])
 
     return H
 
@@ -268,16 +328,3 @@ def get_lidar_visibility(points,
                                           z_min=z_min,
                                           z_max=z_max,
                                           dl_2D=dl_2D)
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd cpp_wrappers
+
 # Compile cpp icp normals
 cd cpp_pointmap
 python3 setup.py build_ext --inplace

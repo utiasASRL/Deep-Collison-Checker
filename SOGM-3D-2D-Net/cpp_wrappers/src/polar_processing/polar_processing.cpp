@@ -4,16 +4,29 @@
 void cart2pol_(vector<PointXYZ> &xyz)
 {
 	// In place modification to carthesian coordinates
-	for (auto &p : xyz)
+	float tmp1, tmp2, rho, phi, theta;
+	float pi_s_2 = M_PI / 2;
+	for (auto& p : xyz)
 	{
-
-		float rho = sqrt(p.sq_norm());
-		float phi = atan2(p.y, p.x);
-		float theta = atan2(sqrt(p.x * p.x + p.y * p.y), p.z);
-		p.x = rho;
-		p.y = theta;
-		p.z = phi + M_PI / 2;
+		tmp1 = p.x * p.x + p.y * p.y;
+		tmp2 = tmp1 + p.z * p.z;
+		phi = atan2(p.y, p.x); // azimuth angle
+		p.y = atan2(sqrt(tmp1), p.z);
+		p.z = phi + pi_s_2;
+		p.x = sqrt(tmp2);
 	}
+
+	// // In place modification to carthesian coordinates
+	// for (auto &p : xyz)
+	// {
+
+	// 	float rho = sqrt(p.sq_norm());
+	// 	float phi = atan2(p.y, p.x);
+	// 	float theta = atan2(sqrt(p.x * p.x + p.y * p.y), p.z);
+	// 	p.x = rho;
+	// 	p.y = theta;
+	// 	p.z = phi + M_PI / 2;
+	// }
 }
 
 PointXYZ cart2pol(PointXYZ &p)
@@ -115,6 +128,40 @@ float get_lidar_angle_res(vector<PointXYZ> &rtp, float &minTheta, float &maxThet
 	// Get line of scan inds
 	return (maxTheta - minTheta) / (float)(lidar_n_lines - 1);
 }
+
+void get_lidar_angles(vector<PointXYZ>& rtp, vector<float>& ring_angles, int lidar_n_lines)
+{
+	// Find the angles for each lidar ring (only performed once at the start of the algorithm)
+
+	float margin = 0.002;
+
+	// Find lidar angle resolution automatically
+	for (size_t i = 1; i < rtp.size(); i++)
+	{
+		bool new_ring = true;
+		for (size_t l = 0; l < ring_angles.size(); l++)
+		{
+			if (abs(rtp[i].y - ring_angles[l]) < margin)
+			{
+				new_ring = false;
+				break;
+			}
+		}
+		if (new_ring)
+		{
+			ring_angles.push_back(rtp[i].y);
+		}
+	}
+	
+	stable_sort(ring_angles.begin(), ring_angles.end());
+
+	if (ring_angles.size() != lidar_n_lines)
+	{
+		cout << "WARNING: wrong number of lidar rings found: " << ring_angles.size() << " instead of " << lidar_n_lines << endl;
+	}
+	return;
+}
+
 
 void lidar_log_radius(vector<PointXYZ> &rtp, float polar_r, float r_scale)
 {
@@ -267,54 +314,79 @@ void extract_features_multi_thread(vector<PointXYZ> &points,
 }
 
 void smart_normal_score(vector<PointXYZ> &points,
-						vector<PointXYZ>& polar_pts,
-						vector<PointXYZ>& normals,
-						vector<float>& scores)
+						vector<PointXYZ> &polar_pts,
+						vector<PointXYZ> &normals,
+						vector<float> &scores)
 {
 	// Parameters
-	float S0 = 0.2;
+	float S0 = 0.4;
 	float S1 = 1.0 - S0;
-	float a0 = M_PI / 2;	// Max possible angle for which score is zero
-	float a1 = 5 * M_PI / 12;	// if angle > a1, whatever radius, score is better if angle is smaller (up to S0)
+	float a0 = M_PI / 2;	  	// Max possible angle for which score is zero
+	float a1 = a0 - M_PI / 24; 	// if angle > a1, whatever radius, score is better if angle is smaller (up to S0)
 	float factor = S0 / (a0 - a1);
-	float r0 = 2.0;
+	float r0 = 4.0;
 	float inv_sigma2 = 0.01f;
 
 	// loop over all
 	size_t i = 0;
-	for (auto& s : scores)
+	for (auto &s : scores)
 	{
-		float s2;
-		float r = polar_pts[i].x;
-		float angle = acos(min(abs(points[i].dot(normals[i]) / r), 1.0f));
-		if (angle > a1)
-			s2 = factor * (a0 - angle);
-		else
-			s2 = S0 + S1 * exp(-(pow(r - r0, 2)) * inv_sigma2);
-		s = min(s * s2, 1.0f);
+		if (s > -0.01)
+		{
+			float s2;
+			float r = polar_pts[i].x;
+			float angle = acos(min(abs(points[i].dot(normals[i]) / r), 1.0f));
+			if (angle > a1)
+				s2 = factor * (a0 - angle);
+			else
+				s2 = S0 + S1 * exp(-(pow(r - r0, 2)) * inv_sigma2);
+			s = min(s * s2, 1.0f);
+		}
 		i++;
 	}
 }
 
-void smart_icp_score(vector<PointXYZ>& polar_pts,
-					 vector<float>& scores)
+void smart_icp_score(vector<PointXYZ> &polar_pts,
+					 vector<PointXYZ> &normals,
+					 vector<double> &scores)
 {
 	// There are more points close to the lidar, so we dont want to pick them to much.
 	// Furthermore, points away carry more rotational information.
 
+	// We also focus on picking more ground point (We can assume robot is nearly horinzontal)
+
 	// Parameters
-	float S0 = 0.5;
-	float r0 = 5.0;
+	double S0 = 1.0; 
+	double S1 = 3.0; // -> prob to be picked when further away
+	double r0 = 5.0;
+	double H1 = 20.0; // -> prob to be picked for ground points
 
 	// Variables
-	float inv_ro = 1 / r0;
-	float S1 = 1.0 + S0;
+	double S1m0 = S1 - S0;
+	double inv_ro = 1 / r0;
+	double cos20 = cos(20 * M_PI / 180);
+	double H05 = 0.5 * (H1 - 1);
 
 	// loop over all
 	size_t i = 0;
 	for (auto& s : scores)
 	{
-		s *= S1 - exp(-pow(polar_pts[i].x * inv_ro, 2));
+		// Score between 0 and 1 => mapped to [1.0, 2.0] (we take the higher score 2x more than the lower scores)
+		s += 1.0; 
+		
+		// Then multiply by a distance score (We take furthest points 3x more often than closest one, this corrects density)
+		s *= (S1 - S1m0 * exp(-pow((double)polar_pts[i].x * inv_ro, 2)));
+
+		// Then multiply by a score based on normal angle. 20 more chance to pick if normal is within 20 degrees of vertical
+		// But probability is never higher than 20
+		if (normals[i].z > cos20)
+		{
+			s *= H05 * (cos(9 * acos(min((double)normals[i].z, 0.99999999))) + 1.0) + 1.0;
+			if (s > H1)
+				s = H1;
+		}
+
+
 		i++;
 	}
 }
@@ -574,20 +646,19 @@ void extract_lidar_frame_normals(vector<PointXYZ> &points,
 								 vector<PointXYZ> &polar_pts,
 								 vector<PointXYZ> &queries,
 								 vector<PointXYZ> &polar_queries,
+								 vector<int> &polar_rings,
 								 vector<PointXYZ> &normals,
 								 vector<float> &norm_scores,
-								 float polar_r)
+								 vector<float> &polar_r2s)
 {
 
 	// Initialize variables
 	// ********************
 
-	// Squared search radius
-	float r2 = polar_r * polar_r;
-
 	// Result vectors
 	normals = vector<PointXYZ>(polar_queries.size(), PointXYZ());
 	norm_scores = vector<float>(polar_queries.size(), 0.0);
+	// vector<float> visu_neighb(points.size(), 0.0);
 
 	// Cloud variable for KDTree
 	PointCloud polar_cloud;
@@ -626,7 +697,8 @@ void extract_lidar_frame_normals(vector<PointXYZ> &points,
 
 		// Find neighbors
 		float query_pt[3] = {polar_queries[i].x, polar_queries[i].y, polar_queries[i].z};
-		size_t n_neighbs = index->radiusSearch(query_pt, r2, inds_dists, search_params);
+		size_t ring_i = polar_rings[i];
+		size_t n_neighbs = index->radiusSearch(query_pt, polar_r2s[ring_i], inds_dists, search_params);
 
 		// Update max count
 		if (n_neighbs > max_neighbs)
@@ -640,6 +712,13 @@ void extract_lidar_frame_normals(vector<PointXYZ> &points,
 		neighbors.reserve(n_neighbs);
 		for (size_t j = 0; j < n_neighbs; j++)
 			neighbors.push_back(points[inds_dists[j].first]);
+
+		// // Save neighbors for debug
+		// if (i % 43 == 1)
+		// {
+		// 	for (size_t j = 0; j < n_neighbs; j++)
+		// 		visu_neighb[inds_dists[j].first] = (float)i;
+		// }
 
 		// Compute PCA
 		vector<float> eigenvalues;
@@ -663,4 +742,20 @@ void extract_lidar_frame_normals(vector<PointXYZ> &points,
 				normals[i] = eigenvectors[0];
 		}
 	}
+
+	// string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+	// string filepath00 = path000 + string("f_000_neighbs.ply");
+	// string filepath01 = path000 + string("f_000_neighbs_polar.ply");
+	// save_cloud(filepath00, points, visu_neighb);
+	// save_cloud(filepath01, polar_pts, visu_neighb);
+
+	// vector<float> f_1_2;
+	// f_1_2.reserve(2 * polar_queries.size());
+	// for (size_t i = 0; i < polar_queries.size(); i++)
+	// 	f_1_2.push_back((float)polar_rings[i]);
+	// for (size_t i = 0; i < polar_queries.size(); i++)
+	// 	f_1_2.push_back(sqrt(polar_r2s[polar_rings[i]]));
+
+	// string filepath02 = path000 + string("f_000_q_polar.ply");
+	// save_cloud(filepath02, polar_queries, f_1_2);
 }
