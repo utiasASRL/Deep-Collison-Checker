@@ -1748,7 +1748,7 @@ class MyhalCollisionSlam:
 
         else:
 
-            print('Error: Refine map not modified for motion distorsion yet')
+            print('Error: Refine map not modified for motion distortion yet')
 
             a = 1/0
 
@@ -1933,6 +1933,8 @@ class MyhalCollisionSlam:
                 old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
                 new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
                 os.rename(old_name, new_name)
+
+        a = 1/0
 
         #####################################
         # Annotate short-term on original map
@@ -2183,7 +2185,7 @@ class MyhalCollisionSlam:
                                 dtype=np.float32) * 0.99
 
         # Add the first frame in init point to avoid optimization problems
-        # Hopefully during mapping the fist frame should not have motion distorsion
+        # Hopefully during mapping the fist frame should not have motion distortion
         f_i0 = 1
         points, labels = self.load_frame_points_labels(frame_names[f_i0], new_frame_names[f_i0])
         normals, planarity, linearity = polar_normals(points,

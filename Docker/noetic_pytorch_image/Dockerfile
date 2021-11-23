@@ -133,6 +133,17 @@ RUN pip3 install autopep8 flake8
 # RUN export ETS_TOOLKIT=pyqt5
 # RUN echo "export ETS_TOOLKIT=pyqt5" >> ~/.bashrc
 
+# Install dependencies for g2o
+RUN apt-get install -y --no-install-recommends \
+    libsuitesparse-dev \
+    qtdeclarative5-dev \
+    qt5-qmake \
+    libqglviewer-dev-qt5 \
+    libeigen3-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libatlas-base-dev 
+
 # Setup user information
 ARG username0=bag
 ARG userid0=1085

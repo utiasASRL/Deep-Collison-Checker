@@ -5,6 +5,7 @@ import numpy.distutils.misc_util
 # ***********************
 
 EIGEN_INCLUDE = "../src/Eigen"
+G2O_INCLUDE = "../g2o"
 
 # Adding sources of the project
 # *****************************
@@ -22,7 +23,7 @@ SOURCES = ["../src/cloud/cloud.cpp",
 
 module = Extension(name="pointmap_slam",
                    sources=SOURCES,
-                   include_dirs=[EIGEN_INCLUDE],
+                   include_dirs=[EIGEN_INCLUDE, G2O_INCLUDE],
                    extra_compile_args=['-std=c++11',
                                        '-D_GLIBCXX_USE_CXX11_ABI=0'])
 

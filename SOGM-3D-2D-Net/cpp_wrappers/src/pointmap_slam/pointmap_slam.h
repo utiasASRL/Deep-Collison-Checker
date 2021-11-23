@@ -6,6 +6,8 @@
 #include <random>
 #include <unordered_set>
 #include <numeric>
+#include <fstream>
+
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -18,6 +20,14 @@
 #include "../polar_processing/polar_processing.h"
 #include "../pointmap/pointmap.h"
 #include "../icp/icp.h"
+
+#include "g2o/core/block_solver.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
+#include "g2o/core/solver.h"
+#include "g2o/core/sparse_optimizer.h"
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
+#include "g2o/stuff/sampler.h"
+#include "g2o/types/icp/types_icp.h"
 
 using namespace std;
 
@@ -146,9 +156,41 @@ public:
 // Function declaration
 // ********************
 
-void load_annot(std::string& dataPath,
-	std::vector<int>& int_scalar,
-	std::string& int_scalar_name);
+void load_annot(std::string &dataPath,
+				std::vector<int> &int_scalar,
+				std::string &int_scalar_name);
+
+void load_frame(std::string &dataPath,
+				vector<PointXYZ> &f_pts,
+				vector<float> &timestamps,
+				vector<int> &rings,
+				vector<int> &loc_labels,
+				std::string &save_path,
+				std::string &time_name,
+				std::string &ring_name);
+
+void complete_map(string &frame_names,
+				  vector<double> &frame_times,
+				  Eigen::MatrixXd &slam_H,
+				  vector<float> &slam_times,
+				  PointMap& map,
+				  vector<int> &loc_labels,
+				  std::string &save_path,
+				  std::string &time_name,
+				  std::string &ring_name,
+				  size_t start_ind,
+				  size_t last_ind,
+				  SLAM_params &params);
+
+void preprocess_frame(vector<PointXYZ> &f_pts,
+					  vector<float> &f_ts,
+					  vector<int> &f_rings,
+					  vector<PointXYZ> &sub_pts,
+					  vector<PointXYZ> &normals,
+					  vector<float> &norm_scores,
+					  vector<double> &icp_scores,
+					  vector<size_t> &sub_inds,
+					  SLAM_params &params);
 
 Eigen::MatrixXd call_on_sim_sequence(string &frame_names,
 									 vector<double> &frame_times,

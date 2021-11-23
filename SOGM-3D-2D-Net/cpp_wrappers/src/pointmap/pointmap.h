@@ -4,7 +4,7 @@
 
 #include <set>
 #include <cstdint>
-#include <cmath> 
+#include <cmath>
 #include <algorithm>
 
 #include "../nanoflann/nanoflann.hpp"
@@ -13,15 +13,15 @@ using namespace std;
 
 // KDTree type definition
 typedef nanoflann::KDTreeSingleIndexAdaptorParams KDTree_Params;
-typedef nanoflann::KDTreeSingleIndexAdaptor< nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_KDTree;
-typedef nanoflann::KDTreeSingleIndexDynamicAdaptor< nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_Dynamic_KDTree;
+typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_KDTree;
+typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_Dynamic_KDTree;
 
 //-------------------------------------------------------------------------------------------
 //
 // PointMapPython Class
 // ********************
 //
-//	PointMap designed to be used in python. As it is hard to transfert unordered map to 
+//	PointMap designed to be used in python. As it is hard to transfert unordered map to
 //	python dict structure, we rebuild the hashmap every update (not very efficient).
 //
 //-------------------------------------------------------------------------------------------
@@ -29,7 +29,6 @@ typedef nanoflann::KDTreeSingleIndexDynamicAdaptor< nanoflann::L2_Simple_Adaptor
 class MapVoxelData
 {
 public:
-
 	// Elements
 	// ********
 
@@ -38,7 +37,6 @@ public:
 	PointXYZ centroid;
 	PointXYZ normal;
 	float score;
-
 
 	// Methods
 	// *******
@@ -106,14 +104,11 @@ public:
 				normal -= n0;
 		}
 	}
-	
 };
-
 
 class PointMapPython
 {
 public:
-
 	// Elements
 	// ********
 
@@ -122,7 +117,6 @@ public:
 	vector<PointXYZ> normals;
 	vector<float> scores;
 	vector<int> counts;
-
 
 	// Methods
 	// *******
@@ -137,24 +131,22 @@ public:
 		dl = dl0;
 	}
 
-
 	// Methods
-	void update(vector<PointXYZ>& points0, vector<PointXYZ>& normals0, vector<float>& scores0);
+	void update(vector<PointXYZ> &points0, vector<PointXYZ> &normals0, vector<float> &scores0);
 
 	void init_samples(const PointXYZ originCorner,
-		const PointXYZ maxCorner,
-		unordered_map<size_t, MapVoxelData>& samples);
+					  const PointXYZ maxCorner,
+					  unordered_map<size_t, MapVoxelData> &samples);
 
-	void add_samples(const vector<PointXYZ>& points0,
-		const vector<PointXYZ>& normals0,
-		const vector<float>& scores0,
-		const PointXYZ originCorner,
-		const PointXYZ maxCorner,
-		unordered_map<size_t, MapVoxelData>& samples);
+	void add_samples(const vector<PointXYZ> &points0,
+					 const vector<PointXYZ> &normals0,
+					 const vector<float> &scores0,
+					 const PointXYZ originCorner,
+					 const PointXYZ maxCorner,
+					 unordered_map<size_t, MapVoxelData> &samples);
 
 	size_t size() { return points.size(); }
 };
-
 
 //-------------------------------------------------------------------------------------------
 //
@@ -173,36 +165,45 @@ public:
 	int y;
 	int z;
 
-	VoxKey() { x = 0; y = 0; z = 0; }
-	VoxKey(int x0, int y0, int z0) { x = x0; y = y0; z = z0; }
+	VoxKey()
+	{
+		x = 0;
+		y = 0;
+		z = 0;
+	}
+	VoxKey(int x0, int y0, int z0)
+	{
+		x = x0;
+		y = y0;
+		z = z0;
+	}
 
-	bool operator==(const VoxKey& other) const
+	bool operator==(const VoxKey &other) const
 	{
 		return (x == other.x && y == other.y && z == other.z);
 	}
-
 };
 
-inline VoxKey operator + (const VoxKey A, const VoxKey B)
+inline VoxKey operator+(const VoxKey A, const VoxKey B)
 {
 	return VoxKey(A.x + B.x, A.y + B.y, A.z + B.z);
 }
 
 // Simple utility function to combine hashtables
 template <typename T, typename... Rest>
-void hash_combine(std::size_t& seed, const T& v, const Rest&... rest)
+void hash_combine(std::size_t &seed, const T &v, const Rest &...rest)
 {
-	seed ^= std::hash<T>{}(v)+0x9e3779b9 + (seed << 6) + (seed >> 2);
+	seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 	(hash_combine(seed, rest), ...);
 }
 
 // Specialization of std:hash function
-namespace std 
+namespace std
 {
 	template <>
 	struct hash<VoxKey>
 	{
-		std::size_t operator()(const VoxKey& k) const
+		std::size_t operator()(const VoxKey &k) const
 		{
 			std::size_t ret = 0;
 			hash_combine(ret, k.x, k.y, k.z);
@@ -210,7 +211,6 @@ namespace std
 		}
 	};
 }
-
 
 //-------------------------------------------------------------------------------------------
 //
@@ -221,11 +221,9 @@ namespace std
 //
 //-------------------------------------------------------------------------------------------
 
-
 class PointMapOld
 {
 public:
-
 	// Elements
 	// ********
 
@@ -246,7 +244,6 @@ public:
 	// Sparse hashmap that contain voxels (each voxel data is in the contiguous vector containers)
 	unordered_map<VoxKey, size_t> samples;
 
-
 	// Methods
 	// *******
 
@@ -260,9 +257,9 @@ public:
 		dl = dl0;
 	}
 	PointMapOld(const float dl0,
-		vector<PointXYZ>& init_points,
-		vector<PointXYZ>& init_normals,
-		vector<float>& init_scores)
+				vector<PointXYZ> &init_points,
+				vector<PointXYZ> &init_normals,
+				vector<float> &init_scores)
 	{
 		dl = dl0;
 		update(init_points, init_normals, init_scores);
@@ -272,7 +269,7 @@ public:
 	size_t size() { return voxPoints.size(); }
 
 	// Init of voxel centroid
-	void init_sample_centroid(const VoxKey& k, const PointXYZ& p0)
+	void init_sample_centroid(const VoxKey &k, const PointXYZ &p0)
 	{
 		// We place anew key in the hashmap
 		samples.emplace(k, voxPoints.size());
@@ -285,7 +282,7 @@ public:
 	}
 
 	// Update of voxel centroid
-	void update_sample_centroid(const VoxKey& k, const PointXYZ& p0)
+	void update_sample_centroid(const VoxKey &k, const PointXYZ &p0)
 	{
 		// Update count of points and centroid of the cell
 		voxCounts[samples[k]] += 1;
@@ -293,7 +290,7 @@ public:
 	}
 
 	// Update of voxel normal
-	void update_sample_normal(PointXYZ& normal, float& score, const PointXYZ& n0, const float& s0)
+	void update_sample_normal(PointXYZ &normal, float &score, const PointXYZ &n0, const float &s0)
 	{
 		// Rule for normal update:
 		// IF current_score=2 : normal was computed with planarity in the map, do not modify
@@ -319,20 +316,21 @@ public:
 	}
 
 	// Update map with a set of new points
-	void update(vector<PointXYZ>& points0, vector<PointXYZ>& normals0, vector<float>& scores0)
+	void update(vector<PointXYZ> &points0, vector<PointXYZ> &normals0, vector<float> &scores0)
 	{
 
 		// Reserve new space if needed
 		if (samples.size() < 1)
 			samples.reserve(10 * points0.size());
 
-
-		std::cout << std::endl << "--------------------------------------" << std::endl;
+		std::cout << std::endl
+				  << "--------------------------------------" << std::endl;
 		std::cout << "current max_load_factor: " << samples.max_load_factor() << std::endl;
 		std::cout << "current size: " << samples.size() << std::endl;
 		std::cout << "current bucket_count: " << samples.bucket_count() << std::endl;
 		std::cout << "current load_factor: " << samples.load_factor() << std::endl;
-		std::cout << "--------------------------------------" << std::endl << std::endl;
+		std::cout << "--------------------------------------" << std::endl
+				  << std::endl;
 
 		// Initialize variables
 		float r = 1.5;
@@ -341,7 +339,7 @@ public:
 		size_t i = 0;
 		VoxKey k0, k;
 
-		for (auto& p : points0)
+		for (auto &p : points0)
 		{
 			// Position of point in sample map
 			PointXYZ p_pos = p * inv_dl;
@@ -386,7 +384,7 @@ public:
 		normals.reserve(samples.size());
 		scores.reserve(samples.size());
 		i = 0;
-		for (auto& v : samples)
+		for (auto &v : samples)
 		{
 			// Check if centroid is in cell
 			PointXYZ centroid = voxPoints[v.second] * (1.0 / voxCounts[v.second]);
@@ -416,16 +414,11 @@ public:
 			}
 		}
 	}
-
-
-
 };
-
 
 class PointMap
 {
 public:
-
 	// Elements
 	// ********
 
@@ -440,13 +433,13 @@ public:
 	vector<PointXYZ> normals;
 	vector<float> scores;
 	vector<int> counts;
+	vector<int> latest;
 
 	// Sparse hashmap that contain voxels (each voxel data is in the contiguous vector containers)
 	unordered_map<VoxKey, size_t> samples;
 
 	// KDTree for neighbors query
 	PointXYZ_Dynamic_KDTree tree;
-
 
 	// Methods
 	// *******
@@ -473,6 +466,19 @@ public:
 		update(init_points, init_normals, init_scores, -1);
 	}
 
+	PointMap(const PointMap &map0) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
+	{
+		dl = map0.dl;
+		update_idx = map0.update_idx;
+		cloud = map0.cloud;
+		normals = map0.normals;
+		scores = map0.scores;
+		counts = map0.counts;
+		latest = map0.latest;
+		samples = map0.samples;
+		tree.addPoints(0, cloud.pts.size() - 1);
+	}
+
 	PointMap(const PointMap &map0,
 			 const size_t max_ind) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
@@ -481,11 +487,25 @@ public:
 		copy_until(map0, max_ind);
 	}
 
+	PointMap& operator=(const PointMap &map0)
+	{
+		dl = map0.dl;
+		update_idx = map0.update_idx;
+		cloud = map0.cloud;
+		normals = map0.normals;
+		scores = map0.scores;
+		counts = map0.counts;
+		latest = map0.latest;
+		samples = map0.samples;
+		tree.addPoints(0, cloud.pts.size() - 1);
+      	return *this;
+	}
+
 	// Size of the map (number of point/voxel in the map)
 	size_t size() { return cloud.pts.size(); }
 
 	// Init of voxel centroid
-	void init_sample(const VoxKey& k, const PointXYZ& p0, const PointXYZ& n0, const float& s0 , const int& c0)
+	void init_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
 	{
 		// We place anew key in the hashmap
 		samples.emplace(k, cloud.pts.size());
@@ -497,13 +517,14 @@ public:
 
 		// Count is useless, instead save index of first frame placing a point in this cell
 		counts.push_back(c0);
+		latest.push_back(c0);
 	}
 
 	// Update of voxel centroid
-	void update_sample(const size_t idx, const PointXYZ& p0, const PointXYZ& n0, const float& s0)
+	void update_sample(const size_t idx, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
 	{
-		// Update count for optional removal count of points (USELESS see init_sample)
-		//counts[idx] += 1;
+		// latest frame idx
+		latest[idx] = c0;
 
 		// Update normal if we have a clear view of it  and closer distance (see computation of score)
 		if (s0 > scores[idx])
@@ -514,7 +535,7 @@ public:
 	}
 
 	// Update map with a set of new points
-	void update(vector<PointXYZ>& points0, vector<PointXYZ>& normals0, vector<float>& scores0, int ind0)
+	void update(vector<PointXYZ> &points0, vector<PointXYZ> &normals0, vector<float> &scores0, int ind0)
 	{
 
 		// Reserve new space if needed
@@ -524,6 +545,7 @@ public:
 		{
 			cloud.pts.reserve(cloud.pts.capacity() + points0.size());
 			counts.reserve(counts.capacity() + points0.size());
+			latest.reserve(latest.capacity() + points0.size());
 			normals.reserve(normals.capacity() + points0.size());
 			scores.reserve(scores.capacity() + points0.size());
 		}
@@ -541,7 +563,7 @@ public:
 		VoxKey k0;
 		size_t num_added = 0;
 
-		for (auto& p : points0)
+		for (auto &p : points0)
 		{
 			// Position of point in sample map
 			PointXYZ p_pos = p * inv_dl;
@@ -551,8 +573,6 @@ public:
 			k0.y = (int)floor(p_pos.y);
 			k0.z = (int)floor(p_pos.z);
 
-			// check angle
-
 			// Update the point count
 			if (samples.count(k0) < 1)
 			{
@@ -561,7 +581,7 @@ public:
 			}
 			else
 			{
-				update_sample(samples[k0], p, normals0[i], scores0[i]);
+				update_sample(samples[k0], p, normals0[i], scores0[i], ind0);
 			}
 			i++;
 		}
@@ -571,7 +591,6 @@ public:
 
 		// Update frame count
 		update_idx++;
-
 	}
 
 	// Update map with a set of new points
@@ -584,6 +603,7 @@ public:
 		{
 			cloud.pts.reserve(cloud.pts.capacity() + map0.cloud.pts.size());
 			counts.reserve(counts.capacity() + map0.cloud.pts.size());
+			latest.reserve(latest.capacity() + map0.cloud.pts.size());
 			normals.reserve(normals.capacity() + map0.cloud.pts.size());
 			scores.reserve(scores.capacity() + map0.cloud.pts.size());
 		}
@@ -594,7 +614,7 @@ public:
 		VoxKey k0;
 		size_t num_added = 0;
 
-		for (auto& p : map0.cloud.pts)
+		for (auto &p : map0.cloud.pts)
 		{
 			// Stop when reaching the current index
 			if (map0.counts[i] > max_ind)
@@ -614,23 +634,18 @@ public:
 			if (samples.count(k0) < 1)
 			{
 				init_sample(k0, p, map0.normals[i], map0.scores[i], map0.counts[i]);
+				latest[samples[k0]] = map0.latest[i];
 				num_added++;
 			}
-			else
-			{
-				update_sample(samples[k0], p, map0.normals[i], map0.scores[i]);
-			}
 			i++;
-		}
+		}	
 
 		// Update tree
 		tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
 
 		// Update frame count
 		update_idx++;
-
 	}
-
 };
 
 //-------------------------------------------------------------------------------------------
@@ -659,7 +674,7 @@ public:
 		y = y0;
 	}
 
-	bool operator==(const PixKey& other) const
+	bool operator==(const PixKey &other) const
 	{
 		return (x == other.x && y == other.y);
 	}
@@ -681,7 +696,7 @@ namespace std
 	template <>
 	struct hash<PixKey>
 	{
-		std::size_t operator()(const PixKey& k) const
+		std::size_t operator()(const PixKey &k) const
 		{
 			std::size_t ret = 0;
 			hash_combine(ret, k.x, k.y);
@@ -694,7 +709,6 @@ class LaserRange2D
 {
 
 public:
-
 	// Elements
 	// ********
 
@@ -709,7 +723,6 @@ public:
 
 	// Container for the ranges
 	vector<float> range_table;
-
 
 	// Methods
 	// *******
@@ -736,7 +749,7 @@ public:
 		range_table = vector<float>(n_angles, -1.0);
 	}
 
-	void compute_from_3D(vector<PointXYZ>& points3D, PointXYZ& center3D, Plane3D& ground_P, float zMin, float zMax)
+	void compute_from_3D(vector<PointXYZ> &points3D, PointXYZ &center3D, Plane3D &ground_P, float zMin, float zMax)
 	{
 		//////////
 		// Init //
@@ -744,11 +757,10 @@ public:
 		//
 		//	This function assumes the point cloud has been aligned in the world coordinates and the ground is close to a flat plane
 		//
-		
+
 		// Get distances to ground
 		vector<float> distances;
 		ground_P.point_distances(points3D, distances);
-
 
 		///////////////////
 		// Update ranges //
@@ -756,7 +768,7 @@ public:
 
 		// Loop over 3D points
 		size_t p_i = 0;
-		for (auto& p : points3D)
+		for (auto &p : points3D)
 		{
 			// Check height limits
 			if (distances[p_i] < zMin || distances[p_i] > zMax)
@@ -774,7 +786,6 @@ public:
 
 			p_i++;
 		}
-		
 
 		///////////////////////////////
 		// Interpolate the 2D ranges //
@@ -809,7 +820,7 @@ public:
 								real_i += range_table.size();
 							float t = (i - last_i) / diff;
 							int real_last_i = last_i + range_table.size();
-							range_table[real_i] = t * range_table[real_last_i] + (1-t) * range_table[next_i];
+							range_table[real_i] = t * range_table[real_last_i] + (1 - t) * range_table[next_i];
 						}
 					}
 				}
@@ -821,7 +832,7 @@ public:
 						for (int i = last_i + 1; i < next_i; i++)
 						{
 							float t = (i - last_i) / diff;
-							range_table[i] = t * range_table[last_i] + (1-t) * range_table[next_i];
+							range_table[i] = t * range_table[last_i] + (1 - t) * range_table[next_i];
 						}
 					}
 				}
@@ -831,7 +842,7 @@ public:
 		}
 	}
 
-	void get_costmap(vector<PointXYZ>& points3D, PointXYZ& center3D, Plane3D& ground_P, float zMin, float zMax, float dl_2D)
+	void get_costmap(vector<PointXYZ> &points3D, PointXYZ &center3D, Plane3D &ground_P, float zMin, float zMax, float dl_2D)
 	{
 		//////////
 		// Init //
@@ -839,7 +850,7 @@ public:
 		//
 		//	This function assumes the point cloud has been aligned in the world coordinates and the ground is close to a flat plane
 		//
-		
+
 		// Get distances to ground
 		vector<float> distances;
 		ground_P.point_distances(points3D, distances);
@@ -847,15 +858,13 @@ public:
 		// Create costmap
 		vector<float> costmap;
 
-
-
 		///////////////////
 		// Update ranges //
 		///////////////////
 
 		// Loop over 3D points
 		size_t p_i = 0;
-		for (auto& p : points3D)
+		for (auto &p : points3D)
 		{
 			// Check height limits
 			if (distances[p_i] < zMin || distances[p_i] > zMax)
@@ -873,7 +882,6 @@ public:
 
 			p_i++;
 		}
-		
 
 		///////////////////////////////
 		// Interpolate the 2D ranges //
@@ -908,7 +916,7 @@ public:
 								real_i += range_table.size();
 							float t = (i - last_i) / diff;
 							int real_last_i = last_i + range_table.size();
-							range_table[real_i] = t * range_table[real_last_i] + (1-t) * range_table[next_i];
+							range_table[real_i] = t * range_table[real_last_i] + (1 - t) * range_table[next_i];
 						}
 					}
 				}
@@ -920,7 +928,7 @@ public:
 						for (int i = last_i + 1; i < next_i; i++)
 						{
 							float t = (i - last_i) / diff;
-							range_table[i] = t * range_table[last_i] + (1-t) * range_table[next_i];
+							range_table[i] = t * range_table[last_i] + (1 - t) * range_table[next_i];
 						}
 					}
 				}
@@ -929,10 +937,7 @@ public:
 			next_i++;
 		}
 	}
-
 };
-
-
 
 class FullGrid2D
 {
@@ -947,7 +952,6 @@ public:
 	PointXYZ originCorner;
 	size_t sampleNX;
 	size_t sampleNY;
-
 
 	// Methods
 	// *******
@@ -966,7 +970,7 @@ public:
 	size_t size() { return scores.size(); }
 
 	// Update map with a set of new points
-	void update_from_3D(vector<PointXYZ>& points3D, PointXYZ& center3D, Plane3D& ground_P, float zMin, float zMax, float radius)
+	void update_from_3D(vector<PointXYZ> &points3D, PointXYZ &center3D, Plane3D &ground_P, float zMin, float zMax, float radius)
 	{
 
 		// Angle resolution
@@ -991,7 +995,7 @@ public:
 		// Init containers
 		scores = vector<float>(sampleNX * sampleNY);
 		counts = vector<int>(sampleNX * sampleNY);
-		
+
 		// Get distances to ground
 		vector<float> distances;
 		ground_P.point_distances(points3D, distances);
@@ -1002,7 +1006,7 @@ public:
 		angle_inds.reserve(points3D.size());
 		angle_d2s.reserve(points3D.size());
 		size_t p_i = 0;
-		for (auto& p : points3D)
+		for (auto &p : points3D)
 		{
 			// Check height limits
 			if (distances[p_i] < zMin || distances[p_i] > zMax)
@@ -1010,7 +1014,7 @@ public:
 				p_i++;
 				continue;
 			}
-			
+
 			// Add the angle and its corresponding free_range
 			PointXY diff2D(p - center3D);
 			size_t angle_idx = (size_t)floor((atan2(diff2D.y, diff2D.x) + M_PI) * inv_angle_res);
@@ -1025,7 +1029,8 @@ public:
 		// Argsort angle dist with their inds
 		vector<size_t> order(angle_inds.size());
 		iota(order.begin(), order.end(), 0);
-		stable_sort(order.begin(), order.end(), [&angle_inds](size_t i1, size_t i2) {return angle_inds[i1] < angle_inds[i2];});
+		stable_sort(order.begin(), order.end(), [&angle_inds](size_t i1, size_t i2)
+					{ return angle_inds[i1] < angle_inds[i2]; });
 
 		// Order angles
 		vector<float> angle_d2s_ordered;
@@ -1033,7 +1038,7 @@ public:
 		vector<size_t> angle_starts;
 		int current_angle_idx = -1;
 		size_t c_i = 0;
-		for (auto& i0 : order)
+		for (auto &i0 : order)
 		{
 			while ((int)angle_inds[i0] > current_angle_idx)
 			{
@@ -1047,7 +1052,7 @@ public:
 
 		// Loop over grid pixels
 		for (size_t iX = 0; iX < sampleNX; iX++)
-		{	
+		{
 			for (size_t iY = 0; iY < sampleNY; iY++)
 			{
 				// Idx in the map containers
@@ -1063,7 +1068,7 @@ public:
 				size_t angle_idx = (size_t)floor((atan2(diff2D.y, diff2D.x) + M_PI) * inv_angle_res);
 				float d2 = diff2D.sq_norm();
 
-				// Get score 
+				// Get score
 				for (size_t a_i = angle_starts[angle_idx]; a_i < angle_starts[angle_idx] + angle_count[angle_idx]; a_i++)
 				{
 					if (angle_d2s_ordered[a_i] > d2)
@@ -1076,14 +1081,4 @@ public:
 
 		return;
 	}
-
-
 };
-
-
-
-
-
-
-
-
