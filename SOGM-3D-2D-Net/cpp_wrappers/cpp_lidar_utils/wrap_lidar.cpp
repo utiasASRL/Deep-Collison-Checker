@@ -147,6 +147,7 @@ static PyObject* get_visibility(PyObject* self, PyObject* args, PyObject* keywds
 	Plane3D ground(plane_values[0], plane_values[1], plane_values[2], plane_values[3]);
 
 
+
 	if (dl_2D < 0)
 	{
 		// Create result containers

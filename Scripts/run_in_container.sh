@@ -9,13 +9,15 @@ echo "Running ros-collider docker"
 echo ""
 
 detach=false
+devdoc=false
 command=""
 
-while getopts dc: option
+while getopts dvc: option
 do
 case "${option}"
 in
 d) detach=true;; 
+v) devdoc=true;; 
 c) command=${OPTARG};;
 esac
 done
@@ -55,30 +57,43 @@ other_args="-v $XSOCK:$XSOCK \
     -e DISPLAY=$DISPLAY \
     -w /home/$USER/Deep-Collison-Checker/SOGM-3D-2D-Net"
 
-# python command started in the docker
-if [ ! "$command" ] ; then
-    if [ "$detach" = true ] ; then
-        py_command="python3 train_MyhalCollision.py results/Log_$now"
-    else
-        py_command="python3 train_MyhalCollision.py"
-    fi
+if [ "$devdoc" = true ] ; then
+
+    # Execute the command in docker (Example of command: ./master.sh -ve -m 2 -p Sc1_params -t A_tour)
+    docker run $docker_args \
+    $volumes \
+    $other_args \
+    --name "dev-SOGM" \
+    noetic_pytorch_$USER \
+    $command
+
 else
-    py_command="$command"
+
+    # python command started in the docker
+    if [ ! "$command" ] ; then
+        if [ "$detach" = true ] ; then
+            py_command="python3 train_MyhalCollision.py results/Log_$now"
+        else
+            py_command="python3 train_MyhalCollision.py"
+        fi
+    else
+        py_command="$command"
+    fi
+
+    echo -e "Running command $py_command\n"
+
+    # Execute the command in docker (Example of command: ./master.sh -ve -m 2 -p Sc1_params -t A_tour)
+    docker run $docker_args \
+    $volumes \
+    $other_args \
+    --name "$USER-SOGM-$now" \
+    noetic_pytorch_$USER \
+    $py_command
+
+    # Attach a log parameters and log the detached docker
+    if [ "$detach" = true ] ; then
+        docker logs -f "$USER-SOGM-$now" &> $RES_FOLDER/Log_"$now"/log.txt &
+    fi
+
+
 fi
-
-echo -e "Running command $py_command\n"
-
-# Execute the command in docker (Example of command: ./master.sh -ve -m 2 -p Sc1_params -t A_tour)
-docker run $docker_args \
-$volumes \
-$other_args \
---name "$USER-SOGM-$now" \
-noetic_pytorch_$USER \
-$py_command
-
-# Attach a log parameters and log the detached docker
-if [ "$detach" = true ] ; then
-    docker logs -f "$USER-SOGM-$now" &> $RES_FOLDER/Log_"$now"/log.txt &
-fi
-
-

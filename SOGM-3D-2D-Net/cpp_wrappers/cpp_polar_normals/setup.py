@@ -13,7 +13,9 @@ SOURCES = ["../src/cloud/cloud.cpp",
            "../src/cloud/points.cpp",
            "../src/npm_ply/ply_file_in.cc",
            "../src/npm_ply/ply_file_out.cc",
+           "../src/grid_subsampling/grid_subsampling.cpp",
            "../src/polar_processing/polar_processing.cpp",
+           "../src/pointmap/pointmap.cpp",
            "wrap_polar.cpp"]
 
 module = Extension(name="polar_processing",

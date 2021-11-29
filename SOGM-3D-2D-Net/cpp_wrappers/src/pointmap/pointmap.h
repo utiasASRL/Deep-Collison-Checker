@@ -1,15 +1,12 @@
 #pragma once
 
 
-#include <set>
-#include <cstdint>
 #include <cmath>
 #include <algorithm>
+#include <unordered_set>
 
-#include <Eigen/Eigenvalues>
-#include "../cloud/cloud.h"
+#include "../grid_subsampling/grid_subsampling.h"
 #include "../polar_processing/polar_processing.h"
-#include "../nanoflann/nanoflann.hpp"
 
 using namespace std;
 
@@ -189,6 +186,19 @@ public:
 inline VoxKey operator+(const VoxKey A, const VoxKey B)
 {
 	return VoxKey(A.x + B.x, A.y + B.y, A.z + B.z);
+}
+
+inline bool operator<(const VoxKey A, const VoxKey B)
+{
+	if (A.x == B.x)
+	{
+		if (A.y == B.y)
+			return (A.z < B.z);
+		else
+			return (A.y < B.y);
+	}
+	else
+		return (A.x < B.x);
 }
 
 // Simple utility function to combine hashtables

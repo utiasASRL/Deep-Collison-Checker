@@ -2009,10 +2009,10 @@ class MyhalCollisionSlam:
         if exists(first_annot_name):
 
             print('Load annot')
-            pointmap = PointMap(map_dl)
+            # pointmap = PointMap(map_dl)
             data = read_ply(first_annot_name)
-            pointmap.points = np.vstack((data['x'], data['y'], data['z'])).T
-            pointmap.normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            points = np.vstack((data['x'], data['y'], data['z'])).T
+            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
             movable_prob = data['movable']
             movable_count = data['counts']
             print('OK')
@@ -2039,20 +2039,20 @@ class MyhalCollisionSlam:
             print('OK')
             print('Update pointmap')
 
-            pointmap = PointMap(map_dl)
-            pointmap.update(points, normals, scores)
+            # pointmap = PointMap(map_dl)
+            # pointmap.update(points, normals, scores)
 
             print('OK')
             print('Start ray casting')
 
-            # Get short term movables TODO: HERE implement motion distorsion and correct double linked list bug
+            # Get short term movables TODO: HERE implement motion distortion and correct double linked list bug
             movable_prob, movable_count = ray_casting_annot(frame_names,
-                                                            pointmap.points,
-                                                            pointmap.normals,
+                                                            points,
+                                                            normals,
                                                             map_H,
                                                             theta_dl=1.29 * np.pi / 180,
                                                             phi_dl=0.1 * np.pi / 180,
-                                                            map_dl=pointmap.dl,
+                                                            map_dl=map_dl,
                                                             motion_distortion=False)
 
             movable_prob = movable_prob / (movable_count + 1e-6)
@@ -2061,9 +2061,9 @@ class MyhalCollisionSlam:
             print('Ray_casting done')
 
             # Save it
-            write_ply(join(map_folder, 'movable_final.ply'), [
-                pointmap.points, pointmap.normals, movable_prob, movable_count
-            ], ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
+            write_ply(join(map_folder, 'movable_final.ply'),
+                      [points, normals, movable_prob, movable_count],
+                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
 
         #####################
         # Reproject on frames
@@ -2071,11 +2071,12 @@ class MyhalCollisionSlam:
 
         # Extract ground ransac
         print('Get ground')
-        ground_mask = extract_map_ground(pointmap,
+        ground_mask = extract_map_ground(points,
+                                         normals,
                                          map_folder,
                                          vertical_thresh=10.0,
-                                         dist_thresh=0.1,
-                                         remove_dist=0.11)
+                                         dist_thresh=0.3,
+                                         remove_dist=0.29)
 
         # Do not remove ground points
         movable_prob[ground_mask] = 0
@@ -2101,7 +2102,7 @@ class MyhalCollisionSlam:
             if exists(new_f_name):
                 continue
             elif i < 1:
-                map_tree = KDTree(pointmap.points)
+                map_tree = KDTree(points)
 
             t = [time.time()]
 
@@ -2204,7 +2205,7 @@ class MyhalCollisionSlam:
         global_correct_H = np.eye(4)
         
         # Align all ground point on a horizontal plane (height does not matter so much as we correct it later)
-        ground_points = pointmap.points[ground_mask]
+        ground_points = points[ground_mask]
         ground_pointsh = np.hstack((ground_points, np.ones_like(ground_points[:, :1])))
         ground_points = np.matmul(ground_pointsh, global_correct_H.T).astype(np.float32)[:, :3]
         

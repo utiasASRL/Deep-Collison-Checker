@@ -18,7 +18,13 @@ using namespace std;
 typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_KDTree;
 
 void cart2pol_(vector<PointXYZ> &xyz);
-PointXYZ cart2pol(const PointXYZ &p);
+
+inline PointXYZ cart2pol(const PointXYZ p)
+{
+	float tmp1 = p.x * p.x + p.y * p.y;
+	float tmp2 = tmp1 + p.z * p.z;
+	return PointXYZ(sqrt(tmp2), atan2(sqrt(tmp1), p.z), atan2(p.y, p.x) + M_PI / 2);
+}
 
 void get_min_max_times(vector<float> &f_ts, float &t_min, float &t_max, float loop_ratio);
 

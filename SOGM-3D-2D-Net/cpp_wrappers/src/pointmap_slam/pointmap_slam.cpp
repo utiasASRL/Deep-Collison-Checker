@@ -375,7 +375,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 
 	// Min and max times (dont loop on the whole frame as it is useless)
 	float loop_ratio = 0.01;
-	get_min_max_times(timestamps, t_min, t_max, loop_ratio);
+	get_min_max_times(f_ts, t_min, t_max, loop_ratio);
 	
 	// Init last_time
 	if (frame_i < 1)

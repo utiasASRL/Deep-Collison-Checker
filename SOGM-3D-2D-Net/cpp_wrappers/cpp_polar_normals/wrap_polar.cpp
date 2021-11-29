@@ -1,6 +1,5 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
-#include "../src/polar_processing/polar_processing.h"
 #include "../src/pointmap/pointmap.h"
 #include <string>
 
@@ -271,45 +270,50 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	// Init point map
 	// **************
 
+	cout << "Creating point map" << endl;
+
 	vector<float> map_scores(map_points.size(), 1.0);
-	PointMap tmp_map(map_dl, map_points, map_normals, map_scores);
+	PointMap tmp_map(map_dl);
+	tmp_map.cloud.pts = map_points;
+	tmp_map.normals = map_normals;
+	tmp_map.samples.reserve(map_points.size());
 	
-	// // Create the pointmap voxels
-	// unordered_map<VoxKey, size_t> map_samples;
-	// map_samples.reserve(map_points.size());
-	// float inv_map_dl = 1.0 / map_dl;
-	// VoxKey k0;
-	// size_t p_i = 0;
+	// Create the pointmap voxels
+	float inv_map_dl = 1.0 / map_dl;
+	VoxKey k0;
+	size_t p_i = 0;
+	bool wrong_pointmap = false;
+	for (auto &p : map_points)
+	{
+		// Corresponding key
+		k0.x = (int)floor(p.x * inv_map_dl);
+		k0.y = (int)floor(p.y * inv_map_dl);
+		k0.z = (int)floor(p.z * inv_map_dl);
 
-	// for (auto &p : map_points)
-	// {
-
-	// 	//cout << p << endl;
-
-	// 	// Corresponding key
-	// 	k0.x = (int)floor(p.x * inv_map_dl);
-	// 	k0.y = (int)floor(p.y * inv_map_dl);
-	// 	k0.z = (int)floor(p.z * inv_map_dl);
-
-	// 	//cout << k0.x << ", " << k0.y << ", " << k0.z << endl;
-
-	// 	// Update the sample map
-	// 	if (map_samples.count(k0) < 1)
-	// 	{
-	// 		map_samples.emplace(k0, p_i);
-	// 	}
-	// 	else
-	// 	{
-	// 		int a;
-	// 		//cout << "WARNING: multiple points in a single map voxel" << endl;
-	// 		//return NULL;
-	// 	}
+		// Update the sample map
+		if (tmp_map.samples.count(k0) < 1)
+			tmp_map.samples.emplace(k0, p_i);
+		// else
+		// {
+		// 	cout << "[" << k0.x << ", " << k0.y << ", " << k0.z << "] /";
+		// 	cout << " old index = " << tmp_map.samples[k0];
+		// 	cout << " / new index = " << p_i << endl;
+		// 	wrong_pointmap = true;
+		// }
 			
-	// 	p_i++;
-	// }
-	// //cout << "++++++++++++++++++++++++++++++++++++++" << endl;
+		p_i++;
+	}
 
+	if (wrong_pointmap)
+	{
+		Py_XDECREF(map_p_array);
+		Py_XDECREF(map_n_array);
+		Py_XDECREF(H_array);
+		cout << "ERROR: multiple points in a single map voxel" << endl;
+		return NULL;
+	}
 
+	cout << "OK" << endl;
 
 	// Start movable detection
 	// ***********************
@@ -339,6 +343,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		// **********
 
 		// Load ply file
+		
 		vector<PointXYZ> f_pts;
 		// vector<float> timestamps;
 		// vector<int> rings;

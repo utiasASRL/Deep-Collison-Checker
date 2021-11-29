@@ -2149,7 +2149,7 @@ def annotation_process(dataset,
     return
 
 
-def extract_map_ground(pointmap, out_folder,
+def extract_map_ground(points, normals, out_folder,
                        vertical_thresh=10.0,
                        dist_thresh=0.15,
                        remove_dist=0.15):
@@ -2161,7 +2161,7 @@ def extract_map_ground(pointmap, out_folder,
 
     else:
 
-        plane_mask = extract_ground(pointmap.points, pointmap.normals,
+        plane_mask = extract_ground(points, normals,
                                     out_folder,
                                     vertical_thresh=vertical_thresh,
                                     dist_thresh=dist_thresh,

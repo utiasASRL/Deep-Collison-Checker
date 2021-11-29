@@ -15,27 +15,8 @@ void cart2pol_(vector<PointXYZ> &xyz)
 		p.z = phi + pi_s_2;
 		p.x = sqrt(tmp2);
 	}
-
-	// // In place modification to carthesian coordinates
-	// for (auto &p : xyz)
-	// {
-
-	// 	float rho = sqrt(p.sq_norm());
-	// 	float phi = atan2(p.y, p.x);
-	// 	float theta = atan2(sqrt(p.x * p.x + p.y * p.y), p.z);
-	// 	p.x = rho;
-	// 	p.y = theta;
-	// 	p.z = phi + M_PI / 2;
-	// }
 }
 
-PointXYZ cart2pol(PointXYZ &p)
-{
-	float rho = sqrt(p.sq_norm());
-	float phi = atan2(p.y, p.x);
-	float theta = atan2(sqrt(p.x * p.x + p.y * p.y), p.z);
-	return PointXYZ(rho, theta, phi + M_PI / 2);
-}
 
 void get_min_max_times(vector<float> &f_ts, float &t_min, float &t_max, float loop_ratio)
 {

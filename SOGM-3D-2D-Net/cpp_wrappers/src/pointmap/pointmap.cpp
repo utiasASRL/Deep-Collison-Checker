@@ -172,16 +172,19 @@ void PointMapPython::add_samples(const vector<PointXYZ>& points0,
 	}
 }
 
-
 void PointMap::update_movable(vector<PointXYZ> &frame_points,
-							  Eigen::Matrix3d &R_d,
-							  Eigen::Vector3d &T_d,
+							  Eigen::Matrix4d &H0,
+							  Eigen::Matrix4d &H1,
 							  float theta_dl,
 							  float phi_dl,
 							  vector<float> &movable_probs,
 							  vector<int> &movable_counts)
 {
-	int verbose = 0;
+	///////////////
+	// Verbosity //
+	///////////////
+
+	int verbose = 2;
 	vector<string> clock_str;
 	vector<clock_t> t;
 	if (verbose > 1)
@@ -199,6 +202,7 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 		clock_str.push_back("Test .............. ");
 	}
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	////////////////
 	// Parameters //
@@ -211,8 +215,18 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	float min_vert_cos = cos(M_PI / 3);
 
 	// Convert alignment matrices to float
-	Eigen::Matrix3f R = R_d.cast<float>();
-	Eigen::Vector3f T = T_d.cast<float>();
+	Eigen::Matrix3f R = (H1.block(0, 0, 3, 3)).cast<float>();
+	Eigen::Vector3f T = (H1.block(0, 3, 3, 1)).cast<float>();
+
+	bool motion_distortion = false;
+	Eigen::Matrix3f R0;
+	Eigen::Vector3f T0;
+	if (H0.lpNorm<1>() > 0.001)
+	{
+		motion_distortion = true;
+		R0 = (H1.block(0, 0, 3, 3)).cast<float>();
+		T0 = (H1.block(0, 3, 3, 1)).cast<float>();
+	}
 
 	// Mask of the map point not updated yet
 	vector<bool> not_updated(cloud.pts.size(), true);
@@ -227,52 +241,77 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	aligned_mat = (R * aligned_mat).colwise() + T;
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	// Get limits
 	PointXYZ min_P = min_point(aligned_frame) - PointXYZ(dl, dl, dl);
 	PointXYZ max_P = max_point(aligned_frame) + PointXYZ(dl, dl, dl);
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	////////////////////////
 	// Update full voxels //
 	////////////////////////
 
-	// Loop over aligned_frame
-	VoxKey k0, k;
+
+	// Loop over aligned_frdlame
+	VoxKey kk0;
+	unordered_map<VoxKey, size_t> test_keys;
+	test_keys.reserve(aligned_frame.size());
+	vector<VoxKey> unique_keys;
+	unique_keys.reserve(aligned_frame.size());
 	for (auto &p : aligned_frame)
 	{
-
 		// Corresponding key
-		k0.x = (int)floor(p.x * inv_dl);
-		k0.y = (int)floor(p.y * inv_dl);
-		k0.z = (int)floor(p.z * inv_dl);
+		kk0.x = (int)floor(p.x * inv_dl);
+		kk0.y = (int)floor(p.y * inv_dl);
+		kk0.z = (int)floor(p.z * inv_dl);
 
-		// Update the adjacent cells
-		for (k.x = k0.x - 1; k.x < k0.x + 2; k.x++)
+		// Update the point count
+		if (test_keys.count(kk0) < 1)
 		{
-			for (k.y = k0.y - 1; k.y < k0.y + 2; k.y++)
+			test_keys.emplace(kk0, 0);
+			unique_keys.push_back(kk0);
+		}
+	}
+	
+	vector<VoxKey> grown_keys(unique_keys);
+	VoxKey k;
+	grown_keys.reserve(aligned_frame.size());
+	for (auto &k1 : unique_keys)
+	{
+		// Update the adjacent cells
+		for (k.x = k1.x - 1; k.x < k1.x + 2; k.x++)
+		{
+			for (k.y = k1.y - 1; k.y < k1.y + 2; k.y++)
 			{
-				for (k.z = k0.z - 1; k.z < k0.z + 2; k.z++)
+				for (k.z = k1.z - 1; k.z < k1.z + 2; k.z++)
 				{
-					// Update count and movable at this point
-					if (samples.count(k) > 0)
+					if (test_keys.count(k) < 1)
 					{
-						// Only update once
-						size_t i0 = samples[k];
-						if (not_updated[i0])
-						{
-							not_updated[i0] = false;
-							movable_counts[i0] += 1;
-							// movable_probs[i0] += 0; Useless line
-						}
+						test_keys.emplace(k, 0);
+						grown_keys.push_back(k);
 					}
 				}
 			}
 		}
 	}
 
+	for (auto &k2 : grown_keys)
+	{
+		if (samples.count(k2) > 0)
+		{	
+			// Only update once
+			size_t i0 = samples[k2];
+			not_updated[i0] = false;
+			movable_counts[i0] += 1;
+			// movable_probs[i0] += 0; Useless line
+		}
+	}
+
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////////////////////
 	// Create the free frustrum grid //
@@ -283,6 +322,7 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	cart2pol_(polar_frame);
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	// Get grid limits
 	PointXYZ minCorner = min_point(polar_frame);
@@ -298,6 +338,7 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	size_t i_theta, i_phi, gridIdx;
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	// vector<PointXYZ> test_polar(polar_frame);
 	// vector<float> test_itheta;
@@ -326,6 +367,7 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	}
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	// Apply margin to free ranges
 	float margin = dl;
@@ -340,6 +382,7 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	}
 
 	t.push_back(std::clock());
+	cout << clock_str[t.size() - 1] << endl;
 
 	////////////////////////////
 	// Apply frustrum casting //
