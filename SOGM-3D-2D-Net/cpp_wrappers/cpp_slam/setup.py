@@ -4,8 +4,14 @@ import numpy.distutils.misc_util
 # Adding Eigen to project
 # ***********************
 
-EIGEN_INCLUDE = "../src/Eigen"
-G2O_INCLUDE = "../g2o"
+EIGEN_INCLUDE = ["/usr/include/eigen3"]
+CERES_LIBS = ["glog", "ceres", "gflags", "pthread", "spqr", "cholmod", "ccolamd", "camd", "colamd", "amd", "lapack", "f77blas", "cxsparse", "rt", "stdc++", "m"]
+CERES_INCLUDE = []
+CERES_LIB = []
+
+# CERES_MACRO = 'CERES_USE_CXX11_THREADS'
+# CERES_MACRO = 'CERES_USE_OPENMP'
+# CERES_MACRO = 'CERES_NO_THREADS'
 
 # Adding sources of the project
 # *****************************
@@ -23,17 +29,9 @@ SOURCES = ["../src/cloud/cloud.cpp",
 
 module = Extension(name="pointmap_slam",
                    sources=SOURCES,
-                   include_dirs=[EIGEN_INCLUDE, G2O_INCLUDE],
-                   extra_compile_args=['-std=c++11',
-                                       '-D_GLIBCXX_USE_CXX11_ABI=0'])
+                   include_dirs=EIGEN_INCLUDE,
+                   libraries=CERES_LIBS,
+                   extra_compile_args=['-std=c++14'])
 
 
 setup(ext_modules=[module], include_dirs=numpy.distutils.misc_util.get_numpy_include_dirs())
-
-
-
-
-
-
-
-

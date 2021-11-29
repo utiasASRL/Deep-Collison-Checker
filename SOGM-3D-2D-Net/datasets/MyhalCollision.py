@@ -1903,14 +1903,22 @@ class MyhalCollisionSlam:
             from_nav = False
             map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
             init_map_pkl = join(map_folder, 'map0_traj_{:s}.pkl'.format(self.map_day))
+            loop_pkl = join(map_folder, 'loopclosed_traj_{:s}.pkl'.format(self.map_day))
 
-            if exists(init_map_pkl):
-                with open(init_map_pkl, 'rb') as file:
-                    map_H = pickle.load(file)
-            
-            else:
 
-                map_H = slam_on_real_sequence(self.map_f_names,
+            #DEBUG
+            if exists(loop_pkl):
+                with open(loop_pkl, 'rb') as file:
+                    loop_H = pickle.load(file)
+
+                map_H = loop_H
+
+                loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
+                if not exists(loop_closed_map_name):
+
+                    odom_H = [np.linalg.inv(odoH) for odoH in loop_H]
+                    odom_H = np.stack(odom_H, 0)
+                    _ = slam_on_real_sequence(self.map_f_names,
                                               map_t,
                                               map_folder,
                                               map_voxel_size=map_dl,
@@ -1921,20 +1929,47 @@ class MyhalCollisionSlam:
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
                                               icp_planar_dist=0.3,
-                                              icp_max_iter=100,
-                                              icp_avg_steps=5)
+                                              icp_max_iter=0,
+                                              icp_avg_steps=5,
+                                              odom_H=odom_H)
 
-                # Save the trajectory
-                save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
-                with open(init_map_pkl, 'wb') as file:
-                    pickle.dump(map_H, file)
+                    # Rename the saved map file
+                    old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
+                    os.rename(old_name, loop_closed_map_name)
+                    
 
-                # Rename the saved map file
-                old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
-                new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
-                os.rename(old_name, new_name)
+            else:
 
-        a = 1/0
+                if exists(init_map_pkl):
+                    with open(init_map_pkl, 'rb') as file:
+                        map_H = pickle.load(file)
+
+                else:
+
+                    map_H = slam_on_real_sequence(self.map_f_names,
+                                                  map_t,
+                                                  map_folder,
+                                                  map_voxel_size=map_dl,
+                                                  frame_voxel_size=3 * map_dl,
+                                                  motion_distortion=True,
+                                                  filtering=False,
+                                                  verbose_time=5.0,
+                                                  icp_samples=600,
+                                                  icp_pairing_dist=2.0,
+                                                  icp_planar_dist=0.3,
+                                                  icp_max_iter=100,
+                                                  icp_avg_steps=5)
+
+                    # Save the trajectory
+                    save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
+                    with open(init_map_pkl, 'wb') as file:
+                        pickle.dump(map_H, file)
+
+                    # Rename the saved map file
+                    old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
+                    new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
+                    os.rename(old_name, new_name)
+
 
         #####################################
         # Annotate short-term on original map
@@ -1992,7 +2027,9 @@ class MyhalCollisionSlam:
                                          self.map_day, 'logs-' + self.map_day,
                                          'pointmap_00000.ply')
             else:
-                map_original_name = join(map_folder, 'map0_' + self.map_day + '.ply')
+                map_original_name = join(map_folder, 'loopclosed_map0_' + self.map_day + '.ply')
+                if not exists(map_original_name):
+                    map_original_name = join(map_folder, 'map0_' + self.map_day + '.ply')
 
             data = read_ply(map_original_name)
             points = np.vstack((data['x'], data['y'], data['z'])).T
@@ -2008,16 +2045,15 @@ class MyhalCollisionSlam:
             print('OK')
             print('Start ray casting')
 
-            # Get short term movables
-            movable_prob, movable_count = ray_casting_annot(
-                frame_names,
-                pointmap.points,
-                pointmap.normals,
-                map_H,
-                theta_dl=1.29 * np.pi / 180,
-                phi_dl=0.1 * np.pi / 180,
-                map_dl=pointmap.dl,
-                motion_distortion=False)
+            # Get short term movables TODO: HERE implement motion distorsion and correct double linked list bug
+            movable_prob, movable_count = ray_casting_annot(frame_names,
+                                                            pointmap.points,
+                                                            pointmap.normals,
+                                                            map_H,
+                                                            theta_dl=1.29 * np.pi / 180,
+                                                            phi_dl=0.1 * np.pi / 180,
+                                                            map_dl=pointmap.dl,
+                                                            motion_distortion=False)
 
             movable_prob = movable_prob / (movable_count + 1e-6)
             movable_prob[movable_count < 1e-6] = -1

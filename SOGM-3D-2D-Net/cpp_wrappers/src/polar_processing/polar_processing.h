@@ -8,9 +8,8 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include <../Eigen/Eigenvalues>
+#include <Eigen/Eigenvalues>
 #include "../cloud/cloud.h"
-#include "../pointmap/pointmap.h"
 #include "../nanoflann/nanoflann.hpp"
 
 using namespace std;
@@ -20,6 +19,8 @@ typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, 
 
 void cart2pol_(vector<PointXYZ> &xyz);
 PointXYZ cart2pol(const PointXYZ &p);
+
+void get_min_max_times(vector<float> &f_ts, float &t_min, float &t_max, float loop_ratio);
 
 void pca_features(vector<PointXYZ> &points,
 				  vector<float> &eigenvalues,
@@ -59,17 +60,17 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 					 vector<PointXYZ> &normals,
 					 vector<double> &scores);
 
-void compare_map_to_frame(vector<PointXYZ> &frame_points,
-						  vector<PointXYZ> &map_points,
-						  vector<PointXYZ> &map_normals,
-						  unordered_map<VoxKey, size_t> &map_samples,
-						  Eigen::Matrix3d R_d,
-						  Eigen::Vector3d T_d,
-						  float theta_dl,
-						  float phi_dl,
-						  float map_dl,
-						  vector<float> &movable_probs,
-						  vector<int> &movable_counts);
+// void compare_map_to_frame(vector<PointXYZ> &frame_points,
+// 						  vector<PointXYZ> &map_points,
+// 						  vector<PointXYZ> &map_normals,
+// 						  unordered_map<VoxKey, size_t> &map_samples,
+// 						  Eigen::Matrix3d R_d,
+// 						  Eigen::Vector3d T_d,
+// 						  float theta_dl,
+// 						  float phi_dl,
+// 						  float map_dl,
+// 						  vector<float> &movable_probs,
+// 						  vector<int> &movable_counts);
 
 void extract_lidar_frame_normals(vector<PointXYZ> &points,
 								 vector<PointXYZ> &polar_pts,

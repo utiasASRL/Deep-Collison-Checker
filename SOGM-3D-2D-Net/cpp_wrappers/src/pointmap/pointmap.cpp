@@ -114,7 +114,6 @@ void PointMapPython::init_samples(const PointXYZ originCorner,
 }
 
 
-
 void PointMapPython::add_samples(const vector<PointXYZ>& points0,
 	const vector<PointXYZ>& normals0,
 	const vector<float>& scores0,
@@ -173,3 +172,250 @@ void PointMapPython::add_samples(const vector<PointXYZ>& points0,
 	}
 }
 
+
+void PointMap::update_movable(vector<PointXYZ> &frame_points,
+							  Eigen::Matrix3d &R_d,
+							  Eigen::Vector3d &T_d,
+							  float theta_dl,
+							  float phi_dl,
+							  vector<float> &movable_probs,
+							  vector<int> &movable_counts)
+{
+	int verbose = 0;
+	vector<string> clock_str;
+	vector<clock_t> t;
+	if (verbose > 1)
+	{
+		clock_str.reserve(20);
+		t.reserve(20);
+		clock_str.push_back("Align frame ....... ");
+		clock_str.push_back("Map limits ........ ");
+		clock_str.push_back("Update full ....... ");
+		clock_str.push_back("Polar frame ....... ");
+		clock_str.push_back("Init grid ......... ");
+		clock_str.push_back("Fill frustrum ..... ");
+		clock_str.push_back("Apply margin ...... ");
+		clock_str.push_back("Cast frustrum ..... ");
+		clock_str.push_back("Test .............. ");
+	}
+	t.push_back(std::clock());
+
+	////////////////
+	// Parameters //
+	////////////////
+
+	float inv_theta_dl = 1.0 / theta_dl;
+	float inv_phi_dl = 1.0 / phi_dl;
+	float inv_dl = 1.0 / dl;
+	float max_angle = 5 * M_PI / 12;
+	float min_vert_cos = cos(M_PI / 3);
+
+	// Convert alignment matrices to float
+	Eigen::Matrix3f R = R_d.cast<float>();
+	Eigen::Vector3f T = T_d.cast<float>();
+
+	// Mask of the map point not updated yet
+	vector<bool> not_updated(cloud.pts.size(), true);
+
+	///////////////////////////
+	// Get map update limits //
+	///////////////////////////
+
+	// Align frame on map
+	vector<PointXYZ> aligned_frame(frame_points);
+	Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float *)aligned_frame.data(), 3, aligned_frame.size());
+	aligned_mat = (R * aligned_mat).colwise() + T;
+
+	t.push_back(std::clock());
+
+	// Get limits
+	PointXYZ min_P = min_point(aligned_frame) - PointXYZ(dl, dl, dl);
+	PointXYZ max_P = max_point(aligned_frame) + PointXYZ(dl, dl, dl);
+
+	t.push_back(std::clock());
+
+	////////////////////////
+	// Update full voxels //
+	////////////////////////
+
+	// Loop over aligned_frame
+	VoxKey k0, k;
+	for (auto &p : aligned_frame)
+	{
+
+		// Corresponding key
+		k0.x = (int)floor(p.x * inv_dl);
+		k0.y = (int)floor(p.y * inv_dl);
+		k0.z = (int)floor(p.z * inv_dl);
+
+		// Update the adjacent cells
+		for (k.x = k0.x - 1; k.x < k0.x + 2; k.x++)
+		{
+			for (k.y = k0.y - 1; k.y < k0.y + 2; k.y++)
+			{
+				for (k.z = k0.z - 1; k.z < k0.z + 2; k.z++)
+				{
+					// Update count and movable at this point
+					if (samples.count(k) > 0)
+					{
+						// Only update once
+						size_t i0 = samples[k];
+						if (not_updated[i0])
+						{
+							not_updated[i0] = false;
+							movable_counts[i0] += 1;
+							// movable_probs[i0] += 0; Useless line
+						}
+					}
+				}
+			}
+		}
+	}
+
+	t.push_back(std::clock());
+
+	///////////////////////////////////
+	// Create the free frustrum grid //
+	///////////////////////////////////
+
+	// Get frame in polar coordinates
+	vector<PointXYZ> polar_frame(frame_points);
+	cart2pol_(polar_frame);
+
+	t.push_back(std::clock());
+
+	// Get grid limits
+	PointXYZ minCorner = min_point(polar_frame);
+	PointXYZ maxCorner = max_point(polar_frame);
+	PointXYZ originCorner = minCorner - PointXYZ(0, 0.5 * theta_dl, 0.5 * phi_dl);
+
+	// Dimensions of the grid
+	size_t grid_n_theta = (size_t)floor((maxCorner.y - originCorner.y) / theta_dl) + 1;
+	size_t grid_n_phi = (size_t)floor((maxCorner.z - originCorner.z) / phi_dl) + 1;
+
+	// Initialize variables
+	vector<float> frustrum_radiuses(grid_n_theta * grid_n_phi, -1.0);
+	size_t i_theta, i_phi, gridIdx;
+
+	t.push_back(std::clock());
+
+	// vector<PointXYZ> test_polar(polar_frame);
+	// vector<float> test_itheta;
+	// test_itheta.reserve(test_polar.size());
+	// for (auto &p : test_polar)
+	// {
+	// 	p.y = (p.y - originCorner.y) * inv_theta_dl;
+	// 	p.z = (p.z - originCorner.z) * inv_phi_dl;
+	// 	test_itheta.push_back(floor(p.y));
+	// }
+	// save_cloud("test_polar.ply", test_polar, test_itheta);
+
+	// Fill the frustrum radiuses
+	for (auto &p : polar_frame)
+	{
+		// Position of point in grid
+		i_theta = (size_t)floor((p.y - originCorner.y) * inv_theta_dl);
+		i_phi = (size_t)floor((p.z - originCorner.z) * inv_phi_dl);
+		gridIdx = i_theta + grid_n_theta * i_phi;
+
+		// Update the radius in cell
+		if (frustrum_radiuses[gridIdx] < 0)
+			frustrum_radiuses[gridIdx] = p.x;
+		else if (p.x < frustrum_radiuses[gridIdx])
+			frustrum_radiuses[gridIdx] = p.x;
+	}
+
+	t.push_back(std::clock());
+
+	// Apply margin to free ranges
+	float margin = dl;
+	float frustrum_alpha = theta_dl / 2;
+	for (auto &r : frustrum_radiuses)
+	{
+		float adapt_margin = r * frustrum_alpha;
+		if (margin < adapt_margin)
+			r -= adapt_margin;
+		else
+			r -= margin;
+	}
+
+	t.push_back(std::clock());
+
+	////////////////////////////
+	// Apply frustrum casting //
+	////////////////////////////
+
+	// Update free pixels
+	float min_r = 2 * dl;
+	size_t p_i = 0;
+	Eigen::Matrix3f R_t = R.transpose();
+	for (auto &p : cloud.pts)
+	{
+		// Ignore points updated just now
+		if (!not_updated[p_i])
+		{
+			p_i++;
+			continue;
+		}
+
+		// Ignore points outside area of the frame
+		if (p.x > max_P.x || p.y > max_P.y || p.z > max_P.z || p.x < min_P.x || p.y < min_P.y || p.z < min_P.z)
+		{
+			p_i++;
+			continue;
+		}
+
+		// Align point in frame coordinates (and normal)
+		PointXYZ xyz(p);
+		PointXYZ nxyz(normals[p_i]);
+		Eigen::Map<Eigen::Vector3f> p_mat((float *)&xyz, 3, 1);
+		Eigen::Map<Eigen::Vector3f> n_mat((float *)&nxyz, 3, 1);
+		p_mat = R_t * (p_mat - T);
+		n_mat = R_t * n_mat;
+
+		// Project in polar coordinates
+		PointXYZ rtp = cart2pol(xyz);
+
+		// Position of point in grid
+		i_theta = (size_t)floor((rtp.y - originCorner.y) * inv_theta_dl);
+		i_phi = (size_t)floor((rtp.z - originCorner.z) * inv_phi_dl);
+		gridIdx = i_theta + grid_n_theta * i_phi;
+
+		// Update movable prob
+		if (rtp.x > min_r && rtp.x < frustrum_radiuses[gridIdx])
+		{
+			// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
+			if (abs(nxyz.z) > min_vert_cos)
+			{
+				movable_counts[p_i] += 1;
+				movable_probs[p_i] += 1.0;
+			}
+			else
+			{
+				float angle = acos(min(abs(xyz.dot(nxyz) / rtp.x), 1.0f));
+				if (angle < max_angle)
+				{
+					movable_counts[p_i] += 1;
+					movable_probs[p_i] += 1.0;
+				}
+			}
+			
+		}
+		p_i++;
+	}
+
+	t.push_back(std::clock());
+
+	if (verbose > 1)
+	{
+		cout << endl
+			 << "***********************" << endl;
+		for (size_t i = 0; i < min(t.size() - 1, clock_str.size()); i++)
+		{
+			double duration = 1000 * (t[i + 1] - t[i]) / (double)CLOCKS_PER_SEC;
+			cout << clock_str[i] << duration << " ms" << endl;
+		}
+		cout << "***********************" << endl
+			 << endl;
+	}
+}

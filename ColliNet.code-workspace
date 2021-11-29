@@ -88,7 +88,12 @@
 			"*.ipp": "cpp",
 			"*.txx": "cpp",
 			"core": "cpp",
-			"numericaldiff": "cpp"
+			"numericaldiff": "cpp",
+			"eigenvalues": "cpp",
+			"forward_list": "cpp",
+			"future": "cpp",
+			"scoped_allocator": "cpp",
+			"valarray": "cpp"
 		},
 		"python.analysis.extraPaths": [
 			"src/classifier/src/cpp_wrappers/cpp_neighbors",

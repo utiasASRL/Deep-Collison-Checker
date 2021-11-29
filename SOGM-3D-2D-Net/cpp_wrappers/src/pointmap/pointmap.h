@@ -1,12 +1,14 @@
 #pragma once
 
-#include "../cloud/cloud.h"
 
 #include <set>
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
 
+#include <Eigen/Eigenvalues>
+#include "../cloud/cloud.h"
+#include "../polar_processing/polar_processing.h"
 #include "../nanoflann/nanoflann.hpp"
 
 using namespace std;
@@ -456,7 +458,6 @@ public:
 		update_idx = 0;
 	}
 	PointMap(const float dl0,
-			 const float max_dist0,
 			 vector<PointXYZ> &init_points,
 			 vector<PointXYZ> &init_normals,
 			 vector<float> &init_scores) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
@@ -646,6 +647,15 @@ public:
 		// Update frame count
 		update_idx++;
 	}
+
+	// Compute movable probabilities
+	void update_movable(vector<PointXYZ> &frame_points,
+						Eigen::Matrix4d &H0,
+						Eigen::Matrix4d &H1,
+						float theta_dl,
+						float phi_dl,
+						vector<float> &movable_probs,
+						vector<int> &movable_counts);
 };
 
 //-------------------------------------------------------------------------------------------

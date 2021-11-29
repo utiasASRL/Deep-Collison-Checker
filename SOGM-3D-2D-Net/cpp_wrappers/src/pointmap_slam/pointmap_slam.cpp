@@ -375,18 +375,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 
 	// Min and max times (dont loop on the whole frame as it is useless)
 	float loop_ratio = 0.01;
-	t_min = f_ts[0];
-	t_max = f_ts[0];
-	for (int j = 0; (float)j < loop_ratio * (float)f_ts.size();  j++)
-	{
-		if (f_ts[j] < t_min)
-			t_min = f_ts[j];
-	}
-	for (int j = (int)floor((1 - loop_ratio) * f_ts.size()); j < f_ts.size();  j++)
-	{
-		if (f_ts[j] > t_max)
-			t_max = f_ts[j];
-	}
+	get_min_max_times(timestamps, t_min, t_max, loop_ratio);
 	
 	// Init last_time
 	if (frame_i < 1)
@@ -550,6 +539,19 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	// Save the corrected sub_pts
 	corrected_frame = sub_pts;
 	corrected_scores = icp_scores;
+
+	bool debug_000 = true;
+	if (debug_000)
+	{
+		string path000 = "/home/hth/Deep-Collison-Checker/Data/Real/icp_frames/tmp/";
+		char buffer02[100];
+		sprintf(buffer02, "f_%05d.ply", int(frame_i));
+		string filepath02 = path000 + string(buffer02);
+		vector<float> f12(icp_scores.begin(), icp_scores.end());
+		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+		save_cloud(filepath02, sub_pts, normals, f12);
+	}
+
 	
 	if (warning)
 	{
@@ -802,6 +804,123 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 
 
 
+// --------
+// ---------------------------
+// ----------------------------------------------------------------------------------------------------------
+
+// clang-format on
+struct ExponentialResidual {
+  ExponentialResidual(double x, double y) : x_(x), y_(y) {}
+  template <typename T>
+  bool operator()(const T* const m, const T* const c, T* residual) const {
+    residual[0] = y_ - exp(m[0] * x_ + c[0]);
+    return true;
+  }
+ private:
+  const double x_;
+  const double y_;
+};
+
+void ceres_hello()
+{
+	std::string str = "TESTHOHOHO";
+	google::InitGoogleLogging(str.c_str());
+	int kNumObservations = 67;
+
+	double data[] = {0.000000e+00, 1.133898e+00,
+					 7.500000e-02, 1.334902e+00,
+					 1.500000e-01, 1.213546e+00,
+					 2.250000e-01, 1.252016e+00,
+					 3.000000e-01, 1.392265e+00,
+					 3.750000e-01, 1.314458e+00,
+					 4.500000e-01, 1.472541e+00,
+					 5.250000e-01, 1.536218e+00,
+					 6.000000e-01, 1.355679e+00,
+					 6.750000e-01, 1.463566e+00,
+					 7.500000e-01, 1.490201e+00,
+					 8.250000e-01, 1.658699e+00,
+					 9.000000e-01, 1.067574e+00,
+					 9.750000e-01, 1.464629e+00,
+					 1.050000e+00, 1.402653e+00,
+					 1.125000e+00, 1.713141e+00,
+					 1.200000e+00, 1.527021e+00,
+					 1.275000e+00, 1.702632e+00,
+					 1.350000e+00, 1.423899e+00,
+					 1.425000e+00, 1.543078e+00,
+					 1.500000e+00, 1.664015e+00,
+					 1.575000e+00, 1.732484e+00,
+					 1.650000e+00, 1.543296e+00,
+					 1.725000e+00, 1.959523e+00,
+					 1.800000e+00, 1.685132e+00,
+					 1.875000e+00, 1.951791e+00,
+					 1.950000e+00, 2.095346e+00,
+					 2.025000e+00, 2.361460e+00,
+					 2.100000e+00, 2.169119e+00,
+					 2.175000e+00, 2.061745e+00,
+					 2.250000e+00, 2.178641e+00,
+					 2.325000e+00, 2.104346e+00,
+					 2.400000e+00, 2.584470e+00,
+					 2.475000e+00, 1.914158e+00,
+					 2.550000e+00, 2.368375e+00,
+					 2.625000e+00, 2.686125e+00,
+					 2.700000e+00, 2.712395e+00,
+					 2.775000e+00, 2.499511e+00,
+					 2.850000e+00, 2.558897e+00,
+					 2.925000e+00, 2.309154e+00,
+					 3.000000e+00, 2.869503e+00,
+					 3.075000e+00, 3.116645e+00,
+					 3.150000e+00, 3.094907e+00,
+					 3.225000e+00, 2.471759e+00,
+					 3.300000e+00, 3.017131e+00,
+					 3.375000e+00, 3.232381e+00,
+					 3.450000e+00, 2.944596e+00,
+					 3.525000e+00, 3.385343e+00,
+					 3.600000e+00, 3.199826e+00,
+					 3.675000e+00, 3.423039e+00,
+					 3.750000e+00, 3.621552e+00,
+					 3.825000e+00, 3.559255e+00,
+					 3.900000e+00, 3.530713e+00,
+					 3.975000e+00, 3.561766e+00,
+					 4.050000e+00, 3.544574e+00,
+					 4.125000e+00, 3.867945e+00,
+					 4.200000e+00, 4.049776e+00,
+					 4.275000e+00, 3.885601e+00,
+					 4.350000e+00, 4.110505e+00,
+					 4.425000e+00, 4.345320e+00,
+					 4.500000e+00, 4.161241e+00,
+					 4.575000e+00, 4.363407e+00,
+					 4.650000e+00, 4.161576e+00,
+					 4.725000e+00, 4.619728e+00,
+					 4.800000e+00, 4.737410e+00,
+					 4.875000e+00, 4.727863e+00,
+					 4.950000e+00, 4.669206e+00};
+
+	double m = 0.0;
+	double c = 0.0;
+	ceres::Problem problem;
+	for (int i = 0; i < kNumObservations; ++i)
+	{
+		problem.AddResidualBlock(new ceres::AutoDiffCostFunction<ExponentialResidual, 1, 1, 1>(new ExponentialResidual(data[2 * i], data[2 * i + 1])),
+								 NULL,
+								 &m,
+								 &c);
+	}
+	ceres::Solver::Options options;
+	options.max_num_iterations = 25;
+	options.linear_solver_type = ceres::DENSE_QR;
+	options.minimizer_progress_to_stdout = true;
+	ceres::Solver::Summary summary;
+	ceres::Solve(options, &problem, &summary);
+	std::cout << summary.BriefReport() << "\n";
+	std::cout << "Initial m: " << 0.0 << " c: " << 0.0 << "\n";
+	std::cout << "Final   m: " << m << " c: " << c << "\n";
+	return;
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ---------------------------
+// --------
+
 Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 	vector<double>& frame_times,
 	Eigen::MatrixXd& odom_H,
@@ -817,6 +936,30 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 	//	It uses the groundtruth to verify that the SLAM is not making any mistake.
 	//
 	// --------------------------------------------------------------------------------
+
+	bool try_ceres = false;
+	if (try_ceres)
+	{
+
+		// TODO: HERE use ceres for bundle_pt2pl_icp
+		// 			inspired from http://ceres-solver.org/nnls_tutorial.html#bundle-adjustment
+		// 			also https://ceres-solver.googlesource.com/ceres-solver/+/master/examples/slam/pose_graph_3d/pose_graph_3d_error_term.h
+
+		// CostFunctor :
+		//	1 - align given point/normal with given pose, 
+		//	2 - align measurement point/normal with measurement pose
+		//	3 - Compute point to plane error as residual
+	
+
+		ceres_hello();
+		Eigen::MatrixXd all_H = Eigen::MatrixXd::Zero(4 * frame_times.size(), 4);
+		return all_H;
+
+	}
+
+	
+
+
 
 	////////////////////////
 	// Initiate variables //
@@ -933,7 +1076,8 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			}
 		}
 
-		// Close loop if necessary
+		// Close loop if necessary 
+		closure_ind = -1;
 		if (closure_ind >= 0)
 		{
 			cout << "\n  >>> Loop detected. Performing closure" << endl;
@@ -1061,264 +1205,6 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 }
 
 
-
-// Eigen::MatrixXd call_on_real_sequence(string& frame_names,
-// 	vector<double>& frame_times,
-// 	Eigen::MatrixXd& odom_H,
-// 	vector<PointXYZ>& init_pts,
-// 	vector<PointXYZ>& init_normals,
-// 	vector<float>& init_scores,
-// 	SLAM_params& slam_params,
-// 	string save_path)
-// {
-// 	// --------------------------------------------------------------------------------
-// 	//
-// 	//	This function start a SLAM on a sequence of frames that come from a simulator.
-// 	//	It uses the groundtruth to verify that the SLAM is not making any mistake.
-// 	//
-// 	// --------------------------------------------------------------------------------
-
-// 	////////////////////////
-// 	// Initiate variables //
-// 	////////////////////////
-
-// 	// Create a the SLAM class
-// 	PointMapSLAM mapper(slam_params, init_pts, init_normals, init_scores);
-
-// 	// Results container
-// 	Eigen::MatrixXd all_H = Eigen::MatrixXd::Zero(4 * frame_times.size(), 4);
-// 	vector<float> all_times;
-// 	vector<PointXYZ> sparse_positions;
-// 	vector<size_t> sparse_f_inds;
-
-// 	// Number of closed loops
-// 	int closed_loops = 0;
-
-// 	// Timing
-// 	float fps = 0.0;
-// 	float fps_regu = 0.9;
-
-// 	// Initial timestamp for motion distorsiob
-// 	double timestamp_0 = frame_times[0];
-
-// 	////////////////
-// 	// Start SLAM //
-// 	////////////////
-	
-// 	// Parameters
-// 	vector<int> loc_labels;
-// 	if (slam_params.filtering)
-// 		loc_labels = {0, 1, 2, 3};
-// 	std::string time_name = "time";
-// 	std::string ring_name = "ring";
-
-// 	// Frame index
-// 	size_t frame_ind = 0;
-// 	clock_t last_disp_t1 = clock();
-
-// 	// Loop on the lines of "frame_names" string
-// 	istringstream iss(frame_names);
-// 	for (string line; getline(iss, line);)
-// 	{
-// 		// Load frame
-// 		// **********
-
-// 		// Load ply file
-// 		vector<PointXYZ> f_pts;
-// 		vector<float> timestamps;
-// 		vector<int> rings;
-// 		load_frame(line, f_pts, timestamps, rings, loc_labels, save_path, time_name, ring_name);
-
-// 		// Map this frame
-// 		// **************
-
-// 		clock_t t0 = clock();
-
-// 		// Get odometry matrix (pose of the scanner in odometry world frame)
-// 		Eigen::Matrix4d H_OdomToScanner = odom_H.block(frame_ind * 4, 0, 4, 4);
-
-// 		// Get timestamps
-// 		float frame_time = (float)(frame_times[frame_ind] - timestamp_0);
-// 		for (int j = 0; j < timestamps.size(); j++)
-// 			timestamps[j] += frame_time;
-
-// 		// Get frame pose and update map
-// 		if (slam_params.verbose_time > 0 && slam_params.verbose_time < 0.001)
-// 			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, 1);
-// 		else
-// 			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, 0);
-
-// 		// Save transform
-// 		all_H.block(frame_ind * 4, 0, 4, 4) = mapper.params.icp_params.last_transform1;
-// 		all_times.push_back(mapper.t_max);
-
-// 		// Save position for loop closure
-// 		float closure_d = 1.0;
-// 		float closure_d2 =  closure_d * closure_d;
-// 		float save_d = closure_d / 2;
-// 		float save_d2 = save_d * save_d;
-// 		float closure_t = 20.0;
-// 		PointXYZ current_position(mapper.params.icp_params.last_transform1(0, 3),
-// 								  mapper.params.icp_params.last_transform1(1, 3),
-// 								  mapper.params.icp_params.last_transform1(2, 3));
-// 		if (sparse_positions.size() == 0 || (current_position - sparse_positions.back()).sq_norm() > save_d2)
-// 		{
-// 			sparse_positions.push_back(current_position);
-// 			sparse_f_inds.push_back(frame_ind);
-// 		}
-
-// 		clock_t t1 = clock();
-
-// 		// Loop closure
-// 		// ************
-
-// 		// Very simple detection by checking if we come back to the same place
-// 		int closure_ind = -1;
-// 		if (closed_loops < 1)
-// 		{
-// 			for (size_t i = 0; i < sparse_positions.size(); i++)
-// 			{
-// 				if ((frame_time - all_times[sparse_f_inds[i]]) > closure_t)
-// 				{
-// 					PointXYZ diff = sparse_positions[i] - current_position;
-// 					diff.z = 0;
-// 					float d2 = diff.sq_norm();
-
-// 					if (d2 < closure_d2)
-// 					{
-// 						closure_ind = (int)sparse_f_inds[i];
-// 						break;
-// 					}
-// 				}
-// 			}
-// 		}
-
-// 		// Close loop if necessary
-// 		if (closure_ind >= 0)
-// 		{
-// 			cout << "\n  >>> Loop detected. Performing closure" << endl;
-
-// 			string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
-// 			char buffer00[100];
-// 			sprintf(buffer00, "f_%05d_map_before.ply", int(frame_ind));
-// 			vector<float> all_features(mapper.map.counts.begin(), mapper.map.counts.end());
-// 			all_features.insert(all_features.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-// 			save_cloud(path000 + string(buffer00), mapper.map.cloud.pts, mapper.map.normals, all_features);
-
-// 			// 1. Recreate a new cleam map from current one until closure_ind
-// 			PointMap clean_map(mapper.map, closure_ind);
-// 			cout << "\n  >>> Map cleaned" << endl;
-			
-// 			char buffer01[100];
-// 			sprintf(buffer01, "f_%05d_map_clean.ply", int(frame_ind));
-// 			vector<float> all_features1(clean_map.counts.begin(), clean_map.counts.end());
-// 			all_features1.insert(all_features1.end(), clean_map.scores.begin(),  clean_map.scores.end());
-// 			save_cloud(path000 + string(buffer01), clean_map.cloud.pts, clean_map.normals, all_features1);
-
-// 			// 2. Perform ICP with this frame on this clean map
-// 			ICP_results icp_results;
-// 			mapper.params.icp_params.init_transform = Eigen::Matrix4d::Identity(4, 4);
-// 			vector<float> alphas;
-
-// 			//
-// 			// TODO: HERE initial transform for ICP 
-// 			//
-
-// 			mapper.params.icp_params.motion_distortion = false;
-// 			PointToMapICP(mapper.corrected_frame, alphas, mapper.corrected_scores, clean_map, mapper.params.icp_params, icp_results);
-// 			mapper.params.icp_params.motion_distortion = mapper.params.motion_distortion;
-
-
-// 			cout << "\n  >>> Loop closed" << endl;
-
-// 			// 3. Correct all transforms (assumnes a constant drift)
-// 			float inv_factor = 1.0 / (float)(frame_ind - closure_ind);
-// 			for (size_t i = closure_ind + 1; i <= frame_ind; i++)
-// 			{
-// 				float t = (float)(i - closure_ind) * inv_factor;
-// 				Eigen::Matrix4d dH = pose_interp(t, Eigen::Matrix4d::Identity(4, 4), icp_results.transform, 0);
-// 				all_H.block(i * 4, 0, 4, 4) = dH * all_H.block(i * 4, 0, 4, 4);
-// 			}
-// 			mapper.params.icp_params.last_transform1 = icp_results.transform * mapper.params.icp_params.last_transform1;
-// 			mapper.params.icp_params.last_transform0 = icp_results.transform * mapper.params.icp_params.last_transform0;
-// 			mapper.H_OdomToMap = icp_results.transform * mapper.H_OdomToMap;
-
-// 			cout << "\n  >>> Transforms corrected" << endl;
-
-// 			// 4. Reupdate map with new transforms until current frame
-// 			complete_map(frame_names,
-// 						 frame_times,
-// 						 all_H,
-// 						 all_times,
-// 						 clean_map,
-// 						 loc_labels,
-// 						 save_path,
-// 						 time_name,
-// 						 ring_name,
-// 						 closure_ind + 1,
-// 						 frame_ind,
-// 						 mapper.params);
-
-// 			// Update mapper.map
-// 			mapper.map = clean_map;
-// 			closed_loops++;
-// 			cout << "\n  >>> Map updated" << endl;
-
-// 			char buffer02[100];
-// 			sprintf(buffer02, "f_%05d_map_after.ply", int(frame_ind));
-// 			vector<float> all_features2(mapper.map.counts.begin(), mapper.map.counts.end());
-// 			all_features2.insert(all_features2.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-// 			save_cloud(path000 + string(buffer02), mapper.map.cloud.pts, mapper.map.normals, all_features2);
-// 		}
-
-
-// 		// // Debug: compare pose to gt
-// 		// // *************************
-
-// 		// if (frame_ind % 100 == 0)
-// 		// {
-// 		// 	char buffer[100];
-// 		// 	sprintf(buffer, "cc_map_%05d.ply", (int)frame_ind);
-// 		// 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-// 		// 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-// 		// 	save_cloud(string(buffer), mapper.map.cloud.pts, mapper.map.normals, counts);
-// 		// }
-
-// 		// Timing
-// 		// ******
-
-// 		double duration = (t1 - t0) / (double)CLOCKS_PER_SEC;
-// 		fps = fps_regu * fps + (1.0 - fps_regu) / duration;
-
-// 		if (slam_params.verbose_time > 0 && (t1 - last_disp_t1) / (double)CLOCKS_PER_SEC > slam_params.verbose_time)
-// 		{
-// 			double remaining_sec = (frame_times.size() - frame_ind) / fps;
-// 			int remaining_min = (int)floor(remaining_sec / 60.0);
-// 			remaining_sec = remaining_sec - remaining_min * 60.0;
-// 			char buffer[100];
-// 			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_ind, frame_times.size(), fps, remaining_min, remaining_sec);
-// 			cout << string(buffer) << endl;
-// 			last_disp_t1 = t1;
-// 		}
-
-// 		frame_ind++;
-
-// 		// if (frame_ind > 2)
-// 		// 	break;
-
-// 	}
-
-
-// 	// Save map in a ply file init containers with results
-// 	size_t ns1 = 19;
-// 	size_t ns0 = save_path.size() - ns1;
-// 	string day_str = save_path.substr(ns0, ns1);
-// 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-// 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-// 	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, counts);
-
-// 	return all_H;
-// }
 
 
 

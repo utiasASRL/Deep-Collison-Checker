@@ -144,6 +144,17 @@ RUN apt-get install -y --no-install-recommends \
     libgflags-dev \
     libatlas-base-dev 
 
+# Install ceres
+WORKDIR /workspace/compiled_libs
+RUN wget http://ceres-solver.org/ceres-solver-2.0.0.tar.gz
+RUN tar zxf ceres-solver-2.0.0.tar.gz
+RUN mkdir ceres-bin
+WORKDIR /workspace/compiled_libs/ceres-bin
+RUN cmake ../ceres-solver-2.0.0
+RUN make -j8
+RUN make test
+RUN make install
+
 # Setup user information
 ARG username0=bag
 ARG userid0=1085

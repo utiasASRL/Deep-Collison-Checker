@@ -4,7 +4,7 @@ import numpy.distutils.misc_util
 # Adding Eigen to project
 # ***********************
 
-EIGEN_INCLUDE = "../src/Eigen"
+EIGEN_INCLUDE = ["/usr/include/eigen3"]
 
 # Adding sources of the project
 # *****************************
@@ -18,7 +18,7 @@ SOURCES = ["../src/cloud/cloud.cpp",
 
 module = Extension(name="icp",
                    sources=SOURCES,
-                   include_dirs=[EIGEN_INCLUDE],
+                   include_dirs=EIGEN_INCLUDE,
                    extra_compile_args=['-std=c++11',
                                        '-D_GLIBCXX_USE_CXX11_ABI=0'])
 

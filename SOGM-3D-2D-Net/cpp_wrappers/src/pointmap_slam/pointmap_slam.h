@@ -12,7 +12,10 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include <../Eigen/Eigenvalues>
+#include "ceres/ceres.h"
+#include "glog/logging.h"
+
+#include <Eigen/Eigenvalues>
 #include "../cloud/cloud.h"
 #include "../nanoflann/nanoflann.hpp"
 
@@ -21,13 +24,6 @@
 #include "../pointmap/pointmap.h"
 #include "../icp/icp.h"
 
-#include "g2o/core/block_solver.h"
-#include "g2o/core/optimization_algorithm_levenberg.h"
-#include "g2o/core/solver.h"
-#include "g2o/core/sparse_optimizer.h"
-#include "g2o/solvers/eigen/linear_solver_eigen.h"
-#include "g2o/stuff/sampler.h"
-#include "g2o/types/icp/types_icp.h"
 
 using namespace std;
 
@@ -192,6 +188,8 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<size_t> &sub_inds,
 					  SLAM_params &params);
 
+void ceres_hello();
+
 Eigen::MatrixXd call_on_sim_sequence(string &frame_names,
 									 vector<double> &frame_times,
 									 Eigen::MatrixXd &gt_H,
@@ -211,3 +209,4 @@ Eigen::MatrixXd call_on_real_sequence(string &frame_names,
 									  vector<float> &init_scores,
 									  SLAM_params &slam_params,
 									  string save_path);
+

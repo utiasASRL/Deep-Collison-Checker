@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include "../src/polar_processing/polar_processing.h"
+#include "../src/pointmap/pointmap.h"
 #include <string>
 
 
@@ -175,7 +176,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	PyObject* H_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "frame_names", "map_points",  "map_normals", "H_frames", "map_dl", "theta_dl", "phi_dl", "verbose_time", NULL };
+	static char* kwlist[] = { "frame_names", "map_points", "map_normals", "H_frames", "map_dl", "theta_dl", "phi_dl", "verbose_time", NULL };
 
 	// Parse the input  
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "zOOO|$ffff", kwlist, 
@@ -269,57 +270,68 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 
 	// Init point map
 	// **************
+
+	vector<float> map_scores(map_points.size(), 1.0);
+	PointMap tmp_map(map_dl, map_points, map_normals, map_scores);
 	
-	// Create the pointmap voxels
-	unordered_map<VoxKey, size_t> map_samples;
-	map_samples.reserve(map_points.size());
-	float inv_map_dl = 1.0 / map_dl;
-	VoxKey k0;
-	size_t p_i = 0;
+	// // Create the pointmap voxels
+	// unordered_map<VoxKey, size_t> map_samples;
+	// map_samples.reserve(map_points.size());
+	// float inv_map_dl = 1.0 / map_dl;
+	// VoxKey k0;
+	// size_t p_i = 0;
 
-	for (auto &p : map_points)
-	{
+	// for (auto &p : map_points)
+	// {
 
-		//cout << p << endl;
+	// 	//cout << p << endl;
 
-		// Corresponding key
-		k0.x = (int)floor(p.x * inv_map_dl);
-		k0.y = (int)floor(p.y * inv_map_dl);
-		k0.z = (int)floor(p.z * inv_map_dl);
+	// 	// Corresponding key
+	// 	k0.x = (int)floor(p.x * inv_map_dl);
+	// 	k0.y = (int)floor(p.y * inv_map_dl);
+	// 	k0.z = (int)floor(p.z * inv_map_dl);
 
-		//cout << k0.x << ", " << k0.y << ", " << k0.z << endl;
+	// 	//cout << k0.x << ", " << k0.y << ", " << k0.z << endl;
 
-		// Update the sample map
-		if (map_samples.count(k0) < 1)
-		{
-			map_samples.emplace(k0, p_i);
-		}
-		else
-		{
-			int a;
-			//cout << "WARNING: multiple points in a single map voxel" << endl;
-			//return NULL;
-		}
+	// 	// Update the sample map
+	// 	if (map_samples.count(k0) < 1)
+	// 	{
+	// 		map_samples.emplace(k0, p_i);
+	// 	}
+	// 	else
+	// 	{
+	// 		int a;
+	// 		//cout << "WARNING: multiple points in a single map voxel" << endl;
+	// 		//return NULL;
+	// 	}
 			
-		p_i++;
-	}
-	//cout << "++++++++++++++++++++++++++++++++++++++" << endl;
+	// 	p_i++;
+	// }
+	// //cout << "++++++++++++++++++++++++++++++++++++++" << endl;
 
-	// Init map movable probabilities and counts
-	vector<float> movable_probs(map_points.size(), 0);
-	vector<int> movable_counts(map_points.size(), 0);
 
 
 	// Start movable detection
 	// ***********************
 
-	// Loop on the lines of "frame_names" string
-	istringstream iss(frame_names);
-	size_t frame_i = 0;
+	// Init map movable probabilities and counts
+	vector<float> movable_probs(map_points.size(), 0);
+	vector<int> movable_counts(map_points.size(), 0);
+
+	// Parameters
+	std::string time_name = "time";
+	std::string ring_name = "ring";
+	float last_t_max;
+
+	// Timing
 	clock_t t0 = std::clock();
 	clock_t last_disp_t1 = std::clock();
 	float fps = 0.0;
 	float fps_regu = 0.9;
+
+	// Loop on the lines of "frame_names" string
+	istringstream iss(frame_names);
+	size_t frame_i = 0;
 	for (string line; getline(iss, line);)
 	{
 
@@ -328,31 +340,36 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 
 		// Load ply file
 		vector<PointXYZ> f_pts;
+		// vector<float> timestamps;
+		// vector<int> rings;
+		// load_cloud(line, f_pts, timestamps, time_name, rings, ring_name);
 		load_cloud(line, f_pts);
 
-		// Get the corresponding pose
-		Eigen::Matrix3d R = all_H.block(frame_i * 4, 0, 3, 3);
-		Eigen::Vector3d T = all_H.block(frame_i * 4, 3, 3, 1);
+		// // Get frame min and max times
+		// float t_min, t_max;
+		// float loop_ratio = 0.01;
+		// get_min_max_times(timestamps, t_min, t_max, loop_ratio);
+		
+		// // Init last_time
+		// if (frame_i < 1)
+		// 	last_t_max = t_min;
 
-		// Handle motion distortion by slices
+		// Get the pose of the beginning and the end of the frame
+		Eigen::Matrix4d H1 = all_H.block(frame_i * 4, 0, 4, 4);
+		Eigen::Matrix4d H0;
 		if (motion_distortion)
 		{
-			for (int s = 0; s < 12; s++)
-			{
-				Eigen::Matrix3d slice_R;
-				Eigen::Vector3d slice_T;
-				vector<PointXYZ> slice_pts;
-
-				// DO STUFF
-			}
+			if (frame_i < 1)
+				H0 = H1;
+			else
+				H0 = all_H.block((frame_i - 1) * 4, 0, 4, 4);
 		}
 		else
-		{
-			// Compute results
-			compare_map_to_frame(f_pts, map_points, map_normals, map_samples, R, T, theta_dl, phi_dl, map_dl, movable_probs, movable_counts);
+			H0 = Eigen::Matrix4d::Zero(4, 4);
 
+		// Compute results
+		tmp_map.update_movable(f_pts, H0, H1, theta_dl, phi_dl, movable_probs, movable_counts);
 
-		}
 		frame_i++;
 
 		// Timing
