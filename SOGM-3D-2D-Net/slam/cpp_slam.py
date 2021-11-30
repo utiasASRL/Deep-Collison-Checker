@@ -151,7 +151,7 @@ def ray_casting_annot(frame_names,
                       phi_dl=0.2 * 1.29 * np.pi / 180,
                       map_dl=0.1,
                       verbose_time=5.0,
-                      motion_distortion=False):
+                      motion_distortion_slices=1):
     """
     :param frame_points: (N1, 3) points of the slice or frame
     :param map_points: (N2, 3) the points of the map
@@ -174,7 +174,8 @@ def ray_casting_annot(frame_names,
                                                                       map_dl=map_dl,
                                                                       theta_dl=theta_dl,
                                                                       phi_dl=phi_dl,
-                                                                      verbose_time=verbose_time)
+                                                                      verbose_time=verbose_time,
+                                                                      slices=motion_distortion_slices)
     #motion_distortion=motion_distortion)
 
     return movable_prob, movable_count

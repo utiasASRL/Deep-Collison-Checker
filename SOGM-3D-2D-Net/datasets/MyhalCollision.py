@@ -2053,7 +2053,8 @@ class MyhalCollisionSlam:
                                                             theta_dl=1.29 * np.pi / 180,
                                                             phi_dl=0.1 * np.pi / 180,
                                                             map_dl=map_dl,
-                                                            motion_distortion=False)
+                                                            verbose_time=5.0,
+                                                            motion_distortion_slices=12)
 
             movable_prob = movable_prob / (movable_count + 1e-6)
             movable_prob[movable_count < 1e-6] = -1

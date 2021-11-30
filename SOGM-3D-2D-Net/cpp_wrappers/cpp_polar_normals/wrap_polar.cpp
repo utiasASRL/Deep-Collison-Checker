@@ -374,6 +374,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 
 		// Compute results
 		tmp_map.update_movable(f_pts, H0, H1, theta_dl, phi_dl, movable_probs, movable_counts);
+		// cout << "done" << endl;
 
 		frame_i++;
 
