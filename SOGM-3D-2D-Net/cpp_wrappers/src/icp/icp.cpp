@@ -37,44 +37,6 @@ void regu_pose_cycle(vector<Eigen::Matrix4d>& H, vector<float>& H_w)
 }
 
 
-Eigen::Matrix4d pose_interp(float t, Eigen::Matrix4d const& H1, Eigen::Matrix4d const& H2, int verbose)
-{
-	// Assumes 0 < t < 1
-	Eigen::Matrix3d R1 = H1.block(0, 0, 3, 3);
-	Eigen::Matrix3d R2 = H2.block(0, 0, 3, 3);
-
-	// Rotations to quaternions
-	Eigen::Quaternion<double> rot1(R1);
-	Eigen::Quaternion<double> rot2(R2);
-	Eigen::Quaternion<double> rot3 = rot1.slerp(t, rot2);
-
-	// ------------------ ICI ----------------------
-
-	if (verbose > 0)
-	{
-		cout << R2.determinant() << endl;
-		cout << R2 << endl;
-		cout << "[" << rot1.x() << " " << rot1.y() << " " << rot1.z() << " " << rot1.w() << "] -> ";
-		cout << "[" << rot2.x() << " " << rot2.y() << " " << rot2.z() << " " << rot2.w() << "] / " << t << endl;
-		cout << "[" << rot3.x() << " " << rot3.y() << " " << rot3.z() << " " << rot3.w() << "]" << endl;
-		cout << rot2.toRotationMatrix() << endl;
-		cout << rot3.toRotationMatrix() << endl;
-	}
-
-	// Translations to vectors
-	Eigen::Vector3d trans1 = H1.block(0, 3, 3, 1);
-	Eigen::Vector3d trans2 = H2.block(0, 3, 3, 1);
-
-	// Interpolation (not the real geodesic path, but good enough)
-	Eigen::Affine3d result;
-	result.translation() = (1.0 - t) * trans1 + t * trans2;
-	result.linear() = rot1.slerp(t, rot2).normalized().toRotationMatrix();
-
-	return result.matrix();
-}
-
-
-
 // Minimizer
 // *********
 

@@ -2050,8 +2050,8 @@ class MyhalCollisionSlam:
                                                             points,
                                                             normals,
                                                             map_H,
-                                                            theta_dl=1.29 * np.pi / 180,
-                                                            phi_dl=0.1 * np.pi / 180,
+                                                            theta_dl=0.33 * np.pi / 180,
+                                                            phi_dl=0.5 * np.pi / 180,
                                                             map_dl=map_dl,
                                                             verbose_time=5.0,
                                                             motion_distortion_slices=12)

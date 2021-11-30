@@ -152,19 +152,6 @@ public:
 // Function declaration
 // ********************
 
-void load_annot(std::string &dataPath,
-				std::vector<int> &int_scalar,
-				std::string &int_scalar_name);
-
-void load_frame(std::string &dataPath,
-				vector<PointXYZ> &f_pts,
-				vector<float> &timestamps,
-				vector<int> &rings,
-				vector<int> &loc_labels,
-				std::string &save_path,
-				std::string &time_name,
-				std::string &ring_name);
-
 void complete_map(string &frame_names,
 				  vector<double> &frame_times,
 				  Eigen::MatrixXd &slam_H,

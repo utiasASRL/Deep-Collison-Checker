@@ -168,17 +168,18 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	float theta_dl = 0.1;
 	float phi_dl = 1.0;
 	float verbose_time = -1.0;
-	bool motion_distortion = false;
+	int n_slices = 1;
+	int lidar_n_lines = 32;
 	char* fnames_str;
 	PyObject* map_p_obj = NULL;
 	PyObject* map_n_obj = NULL;
 	PyObject* H_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "frame_names", "map_points", "map_normals", "H_frames", "map_dl", "theta_dl", "phi_dl", "verbose_time", NULL };
+	static char* kwlist[] = { "frame_names", "map_points", "map_normals", "H_frames", "map_dl", "theta_dl", "phi_dl", "verbose_time", "n_slices", "lidar_n_lines", NULL };
 
 	// Parse the input  
-	if (!PyArg_ParseTupleAndKeywords(args, keywds, "zOOO|$ffff", kwlist, 
+	if (!PyArg_ParseTupleAndKeywords(args, keywds, "zOOO|$ffffll", kwlist, 
 		&fnames_str,
 		&map_p_obj, 
 		&map_n_obj, 
@@ -186,7 +187,9 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		&map_dl, 
 		&theta_dl, 
 		&phi_dl, 
-		&verbose_time))
+		&verbose_time, 
+		&n_slices,
+		&lidar_n_lines))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");
 		return NULL;
@@ -323,9 +326,13 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	vector<int> movable_counts(map_points.size(), 0);
 
 	// Parameters
-	std::string time_name = "time";
-	std::string ring_name = "ring";
+	string time_name = "time";
+	string ring_name = "ring";
 	float last_t_max;
+	bool motion_distortion = n_slices > 1;
+	vector<float> ring_angles;
+	vector<float> ring_mids;
+	vector<float> ring_d_thetas;
 
 	// Timing
 	clock_t t0 = std::clock();
@@ -343,37 +350,75 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		// **********
 
 		// Load ply file
-		
 		vector<PointXYZ> f_pts;
-		// vector<float> timestamps;
-		// vector<int> rings;
-		// load_cloud(line, f_pts, timestamps, time_name, rings, ring_name);
-		load_cloud(line, f_pts);
+		vector<float> f_ts;
+		vector<int> rings;
+		load_cloud(line, f_pts, f_ts, time_name, rings, ring_name);
 
-		// // Get frame min and max times
-		// float t_min, t_max;
-		// float loop_ratio = 0.01;
-		// get_min_max_times(timestamps, t_min, t_max, loop_ratio);
+		// Get lidar angles for varaible frustum size
+		if (ring_mids.size() < 1)
+		{
+			// Get polar coordinates
+			vector<PointXYZ> polar_pts(f_pts);
+			cart2pol_(polar_pts);
+
+			// Get angle of each lidar ring
+			get_lidar_angles(polar_pts, ring_angles, lidar_n_lines);
+
+			// Get middles
+			for (int i = 0; i < ring_angles.size() - 1; i++)
+				ring_mids.push_back((ring_angles[i+1] + ring_angles[i]) / 2);
+
+			cout << "-------------------------" << endl;
+			for (auto d_theta : ring_mids)
+				cout << d_theta * 180 / M_PI << endl;
+			cout << "-------------------------" << endl;
+				
+			// Get diffs (max)
+			int j = 0;
+			ring_d_thetas.push_back(ring_angles[j+1] - ring_angles[j]);
+			j++;
+			while (j < ring_angles.size() - 1)
+			{
+				float tmp = max(ring_angles[j+1] - ring_angles[j], ring_angles[j] - ring_angles[j-1]);
+				ring_d_thetas.push_back(tmp);
+				j++;
+			}
+			ring_d_thetas.push_back(ring_angles[j] - ring_angles[j-1]);
+
+		}
+
+		// Get frame min and max times
+		float t_min, t_max;
+		float loop_ratio = 0.01;
+		get_min_max_times(f_ts, t_min, t_max, loop_ratio);
 		
-		// // Init last_time
-		// if (frame_i < 1)
-		// 	last_t_max = t_min;
+		// Init last_time
+		if (frame_i < 1)
+			last_t_max = t_min;
+			
+		// Get the motion_distorTion values from timestamps
+		// 0 for the t_min and 1 for t_max
+		vector<float> f_alphas;
+		if (motion_distortion)
+		{
+			float inv_factor = 1 / (t_max - t_min);
+			f_alphas.reserve(f_ts.size());
+			for (int j = 0; j < f_ts.size(); j++)
+				f_alphas.push_back((f_ts[j] - t_min) * inv_factor);
+		}
 
 		// Get the pose of the beginning and the end of the frame
 		Eigen::Matrix4d H1 = all_H.block(frame_i * 4, 0, 4, 4);
 		Eigen::Matrix4d H0;
-		if (motion_distortion)
-		{
-			if (frame_i < 1)
-				H0 = H1;
-			else
-				H0 = all_H.block((frame_i - 1) * 4, 0, 4, 4);
-		}
-		else
-			H0 = Eigen::Matrix4d::Zero(4, 4);
 
-		// Compute results
-		tmp_map.update_movable(f_pts, H0, H1, theta_dl, phi_dl, movable_probs, movable_counts);
+		if (motion_distortion && frame_i > 0)
+			H0 = all_H.block((frame_i - 1) * 4, 0, 4, 4);
+		else
+			H0 = H1;
+
+		// Compute movable points
+		tmp_map.update_movable_pts(f_pts, f_alphas, H0, H1, theta_dl, phi_dl, n_slices, ring_angles, ring_mids, ring_d_thetas, movable_probs, movable_counts);
 		// cout << "done" << endl;
 
 		frame_i++;

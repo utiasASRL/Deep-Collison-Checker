@@ -2,6 +2,43 @@
 #include "pointmap.h"
 
 
+Eigen::Matrix4d pose_interp(float t, Eigen::Matrix4d const& H1, Eigen::Matrix4d const& H2, int verbose)
+{
+	// Assumes 0 < t < 1
+	Eigen::Matrix3d R1 = H1.block(0, 0, 3, 3);
+	Eigen::Matrix3d R2 = H2.block(0, 0, 3, 3);
+
+	// Rotations to quaternions
+	Eigen::Quaternion<double> rot1(R1);
+	Eigen::Quaternion<double> rot2(R2);
+	Eigen::Quaternion<double> rot3 = rot1.slerp(t, rot2);
+
+	if (verbose > 0)
+	{
+		cout << R2.determinant() << endl;
+		cout << R2 << endl;
+		cout << "[" << rot1.x() << " " << rot1.y() << " " << rot1.z() << " " << rot1.w() << "] -> ";
+		cout << "[" << rot2.x() << " " << rot2.y() << " " << rot2.z() << " " << rot2.w() << "] / " << t << endl;
+		cout << "[" << rot3.x() << " " << rot3.y() << " " << rot3.z() << " " << rot3.w() << "]" << endl;
+		cout << rot2.toRotationMatrix() << endl;
+		cout << rot3.toRotationMatrix() << endl;
+	}
+
+	// Translations to vectors
+	Eigen::Vector3d trans1 = H1.block(0, 3, 3, 1);
+	Eigen::Vector3d trans2 = H2.block(0, 3, 3, 1);
+
+	// Interpolation (not the real geodesic path, but good enough)
+	Eigen::Affine3d result;
+	result.translation() = (1.0 - t) * trans1 + t * trans2;
+	result.linear() = rot1.slerp(t, rot2).normalized().toRotationMatrix();
+
+	return result.matrix();
+}
+
+
+
+
 void PointMapPython::update(vector<PointXYZ>& points0,
 	vector<PointXYZ>& normals0,
 	vector<float>& scores0)
@@ -172,13 +209,19 @@ void PointMapPython::add_samples(const vector<PointXYZ>& points0,
 	}
 }
 
-void PointMap::update_movable(vector<PointXYZ> &frame_points,
-							  Eigen::Matrix4d &H0,
-							  Eigen::Matrix4d &H1,
-							  float theta_dl,
-							  float phi_dl,
-							  vector<float> &movable_probs,
-							  vector<int> &movable_counts)
+
+void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
+								  vector<float> &frame_alphas,
+								  Eigen::Matrix4d &H0,
+								  Eigen::Matrix4d &H1,
+								  float theta_dl,
+								  float phi_dl,
+								  int n_slices,
+								  vector<float> &ring_angles,
+								  vector<float> &ring_mids,
+								  vector<float> &ring_d_thetas,
+								  vector<float> &movable_probs,
+								  vector<int> &movable_counts)
 {
 	///////////////
 	// Verbosity //
@@ -192,13 +235,12 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 		clock_str.reserve(20);
 		t.reserve(20);
 		clock_str.push_back("Align frame ....... ");
-		clock_str.push_back("Map limits ........ ");
 		clock_str.push_back("Update full ....... ");
-		clock_str.push_back("Polar frame ....... ");
-		clock_str.push_back("Init grid ......... ");
-		clock_str.push_back("Fill frustrum ..... ");
+		clock_str.push_back("Slices utils....... ");
+		clock_str.push_back("Polar grid ........ ");
+		clock_str.push_back("Fill frustum ..... ");
 		clock_str.push_back("Apply margin ...... ");
-		clock_str.push_back("Cast frustrum ..... ");
+		clock_str.push_back("Cast frustum ..... ");
 		clock_str.push_back("Test .............. ");
 	}
 	t.push_back(std::clock());
@@ -213,20 +255,11 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	float inv_dl = 1.0 / dl;
 	float max_angle = 5 * M_PI / 12;
 	float min_vert_cos = cos(M_PI / 3);
+	bool motion_distortion = n_slices > 1;
 
 	// Convert alignment matrices to float
 	Eigen::Matrix3f R = (H1.block(0, 0, 3, 3)).cast<float>();
 	Eigen::Vector3f T = (H1.block(0, 3, 3, 1)).cast<float>();
-
-	bool motion_distortion = false;
-	Eigen::Matrix3f R0;
-	Eigen::Vector3f T0;
-	if (H0.lpNorm<1>() > 0.001)
-	{
-		motion_distortion = true;
-		R0 = (H1.block(0, 0, 3, 3)).cast<float>();
-		T0 = (H1.block(0, 3, 3, 1)).cast<float>();
-	}
 
 	// Mask of the map point not updated yet
 	vector<bool> not_updated(cloud.pts.size(), true);
@@ -237,14 +270,25 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 
 	// Align frame on map
 	vector<PointXYZ> aligned_frame(frame_points);
-	Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float *)aligned_frame.data(), 3, aligned_frame.size());
-	aligned_mat = (R * aligned_mat).colwise() + T;
-
-	t.push_back(std::clock());
-
-	// Get limits
-	PointXYZ min_P = min_point(aligned_frame) - PointXYZ(dl, dl, dl);
-	PointXYZ max_P = max_point(aligned_frame) + PointXYZ(dl, dl, dl);
+	if (motion_distortion)
+	{
+		// Update map taking motion distortion into account
+		size_t i_inds = 0;
+		Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float *)aligned_frame.data(), 3, aligned_frame.size());
+		for (auto& alpha : frame_alphas)
+		{
+			Eigen::Matrix4d H_rect = pose_interp(alpha, H0, H1, 0);
+			Eigen::Matrix3f R_rect = (H_rect.block(0, 0, 3, 3)).cast<float>();
+			Eigen::Vector3f T_rect = (H_rect.block(0, 3, 3, 1)).cast<float>();
+			aligned_mat.col(i_inds) = (R_rect * aligned_mat.col(i_inds)) + T_rect;
+			i_inds++;
+		}
+	}
+	else
+	{
+		Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float *)aligned_frame.data(), 3, aligned_frame.size());
+		aligned_mat = (R * aligned_mat).colwise() + T;
+	}
 
 	t.push_back(std::clock());
 
@@ -311,27 +355,122 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	t.push_back(std::clock());
 
 	///////////////////////////////////
-	// Create the free frustrum grid //
+	// Create the free frustum grid //
 	///////////////////////////////////
+
+	// We approximate buy considering alphas are increasing 
+	vector<size_t> slice_inds;
+	slice_inds.reserve(n_slices);
+	float d_alpha = 1.0f / (float)n_slices;
+	float current_alpha = d_alpha;
+	slice_inds.push_back(0);
+	if (motion_distortion)
+	{
+		for (int i = 0; i < frame_alphas.size(); i++)
+		{
+			if (frame_alphas[i] >= current_alpha)
+			{
+				slice_inds.push_back(i);
+				current_alpha += d_alpha;
+				if (current_alpha > (1 - d_alpha / 2))
+					break;
+			}
+		}
+	}
+	slice_inds.push_back(frame_alphas.size());
+
+	// Get slices limits and poses
+	vector<PointXYZ> min_P(n_slices);
+	vector<PointXYZ> max_P(n_slices);
+	vector<Eigen::Matrix3f> R_t_slices(n_slices);
+	vector<Eigen::Vector3f> T_slices(n_slices);
+	for (int s = 0; s < n_slices; s++)
+	{
+		vector<PointXYZ>::const_iterator first = aligned_frame.begin() + slice_inds[s];
+		vector<PointXYZ>::const_iterator last = aligned_frame.begin() + slice_inds[s + 1];
+		vector<PointXYZ> tmp_slice(first, last);	
+
+		// Get limits
+		min_P[s] = min_point(tmp_slice) - PointXYZ(dl, dl, dl);
+		max_P[s] = max_point(tmp_slice) + PointXYZ(dl, dl, dl);
+		
+		float slice_alpha = ((float)s + 0.5f) / (float)n_slices;
+		Eigen::Matrix4d H_rect = pose_interp(slice_alpha, H0, H1, 0);
+		R_t_slices[s] = (H_rect.block(0, 0, 3, 3)).cast<float>().transpose();
+		T_slices[s] = (H_rect.block(0, 3, 3, 1)).cast<float>();
+	}
+
+
+	t.push_back(std::clock());
 
 	// Get frame in polar coordinates
 	vector<PointXYZ> polar_frame(frame_points);
 	cart2pol_(polar_frame);
 
-	t.push_back(std::clock());
+	// Arrange phi so that minimum corresponds to first slice
+	for (auto& p : polar_frame)
+			p.z = -p.z;
+
+	float phi0 = polar_frame[0].z;
+	float phi1 = polar_frame[0].z + M_PI / 8;
+	float delta_phi = 2 * M_PI;
+	int phi_i = 0;
+	int phi_i0 = polar_frame.size() / 8;
+	int s_phi_i0 = n_slices / 8 + 1;
+	for (auto& p : polar_frame)
+	{
+		if (phi_i > phi_i0 && p.z < phi1)
+			p.z = p.z - phi0 + delta_phi;
+		else
+			p.z = p.z - phi0;
+		phi_i++;
+	}
+
+	// Get average phi angle for each slice
+	vector<float> slices_phi(n_slices);
+	for (int s = 0; s < n_slices; s++)
+	{
+		float sum = 0;
+		for (int j = slice_inds[s]; j < slice_inds[s + 1]; j++)
+			sum += polar_frame[j].z;
+		slices_phi[s] = sum / (float)(slice_inds[s + 1] - slice_inds[s]);
+	}
 
 	// Get grid limits
 	PointXYZ minCorner = min_point(polar_frame);
 	PointXYZ maxCorner = max_point(polar_frame);
 	PointXYZ originCorner = minCorner - PointXYZ(0, 0.5 * theta_dl, 0.5 * phi_dl);
 
+	// string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+	// save_cloud(path000 + string("f_polar.ply"), polar_frame);
+
+
+
+	//                 --------------> HERE <--------------
+
+	// 			TODO: Now that arranged for slices, do the same for the phi computed 
+	// 			      in the last loop. And perform the slice verification
+
+	//                 --------------> HERE <--------------
+
 	// Dimensions of the grid
 	size_t grid_n_theta = (size_t)floor((maxCorner.y - originCorner.y) / theta_dl) + 1;
 	size_t grid_n_phi = (size_t)floor((maxCorner.z - originCorner.z) / phi_dl) + 1;
 
+	// Extension of theta indices given irregular rings
+	vector<size_t> theta_to_ring(grid_n_theta);
+	size_t ring_i = 0;
+	for (size_t i_th = 0; i_th < grid_n_theta; i_th++)
+	{
+		float theta = originCorner.y + theta_dl * ((float)i_th + 0.5);
+		if (ring_i < ring_mids.size() && theta > ring_mids[ring_i])
+			ring_i++;
+		theta_to_ring[i_th] = ring_i;
+	}
+
 	// Initialize variables
-	vector<float> frustrum_radiuses(grid_n_theta * grid_n_phi, -1.0);
-	size_t i_theta, i_phi, gridIdx;
+	size_t grid_n_ring = ring_mids.size() + 1;
+	vector<float> frustum_radiuses(grid_n_ring * grid_n_phi, -1.0);
 
 	t.push_back(std::clock());
 
@@ -346,45 +485,139 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 	// }
 	// save_cloud("test_polar.ply", test_polar, test_itheta);
 
-	// Fill the frustrum radiuses
+	// Fill the frustum radiuses
+	size_t i_theta, i_phi, i_ring, gridIdx;
 	for (auto &p : polar_frame)
 	{
 		// Position of point in grid
 		i_theta = (size_t)floor((p.y - originCorner.y) * inv_theta_dl);
 		i_phi = (size_t)floor((p.z - originCorner.z) * inv_phi_dl);
-		gridIdx = i_theta + grid_n_theta * i_phi;
+		i_ring = theta_to_ring[i_theta];
+		gridIdx = i_ring + grid_n_ring * i_phi;
 
 		// Update the radius in cell
-		if (frustrum_radiuses[gridIdx] < 0)
-			frustrum_radiuses[gridIdx] = p.x;
-		else if (p.x < frustrum_radiuses[gridIdx])
-			frustrum_radiuses[gridIdx] = p.x;
+		if (frustum_radiuses[gridIdx] < 0)
+			frustum_radiuses[gridIdx] = p.x;
+		else if (p.x < frustum_radiuses[gridIdx])
+			frustum_radiuses[gridIdx] = p.x;
 	}
+
 
 	t.push_back(std::clock());
 
 	// Apply margin to free ranges
 	float margin = dl;
-	float frustrum_alpha = theta_dl / 2;
-	for (auto &r : frustrum_radiuses)
+	for (int j = 0; j < frustum_radiuses.size(); j++)
 	{
-		float adapt_margin = r * frustrum_alpha;
+		i_ring = j % (int)grid_n_ring;
+		float frustum_alpha = ring_d_thetas[i_ring];
+		float adapt_margin = frustum_radiuses[j] * frustum_alpha;
 		if (margin < adapt_margin)
-			r -= adapt_margin;
+			frustum_radiuses[j] -= adapt_margin;
 		else
-			r -= margin;
+			frustum_radiuses[j] -= margin;
 	}
+
+	// vector<PointXYZ> frustum_pts(grid_n_ring * grid_n_phi);
+	// for (int j = 0; j < frustum_radiuses.size(); j++)
+	// {
+	// 	i_ring = j % (int)grid_n_ring;
+	// 	i_phi = (j - (int)i_theta) / (int)grid_n_ring;
+
+	// 	float theta = ring_angles[i_ring];
+
+	// 	//float theta = originCorner.y + theta_dl * ((float)i_theta + 0.5);
+	// 	float phi = originCorner.z + phi_dl * ((float)i_phi + 0.5);
+	// 	frustum_pts[j] = PointXYZ(frustum_radiuses[j], theta, phi);
+	// }
+	// save_cloud(path000 + string("frustum_polar.ply"), frustum_pts);
+	// cout << " OK" << endl;
 
 	t.push_back(std::clock());
 
+	///////////////////////////////////////////
+	// Create tiles for fast slice detection //
+	///////////////////////////////////////////
+
+	// Inverse of sample dl
+	float tile_dl = 0.6;
+	float inv_tile_dl = 1.0 / tile_dl;
+
+	cout << tile_dl << endl;
+	cout << inv_tile_dl << endl;
+
+	// Limits of the map
+	PointXYZ tileMinCorner = min_point(aligned_frame);
+	PointXYZ tileMaxCorner = max_point(aligned_frame);
+	PointXYZ tileOriginCorner = floor(minCorner * inv_tile_dl) * tile_dl;
+
+	// Dimensions of the grid
+	size_t tileSampleNX = (size_t)floor((tileMaxCorner.x - tileOriginCorner.x) * inv_tile_dl) + 1;
+	size_t tileSampleNY = (size_t)floor((tileMaxCorner.y - tileOriginCorner.y) * inv_tile_dl) + 1;
+	size_t tileSampleNZ = (size_t)floor((tileMaxCorner.z - tileOriginCorner.z) * inv_tile_dl) + 1;
+
+	cout << tileSampleNX << endl;
+	cout << tileSampleNY << endl;
+	cout << tileSampleNZ << endl;
+
+	// Initialize variables
+	size_t iX, iY, iZ, mapIdx;
+	unordered_map<size_t, vector<int>> tiles;
+
+	int fp_i = 0;
+	int tile_s = 0;
+	for (auto& p : aligned_frame)
+	{
+		// Position of point in sample map
+		iX = (size_t)floor((p.x - tileOriginCorner.x) * inv_tile_dl);
+		iY = (size_t)floor((p.y - tileOriginCorner.y) * inv_tile_dl);
+		iZ = (size_t)floor((p.z - tileOriginCorner.z) * inv_tile_dl);
+		mapIdx = iX + tileSampleNX * iY + tileSampleNX * tileSampleNY * iZ;
+
+		// Fill the sample map
+		if (tiles.count(mapIdx) < 1)
+		{
+			vector<int> slices_in(n_slices, 0);
+			slices_in[tile_s] = 1;
+			tiles.emplace(mapIdx, slices_in);
+		}
+		else
+		{
+			if (tiles[mapIdx][tile_s] < 1)
+			{
+				cout << p.x - tileOriginCorner.x << "   ---   ";
+				cout << iX << ", " << iY << ", " << iZ << " = ";
+				cout << mapIdx << "  -> ";
+				for (auto & s_in: tiles[mapIdx])
+					cout << s_in << " ";
+				cout << "    + " << tile_s << endl;
+			}
+			tiles[mapIdx][tile_s] = 1;
+		}
+
+		// Increment point index
+		fp_i++;
+
+		// Change slice
+		if (fp_i >= slice_inds[tile_s + 1])
+			tile_s++;
+	}
+
+
+	cout << "Tiles Done" << endl;
+
 	////////////////////////////
-	// Apply frustrum casting //
+	// Apply frustum casting //
 	////////////////////////////
 
 	// Update free pixels
 	float min_r = 2 * dl;
 	size_t p_i = 0;
+	Eigen::Matrix4d H_half = pose_interp(0.5, H0, H1, 0);
+	Eigen::Matrix3f R_half = (H_half.block(0, 0, 3, 3)).cast<float>();
+	Eigen::Vector3f T_half = (H_half.block(0, 3, 3, 1)).cast<float>();
 	Eigen::Matrix3f R_t = R.transpose();
+	Eigen::Matrix3f R_half_t = R_half.transpose();
 	for (auto &p : cloud.pts)
 	{
 		// Ignore points updated just now
@@ -394,49 +627,90 @@ void PointMap::update_movable(vector<PointXYZ> &frame_points,
 			continue;
 		}
 
-		// Ignore points outside area of the frame
-		if (p.x > max_P.x || p.y > max_P.y || p.z > max_P.z || p.x < min_P.x || p.y < min_P.y || p.z < min_P.z)
+		// // Ignore points outside area of the frame
+		// if (p.x > max_P.x || p.y > max_P.y || p.z > max_P.z || p.x < min_P.x || p.y < min_P.y || p.z < min_P.z)
+		// {
+		// 	p_i++;
+		// 	continue;
+		// }
+
+		// Get which slice are candidates for this point
+		iX = (size_t)floor((p.x - tileOriginCorner.x) * inv_tile_dl);
+		iY = (size_t)floor((p.y - tileOriginCorner.y) * inv_tile_dl);
+		iZ = (size_t)floor((p.z - tileOriginCorner.z) * inv_tile_dl);
+		mapIdx = iX + tileSampleNX * iY + tileSampleNX * tileSampleNY * iZ;
+
+		// Get the best slice according to phi angle
+		int best_s = -1;
+		float min_d_phi = -1;
+		PointXYZ best_xyz;
+		PointXYZ best_nxyz;
+		PointXYZ best_rtp;
+		for (int s = 0; s < n_slices; s++)
 		{
-			p_i++;
-			continue;
+			if (tiles[mapIdx][s] > 0)
+			{
+				// Align point in frame coordinates (and normal)
+				PointXYZ xyz(p);
+				PointXYZ nxyz(normals[p_i]);
+				Eigen::Map<Eigen::Vector3f> p_mat((float *)&xyz, 3, 1);
+				Eigen::Map<Eigen::Vector3f> n_mat((float *)&nxyz, 3, 1);
+				p_mat = R_t_slices[s] * (p_mat - T_slices[s]);
+				n_mat = R_t_slices[s] * n_mat;
+
+				// Project in polar coordinates
+				PointXYZ rtp = cart2pol(xyz);
+
+				// Arrange phi
+				rtp.z = -rtp.z;
+				if (s > s_phi_i0 && rtp.z < phi1)
+					rtp.z = rtp.z - phi0 + delta_phi;
+				else
+					rtp.z = rtp.z - phi0;
+
+				// Update best_slice
+				float d_phi = abs(rtp.z - slices_phi[s]);
+				if (d_phi < min_d_phi)
+				{
+					best_s = s;
+					min_d_phi = d_phi;
+					best_xyz = xyz;
+					best_nxyz = nxyz;
+					best_rtp = rtp;
+				}
+			}
 		}
 
-		// Align point in frame coordinates (and normal)
-		PointXYZ xyz(p);
-		PointXYZ nxyz(normals[p_i]);
-		Eigen::Map<Eigen::Vector3f> p_mat((float *)&xyz, 3, 1);
-		Eigen::Map<Eigen::Vector3f> n_mat((float *)&nxyz, 3, 1);
-		p_mat = R_t * (p_mat - T);
-		n_mat = R_t * n_mat;
-
-		// Project in polar coordinates
-		PointXYZ rtp = cart2pol(xyz);
-
-		// Position of point in grid
-		i_theta = (size_t)floor((rtp.y - originCorner.y) * inv_theta_dl);
-		i_phi = (size_t)floor((rtp.z - originCorner.z) * inv_phi_dl);
-		gridIdx = i_theta + grid_n_theta * i_phi;
-
-		// Update movable prob
-		if (rtp.x > min_r && rtp.x < frustrum_radiuses[gridIdx])
+		// Perform ray_casting only if a tile was found
+		if (best_s > -0.5)
 		{
-			// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
-			if (abs(nxyz.z) > min_vert_cos)
+			// Position of point in grid
+			i_theta = (size_t)floor((best_rtp.y - originCorner.y) * inv_theta_dl);
+			i_phi = (size_t)floor((best_rtp.z - originCorner.z) * inv_phi_dl);
+			i_ring = theta_to_ring[i_theta];
+			gridIdx = i_ring + grid_n_ring * i_phi;
+
+			// Update movable prob
+			if (best_rtp.x > min_r && best_rtp.x < frustum_radiuses[gridIdx])
 			{
-				movable_counts[p_i] += 1;
-				movable_probs[p_i] += 1.0;
-			}
-			else
-			{
-				float angle = acos(min(abs(xyz.dot(nxyz) / rtp.x), 1.0f));
-				if (angle < max_angle)
+				// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
+				if (abs(best_nxyz.z) > min_vert_cos)
 				{
 					movable_counts[p_i] += 1;
 					movable_probs[p_i] += 1.0;
 				}
+				else
+				{
+					float angle = acos(min(abs(best_xyz.dot(best_nxyz) / best_rtp.x), 1.0f));
+					if (angle < max_angle)
+					{
+						movable_counts[p_i] += 1;
+						movable_probs[p_i] += 1.0;
+					}
+				}
 			}
-			
 		}
+
 		p_i++;
 	}
 

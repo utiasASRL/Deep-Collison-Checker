@@ -15,6 +15,9 @@ typedef nanoflann::KDTreeSingleIndexAdaptorParams KDTree_Params;
 typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_KDTree;
 typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 3> PointXYZ_Dynamic_KDTree;
 
+
+Eigen::Matrix4d pose_interp(float t, Eigen::Matrix4d const& H1, Eigen::Matrix4d const& H2, int verbose);
+
 //-------------------------------------------------------------------------------------------
 //
 // PointMapPython Class
@@ -659,13 +662,19 @@ public:
 	}
 
 	// Compute movable probabilities
-	void update_movable(vector<PointXYZ> &frame_points,
-						Eigen::Matrix4d &H0,
-						Eigen::Matrix4d &H1,
-						float theta_dl,
-						float phi_dl,
-						vector<float> &movable_probs,
-						vector<int> &movable_counts);
+
+	void update_movable_pts(vector<PointXYZ> &frame_points,
+							vector<float> &frame_alphas,
+							Eigen::Matrix4d &H0,
+							Eigen::Matrix4d &H1,
+							float theta_dl,
+							float phi_dl,
+							int n_slices,
+							vector<float> &ring_angles,
+							vector<float> &ring_mids,
+							vector<float> &ring_d_thetas,
+							vector<float> &movable_probs,
+							vector<int> &movable_counts);
 };
 
 //-------------------------------------------------------------------------------------------

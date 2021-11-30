@@ -139,9 +139,6 @@ public:
 // Function declaration
 // ********************
 
-
-Eigen::Matrix4d pose_interp(float t, Eigen::Matrix4d const& H1, Eigen::Matrix4d const& H2, int verbose);
-
 void SolvePoint2PlaneLinearSystem(const Matrix6d& A, const Vector6d& b, Vector6d& x);
 
 void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,

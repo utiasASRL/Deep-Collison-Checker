@@ -88,9 +88,15 @@ void load_cloud(std::string& dataPath,
 	std::vector<int>& int_scalar,
 	std::string& int_scalar_name);
 
+void load_annot(std::string &dataPath,
+				std::vector<int> &int_scalar,
+				std::string &int_scalar_name);
 
-
-
-
-
-
+void load_frame(std::string &dataPath,
+				std::vector<PointXYZ> &f_pts,
+				std::vector<float> &timestamps,
+				std::vector<int> &rings,
+				std::vector<int> &loc_labels,
+				std::string &save_path,
+				std::string &time_name,
+				std::string &ring_name);

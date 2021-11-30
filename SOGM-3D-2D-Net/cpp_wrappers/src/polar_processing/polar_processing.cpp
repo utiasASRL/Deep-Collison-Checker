@@ -413,9 +413,9 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 		clock_str.push_back("Update full ....... ");
 // 		clock_str.push_back("Polar frame ....... ");
 // 		clock_str.push_back("Init grid ......... ");
-// 		clock_str.push_back("Fill frustrum ..... ");
+// 		clock_str.push_back("Fill frustum ..... ");
 // 		clock_str.push_back("Apply margin ...... ");
-// 		clock_str.push_back("Cast frustrum ..... ");
+// 		clock_str.push_back("Cast frustum ..... ");
 // 		clock_str.push_back("Test .............. ");
 // 	}
 // 	t.push_back(std::clock());
@@ -495,7 +495,7 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 	t.push_back(std::clock());
 
 // 	///////////////////////////////////
-// 	// Create the free frustrum grid //
+// 	// Create the free frustum grid //
 // 	///////////////////////////////////
 
 // 	// Get frame in polar coordinates
@@ -514,7 +514,7 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 	size_t grid_n_phi = (size_t)floor((maxCorner.z - originCorner.z) / phi_dl) + 1;
 
 // 	// Initialize variables
-// 	vector<float> frustrum_radiuses(grid_n_theta * grid_n_phi, -1.0);
+// 	vector<float> frustum_radiuses(grid_n_theta * grid_n_phi, -1.0);
 // 	size_t i_theta, i_phi, gridIdx;
 
 // 	t.push_back(std::clock());
@@ -530,7 +530,7 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 	// }
 // 	// save_cloud("test_polar.ply", test_polar, test_itheta);
 
-// 	// Fill the frustrum radiuses
+// 	// Fill the frustum radiuses
 // 	for (auto &p : polar_frame)
 // 	{
 // 		// Position of point in grid
@@ -539,20 +539,20 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 		gridIdx = i_theta + grid_n_theta * i_phi;
 
 // 		// Update the radius in cell
-// 		if (frustrum_radiuses[gridIdx] < 0)
-// 			frustrum_radiuses[gridIdx] = p.x;
-// 		else if (p.x < frustrum_radiuses[gridIdx])
-// 			frustrum_radiuses[gridIdx] = p.x;
+// 		if (frustum_radiuses[gridIdx] < 0)
+// 			frustum_radiuses[gridIdx] = p.x;
+// 		else if (p.x < frustum_radiuses[gridIdx])
+// 			frustum_radiuses[gridIdx] = p.x;
 // 	}
 
 // 	t.push_back(std::clock());
 
 // 	// Apply margin to free ranges
 // 	float margin = map_dl;
-// 	float frustrum_alpha = theta_dl / 2;
-// 	for (auto &r : frustrum_radiuses)
+// 	float frustum_alpha = theta_dl / 2;
+// 	for (auto &r : frustum_radiuses)
 // 	{
-// 		float adapt_margin = r * frustrum_alpha;
+// 		float adapt_margin = r * frustum_alpha;
 // 		if (margin < adapt_margin)
 // 			r -= adapt_margin;
 // 		else
@@ -562,7 +562,7 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 	t.push_back(std::clock());
 
 // 	////////////////////////////
-// 	// Apply frustrum casting //
+// 	// Apply frustum casting //
 // 	////////////////////////////
 
 // 	// Update free pixels
@@ -602,7 +602,7 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 // 		gridIdx = i_theta + grid_n_theta * i_phi;
 
 // 		// Update movable prob
-// 		if (rtp.x > min_r && rtp.x < frustrum_radiuses[gridIdx])
+// 		if (rtp.x > min_r && rtp.x < frustum_radiuses[gridIdx])
 // 		{
 // 			// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
 // 			if (abs(nxyz.z) > min_vert_cos)
