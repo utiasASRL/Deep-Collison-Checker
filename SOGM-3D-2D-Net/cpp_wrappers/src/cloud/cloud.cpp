@@ -280,3 +280,217 @@ void load_frame(std::string &dataPath,
 }
 
 
+
+void random_3_pick(int &A_i, int &B_i, int &C_i,
+				   std::uniform_int_distribution<int> &distribution,
+				   std::default_random_engine &generator)
+{
+	A_i = distribution(generator);
+	B_i = distribution(generator);
+	C_i = distribution(generator);
+	while (B_i == A_i)
+		B_i = distribution(generator);
+	while (C_i == A_i || C_i == B_i)
+		C_i = distribution(generator);
+}
+
+bool is_triplet_good(PointXYZ A, PointXYZ B, PointXYZ C, PointXYZ &u)
+{
+	PointXYZ AB = B - A;
+	PointXYZ AC = C - A;
+
+	float normAB = AB.sq_norm();
+	if (normAB < 1e-6) // <=> ||AB|| < 1mm
+		return false;
+
+	float normAC = AC.sq_norm();
+	if (normAC < 1e-6) // <=> ||AC|| < 1mm
+		return false;
+
+	u = (AB).cross(AC);
+	if (u.sq_norm() / (normAB * normAC)  < 1e-4) // <=> angle BAC < 0.5 degres
+		return false;
+
+	return true;
+}
+
+Plane3D plane_ransac(std::vector<PointXYZ> &points,
+					 float max_dist,
+					 int max_steps)
+{
+	// Random generator
+  	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+	std::default_random_engine generator(seed);
+	std::uniform_int_distribution<int> distribution(0, points.size() - 1);
+
+	// signed distances to plane
+	std::vector<float> distances(points.size());
+
+	// Parameters
+	float factor = 1.0 / (max_dist * 4);
+	int A_i, B_i, C_i;
+	PointXYZ u;
+
+	// Initial values
+    float best_vote = 0;
+	Plane3D best_P(points[0], points[1], points[2]);
+
+	for (int i = 0; i < max_steps; i++)
+	{
+
+		// Randomly pick three points (with ill-defined detection)
+		random_3_pick(A_i, B_i, C_i, distribution, generator);
+		bool good_triplet = is_triplet_good(points[A_i], points[B_i], points[C_i], u);
+		while(!good_triplet)
+		{
+			random_3_pick(A_i, B_i, C_i, distribution, generator);
+			good_triplet = is_triplet_good(points[A_i], points[B_i], points[C_i], u);
+		}
+
+		// Corresponding plane
+		Plane3D P_ABC(points[A_i], u);
+
+		// Votes for this plane
+		P_ABC.point_distances(points, distances);
+		float sum_vote = 0;
+		for (auto &d: distances)
+		{
+			if (d < max_dist)
+				sum_vote += 1.0 - d * factor;
+		}
+
+		// Update best
+		if (sum_vote > best_vote)
+		{
+			best_vote = sum_vote;
+			best_P = P_ABC;
+		}
+	}
+
+	return best_P;
+}
+
+Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
+							std::vector<PointXYZ> &normals,
+							float vertical_thresh_deg,
+							float max_dist)
+{
+
+	// Parameters
+	float vertical_thresh = vertical_thresh_deg * M_PI / 180;
+
+	// Variables
+	float clip0 = -0.99999999;
+	float clip1 = 0.99999999;
+
+	// Get points with a vetical normal (we assume the lidar is horizontal)
+	std::vector<float> vertical_angles;
+	std::vector<PointXYZ> candidates;
+	vertical_angles.reserve(points.size());
+	candidates.reserve(points.size());
+	size_t i = 0;
+	for (auto &n : normals)
+	{
+		float clip_nz = std::max(std::min(n.z, clip1), clip0);
+		float vertical_angle = acos(abs(clip_nz));
+		vertical_angles.push_back(vertical_angle);
+		if (vertical_angle < vertical_thresh)
+			candidates.push_back(points[i]);
+
+		i++;
+	}
+
+	// Get the ground plane with ransac
+	Plane3D ground_P = plane_ransac(candidates, max_dist, 100);
+
+	return ground_P;
+}
+
+// float tukey(float x)
+// {
+// 	float w = pow(1-pow(x,2),2);
+// 	if (abs(x) > 1)
+// 		w = 0;
+// 	return w;
+// }
+
+// void IRLS_optimization(Mat points, Plane& P, int nb_iter, float standardDeviation)
+// {
+// 	//----------------------------------------------------------------------------------0
+// 	//	Optimisation par IRLS :															|
+// 	//																					|
+// 	//		Repeter iter fois :															|
+// 	//			1) (Re)calculer les poids des points par rapport au plan				|
+// 	//			2) Trouver le plan optimal pour ces poids								|
+// 	//																					|
+// 	//		IRLS = iteratively reweighted least squares									|
+// 	//		On peut choisir plusieurs fonctions (M-estimateurs) afin de jour le role	|
+// 	//		de poids. Je choisis l'estimateur de Tukey afin d'ecarter les outliers		|
+// 	//		efficacement.																|
+// 	//																					|
+// 	//----------------------------------------------------------------------------------0
+
+// 	// Initialisation des variables :
+// 	// ******************************
+
+// 	Mat distances;
+// 	Mat tukeyWeights;
+
+
+// 	// Lancement de la boucle :
+// 	// ************************
+
+// 	for(int i=0; i<nb_iter; i++)
+// 	{
+// 		// Calcul des poids :
+// 		// ******************
+
+// 		// la fonction de Tuckey est :
+// 		//			 / (1-(distance_i/standardDeviation).^2).^2		si (distance_i < standardDeviation)
+// 		//	  w_i = <
+// 		//			 \					0							sinon
+
+// 		// si (distance_i < standardDeviation)
+// 		P.distance(points,distances);
+// 		Mat temp;
+// 		pow(distances/standardDeviation,2,temp);
+// 		pow(1-temp,2,tukeyWeights);
+
+// 		// sinon
+// 		Mat inliers;
+// 		compare(distances, standardDeviation, inliers, CMP_LT);
+// 		inliers.convertTo(inliers,CV_32F);
+// 		multiply(inliers,tukeyWeights,tukeyWeights,(double)1/255);
+
+
+// 		// Plan optimal par les moindres carres ponderes :
+// 		// ***********************************************
+
+// 		// Si on decrit le plan d'equation ax+by+cz=1 par le vecteur u tel que u = [a, b, c]
+// 		// Alors on peut montrer en derivant la fonction objectif S = sum(wi*(a.xi+b.yi+c.zi)� que u verifie le systeme lineaire
+// 		//
+// 		//			A * u' = B      o�		A = (weightedPoints)' * points
+// 		//									B = sum(weightedPoints)'
+// 		//
+// 		//		(voir rapport pour explications plus claires)
+
+// 		// Points ponderes
+// 		Mat weightedPoints;
+// 		repeat(tukeyWeights,1,3,tukeyWeights);
+// 		multiply(tukeyWeights,points,weightedPoints);
+
+// 		// Matrice A
+// 		Mat A = weightedPoints.t() * (points);
+
+// 		// Matrice B
+// 		weightedPoints = weightedPoints.reshape(3);
+// 		Scalar b = sum(weightedPoints);
+// 		Mat B(1,1,CV_32FC3,b);
+// 		B = (B.reshape(1)).t();
+
+// 		// Solution
+// 		Mat result = (A.inv()*B);
+// 		P = Plane(result.at<float>(0), result.at<float>(1), result.at<float>(2));
+
+// 	}
+// }

@@ -1749,13 +1749,12 @@ class MyhalCollisionSlam:
         else:
 
             print('Error: Refine map not modified for motion distortion yet')
+            print('Refine map skipped for now \n')
+            return
 
-            a = 1/0
 
         # Now check if these days were already used for updating
-        day_movable_names = [
-            f for f in listdir(map_folder) if f.startswith('last_movables_')
-        ]
+        day_movable_names = [f for f in listdir(map_folder) if f.startswith('last_movables_')]
         day_movable_names = [f[:-4].split('_')[-1] for f in day_movable_names]
         seen_inds = []
         for d, day in enumerate(self.days):
@@ -1928,9 +1927,9 @@ class MyhalCollisionSlam:
                                               verbose_time=5.0,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.3,
+                                              icp_planar_dist=0.08,
                                               icp_max_iter=0,
-                                              icp_avg_steps=5,
+                                              icp_avg_steps=3,
                                               odom_H=odom_H)
 
                     # Rename the saved map file
@@ -1956,9 +1955,9 @@ class MyhalCollisionSlam:
                                                   verbose_time=5.0,
                                                   icp_samples=600,
                                                   icp_pairing_dist=2.0,
-                                                  icp_planar_dist=0.3,
+                                                  icp_planar_dist=0.08,
                                                   icp_max_iter=100,
-                                                  icp_avg_steps=5)
+                                                  icp_avg_steps=3)
 
                     # Save the trajectory
                     save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
@@ -2035,6 +2034,7 @@ class MyhalCollisionSlam:
             points = np.vstack((data['x'], data['y'], data['z'])).T
             normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
             scores = data['f0']
+            counts = data['f1']
 
             print('OK')
             print('Update pointmap')
@@ -2054,7 +2054,7 @@ class MyhalCollisionSlam:
                                                             phi_dl=0.5 * np.pi / 180,
                                                             map_dl=map_dl,
                                                             verbose_time=5.0,
-                                                            motion_distortion_slices=12)
+                                                            motion_distortion_slices=16)
 
             movable_prob = movable_prob / (movable_count + 1e-6)
             movable_prob[movable_count < 1e-6] = -1
@@ -2062,6 +2062,7 @@ class MyhalCollisionSlam:
             print('Ray_casting done')
 
             # Save it
+            # write_ply(first_annot_name,
             write_ply(join(map_folder, 'movable_final.ply'),
                       [points, normals, movable_prob, movable_count],
                       ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
@@ -2076,11 +2077,52 @@ class MyhalCollisionSlam:
                                          normals,
                                          map_folder,
                                          vertical_thresh=10.0,
-                                         dist_thresh=0.3,
-                                         remove_dist=0.29)
+                                         dist_thresh=0.2,
+                                         remove_dist=0.21)
 
         # Do not remove ground points
         movable_prob[ground_mask] = 0
+
+        # Stop here if we did loop closure
+        loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
+        if exists(loop_closed_map_name):
+
+            initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
+            if not exists(initial_map_file):
+            
+                correct_H = map_H
+
+                # Save the new corrected trajectory
+                save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
+                with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
+                    pickle.dump(correct_H, file)
+
+                # TODO: C++ function for creating a map with spherical barycenters of frames?
+                #       We have to do it anyway for the annotation process after
+                #       Create a point map with all the points and sphere barycentres.
+
+                # TODO: C++ function for loop closure and flatten ground with ceres and pt2pl loss
+
+                data = read_ply(loop_closed_map_name)
+                counts = data['f0']
+                scores = data['f1']
+
+                print(points.shape)
+                print(scores.shape)
+                print(movable_prob.shape)
+
+                still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.9)
+
+                write_ply(initial_map_file,
+                          [points[still_mask], normals[still_mask], scores[still_mask], counts[still_mask]],
+                          ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
+
+            print('Early stop because of loop closure')
+            return
+
+
+
+
 
         # Folder where we save the first annotated_frames
         annot_folder = join(map_folder, 'tmp_frames')
@@ -2121,7 +2163,7 @@ class MyhalCollisionSlam:
 
             # Save frame with annotation
             categories = np.zeros(frame_movable_prob.shape, np.int32)
-            categories[frame_movable_prob > 0.7] = 4
+            categories[frame_movable_prob > 0.9] = 4
             categories[frame_ground_mask] = 1
             write_ply(new_f_name, [categories], ['cat'])
 
@@ -2264,6 +2306,7 @@ class MyhalCollisionSlam:
         # ###########################################################
 
         initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
+
         if not exists(initial_map_file):
 
             # Odometry is given as Scanner to Odom so we have to invert matrices
@@ -2283,9 +2326,9 @@ class MyhalCollisionSlam:
                                               verbose_time=5,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.3,
+                                              icp_planar_dist=0.08,
                                               icp_max_iter=100,
-                                              icp_avg_steps=5,
+                                              icp_avg_steps=3,
                                               odom_H=odom_H)
 
             # Apply offset so that traj is aligned with groundtruth
@@ -2302,12 +2345,12 @@ class MyhalCollisionSlam:
 
             # Instead just load c++ map and save it as the final result
             data = read_ply(join(map_folder, 'map_{:s}.ply'.format(self.map_day)))
-            pointmap.points = np.vstack((data['x'], data['y'], data['z'])).T
-            pointmap.normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-            pointmap.scores = data['f1']
-            pointmap.counts = data['f0']
+            points = np.vstack((data['x'], data['y'], data['z'])).T
+            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            scores = data['f1']
+            counts = data['f0']
             write_ply(initial_map_file,
-                      [pointmap.points, pointmap.normals, pointmap.scores, pointmap.counts],
+                      [points, normals, scores, counts],
                       ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
 
         else:
@@ -2331,9 +2374,9 @@ class MyhalCollisionSlam:
                                  filtering=True,
                                  icp_samples=600,
                                  icp_pairing_dist=2.0,
-                                 icp_planar_dist=0.3,
+                                 icp_planar_dist=0.08,
                                  icp_max_iter=0,
-                                 icp_avg_steps=5,
+                                 icp_avg_steps=3,
                                  odom_H=odom_H)
 
         return

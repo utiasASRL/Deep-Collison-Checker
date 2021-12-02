@@ -92,5 +92,7 @@ PointXYZ min_point(const PointXYZ A, const PointXYZ B)
 	if (B.z < maxP.z)
 		maxP.z = B.z;
 	return maxP;
+	
+	
 }
 

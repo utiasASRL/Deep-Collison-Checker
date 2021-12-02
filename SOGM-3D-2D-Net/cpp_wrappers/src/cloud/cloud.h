@@ -19,7 +19,11 @@
 
 # pragma once
 
+#include <Eigen/Eigenvalues>
+
 #include "points.h"
+#include <chrono>
+#include <random>
 
 
 //------------------------------------------------------------------------------------------------------------
@@ -100,3 +104,20 @@ void load_frame(std::string &dataPath,
 				std::string &save_path,
 				std::string &time_name,
 				std::string &ring_name);
+
+void random_3_pick(int &A_i, int &B_i, int &C_i,
+				   std::uniform_int_distribution<int> &distribution,
+				   std::default_random_engine &generator);
+
+bool is_triplet_bad(PointXYZ &A, PointXYZ &B, PointXYZ &C, PointXYZ &u);
+
+Plane3D plane_ransac(std::vector<PointXYZ> &points,
+					 float max_dist = 0.1,
+					 int max_steps = 100);
+					 
+Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
+							std::vector<PointXYZ> &normals,
+							float vertical_thresh_deg = 10.0,
+							float max_dist = 0.1);
+
+// float tukey(float x);

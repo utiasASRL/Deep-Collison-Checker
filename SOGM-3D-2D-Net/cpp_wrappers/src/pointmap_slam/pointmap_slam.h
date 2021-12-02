@@ -106,6 +106,7 @@ public:
 
 	// Map used by the algorithm
 	PointMap map;
+	PointMap map0;
 
 	// Pose of the last mapped frame
 	Eigen::Matrix4d last_H;
@@ -115,6 +116,9 @@ public:
 
 	// Indice of frame
 	int frame_i;
+
+	// Count errors to stop if this is not going well
+	int warning_count;
 
 	// Container for the motion corrected frame used to update the map
 	vector<PointXYZ> corrected_frame;
@@ -132,8 +136,11 @@ public:
 
 		//// Init map from previous session
 		map.dl = params.map_voxel_size;
+		map0.dl = params.map_voxel_size;
 		if (init_points.size() > 0)
 		{
+			map0.update_idx = -1;
+			map0.update(init_points, init_normals, init_scores, -1);
 			map.update_idx = -1;
 			map.update(init_points, init_normals, init_scores, -1);
 		}
@@ -142,6 +149,7 @@ public:
 		last_H = Eigen::Matrix4d::Identity(4, 4);
 		H_OdomToMap = Eigen::Matrix4d::Identity(4, 4);
 		frame_i = 0;
+		warning_count = 0;
 	}
 
 	// Mapping functions

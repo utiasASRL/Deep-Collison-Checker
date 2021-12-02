@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../cloud/cloud.h"
-#include "../pointmap/pointmap.h"
 
 using namespace std;
 

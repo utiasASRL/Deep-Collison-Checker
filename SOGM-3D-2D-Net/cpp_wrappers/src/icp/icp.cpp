@@ -1004,8 +1004,10 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 
 	size_t N = tgt_pts.size();
 	float max_pair_d2 = params.max_pairing_dist * params.max_pairing_dist;
-	float max_planar_d = params.max_planar_dist;
 	size_t first_steps = params.avg_steps / 2 + 1;
+
+	// Initially use a large associating dist (we change that during the interations)
+	float max_planar_d = 4 * params.max_planar_dist;
 
 	// Create search parameters
 	nanoflann::SearchParams search_params;
@@ -1117,7 +1119,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 					count_tries++;
 					cout << count_tries << ": " << picked_ind << " -> " << unique_inds.size() << "/" << params.n_samples << endl;
 				}
-				throw std::invalid_argument( "Impossible to pick enough iccp samples" );
+				throw std::invalid_argument( "Impossible to pick enough icp samples" );
 			}
 
 			sample_inds = vector<pair<size_t, size_t>>(params.n_samples);
@@ -1160,6 +1162,11 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 		// Distances metrics //
 		///////////////////////
 
+		// Update association distance after a few iterations
+		if (step == first_steps)
+			max_planar_d = params.max_planar_dist;
+
+
 		// Erase sample_inds if dists is too big
 		vector<pair<size_t, size_t>> filtered_sample_inds;
 		filtered_sample_inds.reserve(sample_inds.size());
@@ -1172,7 +1179,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 				// Check planar distance (only after a few steps for initial alignment)
 				PointXYZ diff = (map.cloud.pts[sample_inds[i].second] - aligned[sample_inds[i].first]);
 				float planar_dist = abs(diff.dot(map.normals[sample_inds[i].second]));
-				if (step < first_steps || planar_dist < max_planar_d)
+				if (planar_dist < max_planar_d)
 				{
 					// Keep samples
 					filtered_sample_inds.push_back(sample_inds[i]);
@@ -1186,6 +1193,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 
 			}
 		}
+
 		// Compute RMS
 		results.all_rms.push_back(sqrt(rms2 / (float)filtered_sample_inds.size()));
 		results.all_plane_rms.push_back(sqrt(prms2 / (float)filtered_sample_inds.size()));
@@ -1277,7 +1285,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 				mean_dR += (dR_b - mean_dR) / avg_tot;
 			}
 		}
-
+		
 		// Stop condition
 		if (!stop_cond && step > params.avg_steps)
 		{
@@ -1288,7 +1296,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 				max_it = step + params.avg_steps;
 
 				// For these last steps, reduce the max distance (half of wall thickness)
-				max_planar_d = 0.08;
+				max_planar_d = params.max_planar_dist / 2;
 			}
 		}
 
@@ -1307,16 +1315,37 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 
 
 		// ///////////// DEBUG /////////////
-		// if (step % 1 == 0 || step > max_it - 2)
+		// if (step % 100 == 0 || step > max_it - 2)
 		// {
 		// 	string path = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
-		// 	char buffer[100];
-		// 	// char buffer_dist[100];
-		// 	sprintf(buffer, "f_%03d_step_%03d.ply", (int)count_iter, int(step));
-		// 	// sprintf(buffer_dist, "frame_dist_%03d_%03d.ply", (int)count_iter, int(step));
-		// 	string filepath = path + string(buffer);
-		// 	// string filepath_dist = path + string(buffer_dist);
-		// 	save_cloud(filepath, aligned, chosen_inds);
+		// 	// char buffer[100];
+		// 	// sprintf(buffer, "f_%06d_step_%06d.ply", (int)count_iter, int(step));
+		// 	// string filepath = path + string(buffer);
+		// 	// save_cloud(filepath, aligned, chosen_inds);
+
+		// 	vector<PointXYZ> icp_selected;
+		// 	vector<PointXYZ> nn_selected;
+		// 	vector<float> selected_planar_dists;
+		// 	icp_selected.reserve(nn_dists.size());
+		// 	nn_selected.reserve(nn_dists.size());
+		// 	selected_planar_dists.reserve(nn_dists.size());
+		// 	for (size_t i = 0; i < sample_inds.size(); i++)
+		// 	{
+		// 		PointXYZ A = map.cloud.pts[sample_inds[i].second];
+		// 		PointXYZ B = aligned[sample_inds[i].first];
+				
+		// 		PointXYZ diff = A - B;
+		// 		float planar_dist = abs(diff.dot(map.normals[sample_inds[i].second]));
+
+		// 		nn_selected.push_back(A);
+		// 		icp_selected.push_back(B);
+		// 		selected_planar_dists.push_back(planar_dist);
+		// 	}
+
+		// 	cout << sample_inds.size() << " = " << nn_dists.size() << endl;
+		// 	save_cloud(path + string("f_select_icp.ply"), icp_selected, nn_dists);
+		// 	save_cloud(path + string("f_select_nn.ply"), nn_selected, selected_planar_dists);
+
 		// }
 		// /////////////////////////////////
 

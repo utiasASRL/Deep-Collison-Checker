@@ -89,7 +89,7 @@ def plot_rms():
 
     # Plot last PR curve for each log
     plotsA = []
-    num_showed = 30
+    num_showed = 20
     for i in range(num_showed):
         if i < num_showed - 1:
             plotsA += axA.plot(np.arange(len(all_plane_rms[i])), all_plane_rms[i], 'b-', linewidth=1)
@@ -99,7 +99,7 @@ def plot_rms():
     # Customize the graph
     axA.grid(linestyle='-.', which='both')
     axA.set_xlim(0, 100)
-    axA.set_ylim(0, 0.3)
+    axA.set_ylim(0, 0.4)
 
     # Set names for axes
     plt.xlabel('iter')
@@ -444,6 +444,8 @@ def test_loop_closure():
 
 if __name__ == '__main__':
 
-    test_loop_closure()
+    plot_rms()
+
+    # test_loop_closure()
 
     a = 1/0

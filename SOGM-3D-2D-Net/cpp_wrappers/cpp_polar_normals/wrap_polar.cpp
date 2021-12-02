@@ -369,11 +369,6 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 			for (int i = 0; i < ring_angles.size() - 1; i++)
 				ring_mids.push_back((ring_angles[i+1] + ring_angles[i]) / 2);
 
-			cout << "-------------------------" << endl;
-			for (auto d_theta : ring_mids)
-				cout << d_theta * 180 / M_PI << endl;
-			cout << "-------------------------" << endl;
-				
 			// Get diffs (max)
 			int j = 0;
 			ring_d_thetas.push_back(ring_angles[j+1] - ring_angles[j]);
@@ -440,6 +435,9 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 			last_disp_t1 = t1;
 		}
 		t0 = t1;
+
+		// if (frame_i > 10)
+		// 	break;
 	}
 
 	// Manage outputs

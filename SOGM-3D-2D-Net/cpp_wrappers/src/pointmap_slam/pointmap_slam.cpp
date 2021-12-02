@@ -185,6 +185,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	lidar_log_radius(polar_queries, polar_r, params.r_scale);
 	lidar_horizontal_scale(polar_queries, params.h_scale);
 
+
 	/////////////////////
 	// Compute normals //
 	/////////////////////
@@ -200,24 +201,41 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	
 	// Call polar processing function
 	extract_lidar_frame_normals(f_pts, polar_pts, sub_pts, polar_queries, sub_rings, normals, norm_scores, params.polar_r2s);
+	
 
-	// // Debug (save original normal scores from PCA)
-	// if (frame_i > 0)
-	// {
-	// 	string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
-	// 	char buffer00[100];
-	// 	sprintf(buffer00, "f_%05d_init0.ply", int(frame_i));
-		
-	// 	string filepath00 = path000 + string(buffer00);
-	// 	save_cloud(filepath00, sub_pts, normals, norm_scores);
-	// }
+	/////////////////////////
+	// Get ground in frame //
+	/////////////////////////
+
+	// TODO: We can use this frame ground for other stuff, including ensuring planar ground???
+	// 		 We can also use the region growing code for ground detection. Do that?
+
+	// TODO: For complex corridor scenario, look into using the 3 normal orientations sampling of JE
+
+	// Ransac ground extraction
+	float vertical_thresh_deg = 20.0;
+	float max_dist = 0.1;
+	Plane3D frame_ground = frame_ground_ransac(sub_pts, normals, vertical_thresh_deg, max_dist);
+
+	// Ensure ground normal is pointing upwards
+	if (frame_ground.u.z < 0)
+		frame_ground.reverse();
+
+	// Get height above ground
+	vector<float> heights(sub_pts.size());
+	frame_ground.point_distances_signed(sub_pts, heights);
+
+
+	////////////////
+	// Get scores //
+	////////////////
 
 	// Better normal score vased on distance and incidence angle
 	smart_normal_score(sub_pts, polar_queries0, normals, norm_scores);
 
 	// ICP score between 1.0 and 6.0 (chance of being sampled during ICP)
 	icp_scores = vector<double>(norm_scores.begin(), norm_scores.end());
-	smart_icp_score(polar_queries0, normals, icp_scores);
+	smart_icp_score(polar_queries0, normals, heights, icp_scores);
 
 	// Remove points with a negative score
 	float min_score = 0.0001;
@@ -359,7 +377,10 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 				// 2. ICP refine
 				params.icp_params.init_transform = H_scannerToMap_init;
 				params.icp_params.motion_distortion = false;
-				PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, icp_results);
+				if (map0.size() > 0)
+					PointToMapICP(sub_pts, sub_alphas, icp_scores, map0, params.icp_params, icp_results);
+				else
+					PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, icp_results);
 				params.icp_params.motion_distortion = params.motion_distortion;
 
 				// We override last_transform0 too to neglate motion distortion for this first frame
@@ -368,31 +389,66 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 			else
 			{
 				params.icp_params.init_transform = H_scannerToMap_init;
-				PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, icp_results);
+				if (map0.size() > 0)
+					PointToMapICP(sub_pts, sub_alphas, icp_scores, map0, params.icp_params, icp_results);
+				else
+					PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, icp_results);
 			}
 
 			// Safe Check
-			if (icp_results.all_plane_rms.size() > 3 * params.icp_params.avg_steps)
+			if (icp_results.all_plane_rms.size() > 0.4 * params.icp_params.max_iter)
 			{
-				warning = true;
 				if (icp_results.all_plane_rms.size() > 0.9 * params.icp_params.max_iter)
+				{
+					warning = true;
+					warning_count += 1;
 					cout << "ERROR: at frame " << frame_i << ", ICP not converging, num_iter = " << icp_results.all_plane_rms.size() << endl;
+
+					// Debug (Points with scores)
+					string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+					char buffer00[100];
+					char buffer01[100];
+					char buffer02[100];
+					sprintf(buffer00, "f_%05d_%03d-iter_map.ply", int(frame_i), icp_results.all_plane_rms.size());
+					sprintf(buffer01, "f_%05d_%03d-iter_init.ply", int(frame_i), icp_results.all_plane_rms.size());
+					sprintf(buffer02, "f_%05d_%03d-iter_map0.ply", int(frame_i), icp_results.all_plane_rms.size());
+					string filepath00 = path000 + string(buffer00);
+					string filepath01 = path000 + string(buffer01);
+					string filepath02 = path000 + string(buffer02);
+					vector<float> float_counts(map.counts.begin(), map.counts.end());
+					save_cloud(filepath00, map.cloud.pts, map.normals, float_counts);
+					save_cloud(filepath02, map0.cloud.pts, map0.normals, map0.scores);
+
+					vector<PointXYZ> copy_pts(sub_pts);
+					if (params.motion_distortion)
+					{
+						// Update map taking motion distortion into account
+						size_t i_inds = 0;
+						Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> pts_mat((float *)copy_pts.data(), 3, copy_pts.size());
+						for (auto& alpha : sub_alphas)
+						{
+							Eigen::Matrix4d H_rect = pose_interp(alpha, params.icp_params.last_transform0, params.icp_params.init_transform, 0);
+							Eigen::Matrix3f R_rect = (H_rect.block(0, 0, 3, 3)).cast<float>();
+							Eigen::Vector3f T_rect = (H_rect.block(0, 3, 3, 1)).cast<float>();
+							pts_mat.col(i_inds) = (R_rect * pts_mat.col(i_inds)) + T_rect;
+							i_inds++;
+						}
+					}
+					else
+					{
+						Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> pts_mat((float *)copy_pts.data(), 3, copy_pts.size());
+						Eigen::Matrix3f R_tot = (params.icp_params.init_transform.block(0, 0, 3, 3)).cast<float>();
+						Eigen::Vector3f T_tot = (params.icp_params.init_transform.block(0, 3, 3, 1)).cast<float>();
+						pts_mat = (R_tot * pts_mat).colwise() + T_tot;
+					}
+
+					vector<float> f12(icp_scores.begin(), icp_scores.end());
+					f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+					save_cloud(filepath01, copy_pts, f12);
+
+				}
 				else
 					cout << "WARNING: at frame " << frame_i << ", ICP num_iter = " << icp_results.all_plane_rms.size() << endl;
-
-				// Debug (Points with scores)
-				string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
-				char buffer00[100];
-				char buffer01[100];
-				sprintf(buffer00, "f_%05d_%03d-iter_map.ply", int(frame_i), icp_results.all_plane_rms.size());
-				sprintf(buffer01, "f_%05d_%03d-iter_init.ply", int(frame_i), icp_results.all_plane_rms.size());
-				string filepath00 = path000 + string(buffer00);
-				string filepath01 = path000 + string(buffer01);
-				save_cloud(filepath00, map.cloud.pts, map.normals, map.scores);
-
-				vector<float> f12(icp_scores.begin(), icp_scores.end());
-				f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
-				save_cloud(filepath01, sub_pts, normals, f12);
 
 				
 			}
@@ -455,19 +511,6 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	// Save the corrected sub_pts
 	corrected_frame = sub_pts;
 	corrected_scores = icp_scores;
-
-	bool debug_000 = true;
-	if (debug_000)
-	{
-		string path000 = "/home/hth/Deep-Collison-Checker/Data/Real/icp_frames/tmp/";
-		char buffer02[100];
-		sprintf(buffer02, "f_%05d.ply", int(frame_i));
-		string filepath02 = path000 + string(buffer02);
-		vector<float> f12(icp_scores.begin(), icp_scores.end());
-		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
-		save_cloud(filepath02, sub_pts, normals, f12);
-	}
-
 	
 	if (warning)
 	{
@@ -477,7 +520,12 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 		string filepath02 = path000 + string(buffer02);
 		save_cloud(filepath02, sub_pts, normals);
 	}
+	else
+	{
+		warning_count = 0;
+	}
 
+	
 	// The update function is called only on subsampled points as the others have no normal
 	map.update(sub_pts, normals, norm_scores, frame_i);
 
@@ -1103,9 +1151,11 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 		frame_ind++;
 
-		// if (frame_ind > 2)
-		// 	break;
+		if (mapper.warning_count > 6)
+			break;
 
+		// if (frame_ind > 3)
+		// 	break;
 	}
 
 

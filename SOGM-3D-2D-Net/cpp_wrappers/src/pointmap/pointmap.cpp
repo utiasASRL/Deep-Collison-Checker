@@ -36,8 +36,59 @@ Eigen::Matrix4d pose_interp(float t, Eigen::Matrix4d const& H1, Eigen::Matrix4d 
 	return result.matrix();
 }
 
+void get_ray_keys(PointXYZ &A,
+				  PointXYZ &B,
+				  float tile_dl,
+				  float inv_tile_dl,
+				  vector<VoxKey> &ray_keys)
+{
+	// Define the segment as (x, y, z) = A + t * AB with t in [0, 1]
+	PointXYZ AB = B - A;
+	PointXYZ inv_AB = PointXYZ(1 / AB.x, 1 / AB.y, 1 / AB.z);
 
+	// Get min and max x, y, z from A and B
+	PointXYZ minP = min_point(A, B);
+	PointXYZ maxP = max_point(A, B);
 
+	// Find intersections for x = n * dl
+	float t, x, y, z;
+	VoxKey k0;
+	PointXYZ p0;
+	for (size_t dim = 0; dim < 3; dim++)
+	{
+		k0[dim] = (int)floor(minP[dim] * inv_tile_dl);
+		p0[dim] = (float)k0[dim] * tile_dl;
+		while (p0[dim] < minP[dim])
+		{
+			k0[dim] += 1;
+			p0[dim] += tile_dl;
+		}
+		while (p0[dim] <= maxP[dim])
+		{
+			// Get t, should always be between 0 and 1
+			t = (p0[dim] - A[dim]) * inv_AB[dim];
+
+			// Get the intersected Voxel
+			size_t dim1 = (dim + 1) % 3;
+			size_t dim2 = (dim + 2) % 3;
+			p0[dim1] = A[dim1] + t * AB[dim1];
+			p0[dim2] = A[dim2] + t * AB[dim2];
+			k0[dim1] = (int)floor(p0[dim1] * inv_tile_dl);
+			k0[dim2] = (int)floor(p0[dim2] * inv_tile_dl);
+			ray_keys.push_back(k0);
+
+			// Get the other intersected Voxel
+			k0[dim] -= 1;
+			ray_keys.push_back(k0);
+
+			// Go to next intersection
+			k0[dim] += 2;
+			p0[dim] += tile_dl;
+		}
+
+	}
+
+}
 
 void PointMapPython::update(vector<PointXYZ>& points0,
 	vector<PointXYZ>& normals0,
@@ -236,11 +287,14 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 		t.reserve(20);
 		clock_str.push_back("Align frame ....... ");
 		clock_str.push_back("Update full ....... ");
-		clock_str.push_back("Slices utils....... ");
-		clock_str.push_back("Polar grid ........ ");
-		clock_str.push_back("Fill frustum ..... ");
-		clock_str.push_back("Apply margin ...... ");
-		clock_str.push_back("Cast frustum ..... ");
+		clock_str.push_back("Get slices ........ ");
+		clock_str.push_back("Get polar ......... ");
+		clock_str.push_back("Slices phi ........ ");
+		clock_str.push_back("Init frustums ..... ");
+		clock_str.push_back("Fill frustums ..... ");
+		clock_str.push_back("Apply amrgins ..... ");
+		clock_str.push_back("Create tiles ...... ");
+		clock_str.push_back("Frustum casting ... ");
 		clock_str.push_back("Test .............. ");
 	}
 	t.push_back(std::clock());
@@ -270,10 +324,12 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 	// Align frame on map
 	vector<PointXYZ> aligned_frame(frame_points);
+	vector<PointXYZ> aligned_origins;
 	if (motion_distortion)
 	{
 		// Update map taking motion distortion into account
 		size_t i_inds = 0;
+		aligned_origins.reserve(frame_points.size());
 		Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> aligned_mat((float *)aligned_frame.data(), 3, aligned_frame.size());
 		for (auto& alpha : frame_alphas)
 		{
@@ -281,6 +337,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			Eigen::Matrix3f R_rect = (H_rect.block(0, 0, 3, 3)).cast<float>();
 			Eigen::Vector3f T_rect = (H_rect.block(0, 3, 3, 1)).cast<float>();
 			aligned_mat.col(i_inds) = (R_rect * aligned_mat.col(i_inds)) + T_rect;
+			aligned_origins.push_back(PointXYZ(T_rect(0), T_rect(1), T_rect(2)));
 			i_inds++;
 		}
 	}
@@ -354,9 +411,10 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 	t.push_back(std::clock());
 
-	///////////////////////////////////
-	// Create the free frustum grid //
-	///////////////////////////////////
+	////////////////
+	// Get slices //
+	////////////////
+	
 
 	// We approximate buy considering alphas are increasing 
 	vector<size_t> slice_inds;
@@ -403,6 +461,10 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 	t.push_back(std::clock());
 
+	///////////////////////////
+	// Get polar coordinates //
+	///////////////////////////
+
 	// Get frame in polar coordinates
 	vector<PointXYZ> polar_frame(frame_points);
 	cart2pol_(polar_frame);
@@ -425,6 +487,12 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			p.z = p.z - phi0;
 		phi_i++;
 	}
+	
+	t.push_back(std::clock());
+
+	////////////////////
+	// Get slices phi //
+	////////////////////
 
 	// Get average phi angle for each slice
 	vector<float> slices_phi(n_slices);
@@ -435,6 +503,12 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			sum += polar_frame[j].z;
 		slices_phi[s] = sum / (float)(slice_inds[s + 1] - slice_inds[s]);
 	}
+	
+	t.push_back(std::clock());
+
+	///////////////////////
+	// Init frustum grid //
+	///////////////////////
 
 	// Get grid limits
 	PointXYZ minCorner = min_point(polar_frame);
@@ -444,18 +518,13 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	// string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
 	// save_cloud(path000 + string("f_polar.ply"), polar_frame);
 
-
-
-	//                 --------------> HERE <--------------
-
-	// 			TODO: Now that arranged for slices, do the same for the phi computed 
-	// 			      in the last loop. And perform the slice verification
-
-	//                 --------------> HERE <--------------
-
 	// Dimensions of the grid
 	size_t grid_n_theta = (size_t)floor((maxCorner.y - originCorner.y) / theta_dl) + 1;
 	size_t grid_n_phi = (size_t)floor((maxCorner.z - originCorner.z) / phi_dl) + 1;
+	
+	// Update max corner accordingly
+	maxCorner.y = originCorner.y + ((float)grid_n_theta - 0.01) * theta_dl ;
+	maxCorner.z = originCorner.z + ((float)grid_n_phi - 0.01) * phi_dl ;
 
 	// Extension of theta indices given irregular rings
 	vector<size_t> theta_to_ring(grid_n_theta);
@@ -474,16 +543,9 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 	t.push_back(std::clock());
 
-	// vector<PointXYZ> test_polar(polar_frame);
-	// vector<float> test_itheta;
-	// test_itheta.reserve(test_polar.size());
-	// for (auto &p : test_polar)
-	// {
-	// 	p.y = (p.y - originCorner.y) * inv_theta_dl;
-	// 	p.z = (p.z - originCorner.z) * inv_phi_dl;
-	// 	test_itheta.push_back(floor(p.y));
-	// }
-	// save_cloud("test_polar.ply", test_polar, test_itheta);
+	///////////////////////
+	// Fill frustum grid //
+	///////////////////////
 
 	// Fill the frustum radiuses
 	size_t i_theta, i_phi, i_ring, gridIdx;
@@ -502,8 +564,11 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			frustum_radiuses[gridIdx] = p.x;
 	}
 
-
 	t.push_back(std::clock());
+
+	///////////////////
+	// Apply margins //
+	///////////////////
 
 	// Apply margin to free ranges
 	float margin = dl;
@@ -513,9 +578,9 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 		float frustum_alpha = ring_d_thetas[i_ring];
 		float adapt_margin = frustum_radiuses[j] * frustum_alpha;
 		if (margin < adapt_margin)
-			frustum_radiuses[j] -= adapt_margin;
+			frustum_radiuses[j] -= 2 * adapt_margin;
 		else
-			frustum_radiuses[j] -= margin;
+			frustum_radiuses[j] -= 2 * margin;
 	}
 
 	// vector<PointXYZ> frustum_pts(grid_n_ring * grid_n_phi);
@@ -540,59 +605,62 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	///////////////////////////////////////////
 
 	// Inverse of sample dl
-	float tile_dl = 0.6;
+	float tile_dl = 0.5;
 	float inv_tile_dl = 1.0 / tile_dl;
 
-	cout << tile_dl << endl;
-	cout << inv_tile_dl << endl;
-
-	// Limits of the map
-	PointXYZ tileMinCorner = min_point(aligned_frame);
-	PointXYZ tileMaxCorner = max_point(aligned_frame);
-	PointXYZ tileOriginCorner = floor(minCorner * inv_tile_dl) * tile_dl;
-
-	// Dimensions of the grid
-	size_t tileSampleNX = (size_t)floor((tileMaxCorner.x - tileOriginCorner.x) * inv_tile_dl) + 1;
-	size_t tileSampleNY = (size_t)floor((tileMaxCorner.y - tileOriginCorner.y) * inv_tile_dl) + 1;
-	size_t tileSampleNZ = (size_t)floor((tileMaxCorner.z - tileOriginCorner.z) * inv_tile_dl) + 1;
-
-	cout << tileSampleNX << endl;
-	cout << tileSampleNY << endl;
-	cout << tileSampleNZ << endl;
-
 	// Initialize variables
-	size_t iX, iY, iZ, mapIdx;
-	unordered_map<size_t, vector<int>> tiles;
+	VoxKey minK(1e6, 1e6, 1e6);
+	VoxKey maxK(-1e6, -1e6, -1e6);
+	for (auto& B : aligned_frame)
+	{
+		k0.x = (int)floor(B.x * inv_tile_dl);
+		k0.y = (int)floor(B.y * inv_tile_dl);
+		k0.z = (int)floor(B.z * inv_tile_dl);
+		minK.update_min(k0);
+		maxK.update_max(k0);
+	}
+	
+	// Create a dense vector of the tile existence for faster access
+	VoxKey nK = maxK - minK + VoxKey(1, 1, 1);
+	vector<int> existing_tiles(nK.x * nK.y * nK.z, -1);
+	vector<int> tile_data;
+	tile_data.reserve(nK.x * nK.y * nK.z * n_slices);
 
 	int fp_i = 0;
 	int tile_s = 0;
-	for (auto& p : aligned_frame)
+	int current_tile_i = 0;
+	for (auto& B : aligned_frame)
 	{
-		// Position of point in sample map
-		iX = (size_t)floor((p.x - tileOriginCorner.x) * inv_tile_dl);
-		iY = (size_t)floor((p.y - tileOriginCorner.y) * inv_tile_dl);
-		iZ = (size_t)floor((p.z - tileOriginCorner.z) * inv_tile_dl);
-		mapIdx = iX + tileSampleNX * iY + tileSampleNX * tileSampleNY * iZ;
+		// Sample points along the ray to get all ray tiles
+		vector<VoxKey> ray_keys;
+		get_ray_keys(aligned_origins[fp_i], B, tile_dl, inv_tile_dl, ray_keys);
 
-		// Fill the sample map
-		if (tiles.count(mapIdx) < 1)
+		for (auto &ray_k: ray_keys)
 		{
-			vector<int> slices_in(n_slices, 0);
-			slices_in[tile_s] = 1;
-			tiles.emplace(mapIdx, slices_in);
-		}
-		else
-		{
-			if (tiles[mapIdx][tile_s] < 1)
+			// Ensure inside limits
+			if (ray_k.x >= minK.x && ray_k.x <= maxK.x &&
+				ray_k.y >= minK.y && ray_k.y <= maxK.y &&
+				ray_k.z >= minK.z && ray_k.z <= maxK.z)
 			{
-				cout << p.x - tileOriginCorner.x << "   ---   ";
-				cout << iX << ", " << iY << ", " << iZ << " = ";
-				cout << mapIdx << "  -> ";
-				for (auto & s_in: tiles[mapIdx])
-					cout << s_in << " ";
-				cout << "    + " << tile_s << endl;
+				// Get vectorized index
+				VoxKey tile_key0 = ray_k - minK;
+				int vec_key = tile_key0.x + nK.x * tile_key0.y + nK.x * nK.y * tile_key0.z;
+				int tile_ind = existing_tiles[vec_key];
+				
+				if (tile_ind < 0)
+				{
+					existing_tiles[vec_key] = n_slices * current_tile_i;
+					for (int s = 0; s < n_slices; s++)
+						tile_data.push_back(0);
+					tile_data[current_tile_i * n_slices + tile_s] = 1;
+					current_tile_i++;
+				}
+				else
+				{
+					tile_data[existing_tiles[vec_key] + tile_s] = 1;
+				}
 			}
-			tiles[mapIdx][tile_s] = 1;
+
 		}
 
 		// Increment point index
@@ -604,11 +672,110 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 
 
-	cout << "Tiles Done" << endl;
 
-	////////////////////////////
+	// PointXYZ minP = min_point(aligned_frame) - PointXYZ(dl, dl, dl) * 5;
+	// PointXYZ maxP = max_point(aligned_frame) + PointXYZ(dl, dl, dl) * 5;
+	
+	// vector<PointXYZ> slices_points;
+
+	// for (float ix = minP.x; ix < maxP.x; ix += tile_dl/4)
+	// {
+	// 	for (float iy = minP.y; iy < maxP.y; iy += tile_dl/4)
+	// 	{
+	// 		for (float iz = minP.z; iz < maxP.z; iz += tile_dl/4)
+	// 			slices_points.push_back(PointXYZ(ix, iy, iz));
+	// 	}
+	// }
+
+	// vector<float> slices_features;
+	// for (int s = 0; s < n_slices; s++)
+	// {
+	// 	for (auto &sp: slices_points)
+	// 	{
+	// 		k0.x = (int)floor(sp.x * inv_tile_dl);
+	// 		k0.y = (int)floor(sp.y * inv_tile_dl);
+	// 		k0.z = (int)floor(sp.z * inv_tile_dl);
+
+	// 		// Ensure inside limits
+	// 		if (k0.x < minK.x || k0.x > maxK.x ||
+	// 			k0.y < minK.y || k0.y > maxK.y ||
+	// 			k0.z < minK.z || k0.z > maxK.z)
+	// 		{
+	// 			slices_features.push_back(0);
+	// 			continue;
+	// 		}
+
+	// 		// Get vectorized index
+	// 		VoxKey tile_key0 = k0 - minK;
+	// 		int vec_key = tile_key0.x + nK.x * tile_key0.y + nK.x * nK.y * tile_key0.z;
+			
+	// 		// Ignore points outside tiles
+	// 		int tile_ind = existing_tiles[vec_key];
+	// 		if (tile_ind < 0)
+	// 		{
+	// 			slices_features.push_back(1);
+	// 			continue;
+	// 		}
+
+	// 		if (tile_data[tile_ind + s] > 0)
+	// 			slices_features.push_back(3);
+	// 		else
+	// 			slices_features.push_back(2);
+
+	// 	}
+	// }
+
+	// cout << slices_points.size() << endl;
+	// cout << slices_features.size() << endl;
+	// cout << slices_features.size() / n_slices << endl;
+	
+	// string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+	// save_cloud(path000 + string("f_tiles.ply"), slices_points, slices_features);
+
+
+	// vector<float> slices_features2;
+	// tile_s = 0;
+	// fp_i = 0;
+	// for (auto& B : aligned_frame)
+	// {
+	// 	slices_features2.push_back(tile_s);
+
+	// 	// Increment point index
+	// 	fp_i++;
+
+	// 	// Change slice
+	// 	if (fp_i >= slice_inds[tile_s + 1])
+	// 		tile_s++;
+	// }
+
+	// save_cloud(path000 + string("f_slices.ply"), aligned_frame, slices_features2);
+
+
+
+	t.push_back(std::clock());
+
+
+	////////////////////////
+	// Compute cloud_keys //
+	////////////////////////
+
+	// Only once
+	if (cloud_keys.size() < 1)
+	{
+		cloud_keys.reserve(cloud.pts.size());
+		for (auto &p : cloud.pts)
+		{
+			// Get which slice are candidates for this point
+			k0.x = (int)floor(p.x * inv_tile_dl);
+			k0.y = (int)floor(p.y * inv_tile_dl);
+			k0.z = (int)floor(p.z * inv_tile_dl);
+			cloud_keys.push_back(k0);
+		}
+	}
+
+	///////////////////////////
 	// Apply frustum casting //
-	////////////////////////////
+	///////////////////////////
 
 	// Update free pixels
 	float min_r = 2 * dl;
@@ -618,7 +785,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	Eigen::Vector3f T_half = (H_half.block(0, 3, 3, 1)).cast<float>();
 	Eigen::Matrix3f R_t = R.transpose();
 	Eigen::Matrix3f R_half_t = R_half.transpose();
-	for (auto &p : cloud.pts)
+	for (auto &tile_key : cloud_keys)
 	{
 		// Ignore points updated just now
 		if (!not_updated[p_i])
@@ -634,24 +801,44 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 		// 	continue;
 		// }
 
-		// Get which slice are candidates for this point
-		iX = (size_t)floor((p.x - tileOriginCorner.x) * inv_tile_dl);
-		iY = (size_t)floor((p.y - tileOriginCorner.y) * inv_tile_dl);
-		iZ = (size_t)floor((p.z - tileOriginCorner.z) * inv_tile_dl);
-		mapIdx = iX + tileSampleNX * iY + tileSampleNX * tileSampleNY * iZ;
+		// // Get which slice are candidates for this point
+		// k0.x = (int)floor(p.x * inv_tile_dl);
+		// k0.y = (int)floor(p.y * inv_tile_dl);
+		// k0.z = (int)floor(p.z * inv_tile_dl);
+
+		// Ensure inside limits
+		if (tile_key.x < minK.x || tile_key.x > maxK.x ||
+			tile_key.y < minK.y || tile_key.y > maxK.y ||
+			tile_key.z < minK.z || tile_key.z > maxK.z)
+		{
+			p_i++;
+			continue;
+		}
+
+		// Get vectorized index
+		VoxKey tile_key0 = tile_key - minK;
+		int vec_key = tile_key0.x + nK.x * tile_key0.y + nK.x * nK.y * tile_key0.z;
+		
+		// Ignore points outside tiles
+		int tile_ind = existing_tiles[vec_key];
+		if (tile_ind < 0)
+		{
+			p_i++;
+			continue;
+		}
 
 		// Get the best slice according to phi angle
 		int best_s = -1;
-		float min_d_phi = -1;
+		float min_d_phi = 4 * M_PI;
 		PointXYZ best_xyz;
 		PointXYZ best_nxyz;
 		PointXYZ best_rtp;
 		for (int s = 0; s < n_slices; s++)
 		{
-			if (tiles[mapIdx][s] > 0)
+			if (tile_data[tile_ind + s] > 0)
 			{
 				// Align point in frame coordinates (and normal)
-				PointXYZ xyz(p);
+				PointXYZ xyz(cloud.pts[p_i]);
 				PointXYZ nxyz(normals[p_i]);
 				Eigen::Map<Eigen::Vector3f> p_mat((float *)&xyz, 3, 1);
 				Eigen::Map<Eigen::Vector3f> n_mat((float *)&nxyz, 3, 1);
@@ -668,15 +855,19 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 				else
 					rtp.z = rtp.z - phi0;
 
-				// Update best_slice
-				float d_phi = abs(rtp.z - slices_phi[s]);
-				if (d_phi < min_d_phi)
+				// Ensure rtp is in the frustum grid
+				if (rtp.y > originCorner.y && rtp.y < maxCorner.y && rtp.z > originCorner.z && rtp.z < maxCorner.z)
 				{
-					best_s = s;
-					min_d_phi = d_phi;
-					best_xyz = xyz;
-					best_nxyz = nxyz;
-					best_rtp = rtp;
+					// Update best_slice
+					float d_phi = abs(rtp.z - slices_phi[s]);
+					if (d_phi < min_d_phi)
+					{
+						best_s = s;
+						min_d_phi = d_phi;
+						best_xyz = xyz;
+						best_nxyz = nxyz;
+						best_rtp = rtp;
+					}
 				}
 			}
 		}
@@ -687,27 +878,33 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			// Position of point in grid
 			i_theta = (size_t)floor((best_rtp.y - originCorner.y) * inv_theta_dl);
 			i_phi = (size_t)floor((best_rtp.z - originCorner.z) * inv_phi_dl);
+
 			i_ring = theta_to_ring[i_theta];
 			gridIdx = i_ring + grid_n_ring * i_phi;
 
 			// Update movable prob
 			if (best_rtp.x > min_r && best_rtp.x < frustum_radiuses[gridIdx])
 			{
-				// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
-				if (abs(best_nxyz.z) > min_vert_cos)
-				{
-					movable_counts[p_i] += 1;
-					movable_probs[p_i] += 1.0;
-				}
-				else
-				{
-					float angle = acos(min(abs(best_xyz.dot(best_nxyz) / best_rtp.x), 1.0f));
-					if (angle < max_angle)
-					{
-						movable_counts[p_i] += 1;
-						movable_probs[p_i] += 1.0;
-					}
-				}
+
+
+				movable_counts[p_i] += 1;
+				movable_probs[p_i] += 1.0;
+
+				// // Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
+				// if (abs(best_nxyz.z) > min_vert_cos)
+				// {
+				// 	movable_counts[p_i] += 1;
+				// 	movable_probs[p_i] += 1.0;
+				// }
+				// else
+				// {
+				// 	float angle = acos(min(abs(best_xyz.dot(best_nxyz) / best_rtp.x), 1.0f));
+				// 	if (angle < max_angle)
+				// 	{
+				// 		movable_counts[p_i] += 1;
+				// 		movable_probs[p_i] += 1.0;
+				// 	}
+				// }
 			}
 		}
 

@@ -346,6 +346,7 @@ void smart_normal_score(vector<PointXYZ> &points,
 
 void smart_icp_score(vector<PointXYZ> &polar_pts,
 					 vector<PointXYZ> &normals,
+					 vector<float> &heights,
 					 vector<double> &scores)
 {
 	// There are more points close to the lidar, so we dont want to pick them to much.
@@ -357,7 +358,10 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 	double S0 = 1.0; 
 	double S1 = 3.0; // -> prob to be picked when further away
 	double r0 = 5.0;
-	double H1 = 20.0; // -> prob to be picked for ground points
+	double H1 = 10.0; // -> prob to be picked for ground points
+	double min_height = -0.4;
+	double max_height = 1.8;
+	double outlier_s = 0.01; // -> prob to be picked for outlier points
 
 	// Variables
 	double S1m0 = S1 - S0;
@@ -375,8 +379,8 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 		// Then multiply by a distance score (We take furthest points 3x more often than closest one, this corrects density)
 		s *= (S1 - S1m0 * exp(-pow((double)polar_pts[i].x * inv_ro, 2)));
 
-		// Then multiply by a score based on normal angle. 20 more chance to pick if normal is within 20 degrees of vertical
-		// But probability is never higher than 20
+		// Then multiply by a score based on normal angle. 10 more chance to pick if normal is within 20 degrees of vertical
+		// But probability is never higher than 10
 		if (normals[i].z > cos20)
 		{
 			s *= H05 * (cos(9 * acos(min((double)normals[i].z, 0.99999999))) + 1.0) + 1.0;
@@ -384,6 +388,8 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 				s = H1;
 		}
 
+		if (heights[i] < min_height || heights[i] > max_height)
+			s = outlier_s;
 
 		i++;
 	}

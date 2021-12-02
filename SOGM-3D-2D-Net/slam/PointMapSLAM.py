@@ -1873,6 +1873,13 @@ def annotation_process(dataset,
     map_counts = data['counts']
     print('OK')
 
+    # TODO: HAndle height everywhere
+    height_mask = np.logical_and(map_points[:, 2] < 1.8, map_points[:, 2] > -0.4)
+    map_points = map_points[height_mask]
+    map_normals = map_normals[height_mask]
+    map_scores = map_scores[height_mask]
+    map_counts = map_counts[height_mask]
+
     ##############
     # LOOP ON DAYS
     ##############
@@ -1954,29 +1961,35 @@ def annotation_process(dataset,
             if map_H is None:
                 icp_max_iter = 100
 
-                if d == 0:
-                    init_H = np.array([[-1.0, 0.0, 0.0, 9.66],
+                if day == '2021-11-04_10-03-09':
+                    init_H = np.array([[-1.0, 0.0, 0.0, 7.33],
                                        [0.0, -1.0, 0.0, 0.00],
                                        [0.0, 0.0, 1.0, 0.70],
                                        [0.0, 0.0, 0.0, 1.00]], dtype=np.float64)
 
-                    odom_H = [np.linalg.inv(init_H) for _ in map_t]
-                    odom_H = np.stack(odom_H, 0)
-
-                elif d == 1:
-                    init_H = np.array([[0.989726383710, 0.14297442209, 0.00000000, 4.0],
+                elif day == '2021-11-04_10-06-45':
+                    init_H = np.array([[0.989726383710, 0.14297442209, 0.00000000, 1.2],
                                        [-0.14297442209, 0.98972638371, 0.00000000, 0.0],
                                        [0.000000000000, 0.00000000000, 1.00000000, 0.9],
                                        [0.000000000000, 0.00000000000, 0.00000000, 1.0]], dtype=np.float64)
 
-                    odom_H = [np.linalg.inv(init_H) for _ in map_t]
-                    odom_H = np.stack(odom_H, 0)
+
+                elif day.startswith('2021-11-1'):
+                    init_H = np.array([[1.0, 0.0, 0.0, 0.0],
+                                       [0.0, 1.0, 0.0, 0.0],
+                                       [0.0, 0.0, 1.0, 0.7],
+                                       [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
 
                 else:
+
                     raise ValueError('Initial alignment not implemented')
-                    odom_H = None
+                    init_H = None
+
+                odom_H = [np.linalg.inv(init_H) for _ in map_t]
+                odom_H = np.stack(odom_H, 0)
 
             else:
+
                 # (Do not perform ICP to correct pose as it is already supposed to be good)
                 icp_max_iter = 0
                 odom_H = [np.linalg.inv(odoH) for odoH in map_H]
@@ -1992,13 +2005,21 @@ def annotation_process(dataset,
                                               frame_voxel_size=3 * map_dl,
                                               motion_distortion=True,
                                               filtering=False,
+                                              verbose_time=5.0,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.3,
+                                              icp_planar_dist=0.08,
                                               icp_max_iter=icp_max_iter,
-                                              icp_avg_steps=5,
+                                              icp_avg_steps=3,
                                               odom_H=odom_H)
 
+            # Verify that there was no error
+            test = np.sum(np.abs(correct_H), axis=(1, 2)) > 1e-6
+            if not np.all(test):
+                num_computed = np.sum(test.astype(np.int32))
+                raise ValueError('PointSlam returned without only {:d} poses computed out of {:d}'.format(num_computed, test.shape[0]))
+
+                                              
             # Save traj
             with open(cpp_traj_name, 'wb') as file:
                 pickle.dump(correct_H, file)
@@ -2016,8 +2037,13 @@ def annotation_process(dataset,
         data = read_ply(cpp_map_name)
         day_points = np.vstack((data['x'], data['y'], data['z'])).T
         day_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-        day_scores = data['f1']
         day_counts = data['f0']
+        day_scores = data['f1']
+            
+        height_mask = np.logical_and(day_points[:, 2] < 1.8, day_points[:, 2] > -0.4)
+        day_points = day_points[height_mask]
+        day_normals = day_normals[height_mask]
+        day_counts = day_counts[height_mask]
 
         ######################
         # Step 3: Get Movables
@@ -2031,11 +2057,15 @@ def annotation_process(dataset,
         if not exists(movable_name):
 
             # Get short term movables
-            movable_prob, movable_count = ray_casting_annot(frame_names, day_points, day_normals, correct_H,
-                                                            theta_dl=1.29 * np.pi / 180,
-                                                            phi_dl=0.1 * np.pi / 180,
+            movable_prob, movable_count = ray_casting_annot(frame_names,
+                                                            day_points,
+                                                            day_normals,
+                                                            correct_H,
+                                                            theta_dl=0.33 * np.pi / 180,
+                                                            phi_dl=0.5 * np.pi / 180,
                                                             map_dl=map_dl,
-                                                            motion_distortion=False)
+                                                            verbose_time=5.0,
+                                                            motion_distortion_slices=16)
             movable_prob = movable_prob / (movable_count + 1e-6)
             long_prob = 1.0 - movable_prob
             movable_prob[movable_count < min_rays] -= 2

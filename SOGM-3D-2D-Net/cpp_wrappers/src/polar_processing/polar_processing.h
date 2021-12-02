@@ -64,6 +64,7 @@ void smart_normal_score(vector<PointXYZ> &points,
 
 void smart_icp_score(vector<PointXYZ> &polar_pts,
 					 vector<PointXYZ> &normals,
+					 vector<float> &heights,
 					 vector<double> &scores);
 
 // void compare_map_to_frame(vector<PointXYZ> &frame_points,

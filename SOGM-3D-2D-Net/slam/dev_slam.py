@@ -107,6 +107,7 @@ def extract_ground(points, normals, out_folder,
                    dist_thresh=0.15,
                    remove_dist=0.15,
                    saving=True):
+                   
     # Get points with vertical normal
     vertical_angle = np.arccos(np.abs(np.clip(normals[:, 2], -1.0, 1.0)))
 

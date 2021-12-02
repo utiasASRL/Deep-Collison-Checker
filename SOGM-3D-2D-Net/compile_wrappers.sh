@@ -17,10 +17,10 @@ cd cpp_wrappers
 # python3 setup.py build_ext --inplace
 # cd ..
 
-# Compile cpp polar normals
-cd cpp_polar_normals
-python3 setup.py build_ext --inplace
-cd ..
+# # Compile cpp polar normals
+# cd cpp_polar_normals
+# python3 setup.py build_ext --inplace
+# cd ..
 
 # # Compile cpp icp normals
 # cd cpp_icp
@@ -33,10 +33,10 @@ cd ..
 # # cd ..
 
 
-# # Compile cpp icp normals
-# cd cpp_slam
-# python3 setup.py build_ext --inplace
-# cd ..
+# Compile cpp icp normals
+cd cpp_slam
+python3 setup.py build_ext --inplace
+cd ..
 
 # # Compile cpp icp normals
 # cd cpp_lidar_utils
