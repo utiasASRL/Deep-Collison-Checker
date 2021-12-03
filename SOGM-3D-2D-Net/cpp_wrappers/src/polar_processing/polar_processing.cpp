@@ -4,7 +4,7 @@
 void cart2pol_(vector<PointXYZ> &xyz)
 {
 	// In place modification to carthesian coordinates
-	float tmp1, tmp2, rho, phi, theta;
+	float tmp1, tmp2, phi;
 	float pi_s_2 = M_PI / 2;
 	for (auto& p : xyz)
 	{
@@ -27,7 +27,7 @@ void get_min_max_times(vector<float> &f_ts, float &t_min, float &t_max, float lo
 		if (f_ts[j] < t_min)
 			t_min = f_ts[j];
 	}
-	for (int j = (int)floor((1 - loop_ratio) * f_ts.size()); j < f_ts.size();  j++)
+	for (int j = (int)floor((1 - loop_ratio) * f_ts.size()); j < (int)f_ts.size();  j++)
 	{
 		if (f_ts[j] > t_max)
 			t_max = f_ts[j];
@@ -153,7 +153,7 @@ void get_lidar_angles(vector<PointXYZ>& rtp, vector<float>& ring_angles, int lid
 	
 	stable_sort(ring_angles.begin(), ring_angles.end());
 
-	if (ring_angles.size() != lidar_n_lines)
+	if ((int)ring_angles.size() != lidar_n_lines)
 	{
 		cout << "WARNING: wrong number of lidar rings found: " << ring_angles.size() << " instead of " << lidar_n_lines << endl;
 	}

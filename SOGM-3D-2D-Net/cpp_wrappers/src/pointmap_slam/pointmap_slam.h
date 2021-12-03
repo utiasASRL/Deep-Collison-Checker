@@ -50,6 +50,9 @@ public:
 	// Size of the voxels for frame subsampling
 	float frame_voxel_size;
 
+	// max distance travelled before frames are removed from local map
+	float local_map_dist;
+
 	// Account for motion distortion (fasle in the case of simulated data)
 	bool motion_distortion;
 
@@ -83,6 +86,7 @@ public:
 		min_theta_radius = 0.015;
 		map_voxel_size = 0.08;
 		frame_voxel_size = 0.2;
+		local_map_dist = 10.0;
 		motion_distortion = false;
 		filtering = false;
 		verbose_time = -1;
@@ -181,6 +185,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<float> &norm_scores,
 					  vector<double> &icp_scores,
 					  vector<size_t> &sub_inds,
+					  Plane3D &frame_ground,
 					  SLAM_params &params);
 
 void ceres_hello();

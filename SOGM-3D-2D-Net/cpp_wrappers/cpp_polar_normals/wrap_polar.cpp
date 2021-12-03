@@ -70,7 +70,7 @@ static PyObject* polar_normals(PyObject* self, PyObject* args, PyObject* keywds)
 	PyObject* queries_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "points", "radius", "lidar_n_lines", "h_scale", "r_scale", "verbose", NULL };
+	static char* kwlist[] = { (char*)"points", (char*)"radius", (char*)"lidar_n_lines", (char*)"h_scale", (char*)"r_scale", (char*)"verbose", NULL };
 	float radius = 1.5;
 	int lidar_n_lines = 32;
 	float h_scale = 0.5f;
@@ -176,20 +176,22 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	PyObject* H_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "frame_names", "map_points", "map_normals", "H_frames", "map_dl", "theta_dl", "phi_dl", "verbose_time", "n_slices", "lidar_n_lines", NULL };
+	static char* kwlist[] = {(char *)"frame_names", (char *)"map_points", (char *)"map_normals", (char *)"H_frames",
+							 (char *)"map_dl", (char *)"theta_dl", (char *)"phi_dl",
+							 (char *)"verbose_time", (char *)"n_slices", (char *)"lidar_n_lines", NULL};
 
-	// Parse the input  
-	if (!PyArg_ParseTupleAndKeywords(args, keywds, "zOOO|$ffffll", kwlist, 
-		&fnames_str,
-		&map_p_obj, 
-		&map_n_obj, 
-		&H_obj, 
-		&map_dl, 
-		&theta_dl, 
-		&phi_dl, 
-		&verbose_time, 
-		&n_slices,
-		&lidar_n_lines))
+	// Parse the input
+	if (!PyArg_ParseTupleAndKeywords(args, keywds, "zOOO|$ffffll", kwlist,
+									 &fnames_str,
+									 &map_p_obj,
+									 &map_n_obj,
+									 &H_obj,
+									 &map_dl,
+									 &theta_dl,
+									 &phi_dl,
+									 &verbose_time,
+									 &n_slices,
+									 &lidar_n_lines))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");
 		return NULL;
@@ -328,7 +330,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 	// Parameters
 	string time_name = "time";
 	string ring_name = "ring";
-	float last_t_max;
+	// float last_t_max;
 	bool motion_distortion = n_slices > 1;
 	vector<float> ring_angles;
 	vector<float> ring_mids;
@@ -366,14 +368,14 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 			get_lidar_angles(polar_pts, ring_angles, lidar_n_lines);
 
 			// Get middles
-			for (int i = 0; i < ring_angles.size() - 1; i++)
+			for (int i = 0; i < (int)ring_angles.size() - 1; i++)
 				ring_mids.push_back((ring_angles[i+1] + ring_angles[i]) / 2);
 
 			// Get diffs (max)
 			int j = 0;
 			ring_d_thetas.push_back(ring_angles[j+1] - ring_angles[j]);
 			j++;
-			while (j < ring_angles.size() - 1)
+			while (j < (int)ring_angles.size() - 1)
 			{
 				float tmp = max(ring_angles[j+1] - ring_angles[j], ring_angles[j] - ring_angles[j-1]);
 				ring_d_thetas.push_back(tmp);
@@ -388,9 +390,9 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		float loop_ratio = 0.01;
 		get_min_max_times(f_ts, t_min, t_max, loop_ratio);
 		
-		// Init last_time
-		if (frame_i < 1)
-			last_t_max = t_min;
+		// // Init last_time
+		// if (frame_i < 1)
+		// 	last_t_max = t_min;
 			
 		// Get the motion_distorTion values from timestamps
 		// 0 for the t_min and 1 for t_max
@@ -399,7 +401,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		{
 			float inv_factor = 1 / (t_max - t_min);
 			f_alphas.reserve(f_ts.size());
-			for (int j = 0; j < f_ts.size(); j++)
+			for (int j = 0; j < (int)f_ts.size(); j++)
 				f_alphas.push_back((f_ts[j] - t_min) * inv_factor);
 		}
 
@@ -430,7 +432,7 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 			int remaining_min = (int)floor(remaining_sec / 60.0);
 			remaining_sec = remaining_sec - remaining_min * 60.0;
 			char buffer[100];
-			sprintf(buffer, "Annot %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_i, N_frames, fps, remaining_min, remaining_sec);
+			sprintf(buffer, "Annot %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_i, (int)N_frames, fps, remaining_min, remaining_sec);
 			cout << string(buffer) << endl;
 			last_disp_t1 = t1;
 		}

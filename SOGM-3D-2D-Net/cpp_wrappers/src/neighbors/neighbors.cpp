@@ -29,7 +29,7 @@ void brute_neighbors(vector<PointXYZ>& queries, vector<PointXYZ>& supports, vect
 			if ((p0 - p).sq_norm() < r2)
 			{
 				tmp[i0].push_back(i);
-				if (tmp[i0].size() > max_count)
+				if ((int)tmp[i0].size() > max_count)
 					max_count = tmp[i0].size();
 			}
 			i++;
@@ -44,7 +44,7 @@ void brute_neighbors(vector<PointXYZ>& queries, vector<PointXYZ>& supports, vect
 	{
 		for (int j = 0; j < max_count; j++)
 		{
-			if (j < inds.size())
+			if (j < (int)inds.size())
 				neighbors_indices[i0 * max_count + j] = inds[j];
 			else
 				neighbors_indices[i0 * max_count + j] = -1;
@@ -96,7 +96,7 @@ void ordered_neighbors(vector<PointXYZ>& queries,
                 tmp[i0].insert(tmp[i0].begin() + index, i);
 
 			    // Update max count
-				if (tmp[i0].size() > max_count)
+				if ((int)tmp[i0].size() > max_count)
 					max_count = tmp[i0].size();
 			}
 			i++;
@@ -111,7 +111,7 @@ void ordered_neighbors(vector<PointXYZ>& queries,
 	{
 		for (int j = 0; j < max_count; j++)
 		{
-			if (j < inds.size())
+			if (j < (int)inds.size())
 				neighbors_indices[i0 * max_count + j] = inds[j];
 			else
 				neighbors_indices[i0 * max_count + j] = -1;
@@ -181,7 +181,7 @@ void batch_ordered_neighbors(vector<PointXYZ>& queries,
                 tmp[i0].insert(tmp[i0].begin() + index, sum_sb + i);
 
 			    // Update max count
-				if (tmp[i0].size() > max_count)
+				if ((int)tmp[i0].size() > max_count)
 					max_count = tmp[i0].size();
 			}
 			i++;
@@ -196,7 +196,7 @@ void batch_ordered_neighbors(vector<PointXYZ>& queries,
 	{
 		for (int j = 0; j < max_count; j++)
 		{
-			if (j < inds.size())
+			if (j < (int)inds.size())
 				neighbors_indices[i0 * max_count + j] = inds[j];
 			else
 				neighbors_indices[i0 * max_count + j] = supports.size();
@@ -227,7 +227,6 @@ void batch_nanoflann_neighbors(vector<PointXYZ>& queries,
 
 	// Counting vector
 	int max_count = 0;
-	float d2;
 	vector<vector<pair<size_t, float>>> all_inds_dists(queries.size());
 
 	// batch index
@@ -293,7 +292,7 @@ void batch_nanoflann_neighbors(vector<PointXYZ>& queries,
 		size_t nMatches = index->radiusSearch(query_pt, r2, all_inds_dists[i0], search_params);
 
         // Update max count
-        if (nMatches > max_count)
+        if ((int)nMatches > max_count)
             max_count = nMatches;
 
         // Increment query idx
@@ -318,7 +317,7 @@ void batch_nanoflann_neighbors(vector<PointXYZ>& queries,
 
 		for (int j = 0; j < max_count; j++)
 		{
-			if (j < inds_dists.size())
+			if (j < (int)inds_dists.size())
 				neighbors_indices[i0 * max_count + j] = inds_dists[j].first + sum_sb;
 			else
 				neighbors_indices[i0 * max_count + j] = supports.size();

@@ -74,28 +74,28 @@ static PyObject* map_pt2pl(PyObject* self, PyObject* args, PyObject* keywds)
 	ICP_params params;
 
 	// Keywords containers
-	static char* kwlist[] = { (char*)"targets", (char*)"weights", 
-		(char*)"map_points", (char*)"map_normals", (char*)"map_weights", 
-		(char*)"init_H", (char*)"init_phi",
-		(char*)"n_samples", (char*)"max_pairing_dist", (char*)"max_iter",
-		(char*)"rotDiffThresh", (char*)"transDiffThresh", (char*)"avg_steps", (char*)"motion_distortion", NULL };
+	static char *kwlist[] = {(char *)"targets", (char *)"weights",
+							 (char *)"map_points", (char *)"map_normals", (char *)"map_weights",
+							 (char *)"init_H", (char *)"init_phi",
+							 (char *)"n_samples", (char *)"max_pairing_dist", (char *)"max_iter",
+							 (char *)"rotDiffThresh", (char *)"transDiffThresh", (char *)"avg_steps", (char *)"motion_distortion", NULL};
 
-	// Parse the input  
+	// Parse the input
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "OOOOO|$Oflflfflp", kwlist,
-		&tgt_obj,
-		&tgtw_obj,
-		&ref_obj,
-		&refn_obj,
-		&refw_obj,
-		&init_obj,
-		&params.init_phi,
-		&params.n_samples,
-		&params.max_pairing_dist,
-		&params.max_iter,
-		&params.rotDiffThresh,
-		&params.transDiffThresh,
-		&params.avg_steps,
-		&params.motion_distortion))
+									 &tgt_obj,
+									 &tgtw_obj,
+									 &ref_obj,
+									 &refn_obj,
+									 &refw_obj,
+									 &init_obj,
+									 &params.init_phi,
+									 &params.n_samples,
+									 &params.max_pairing_dist,
+									 &params.max_iter,
+									 &params.rotDiffThresh,
+									 &params.transDiffThresh,
+									 &params.avg_steps,
+									 &params.motion_distortion))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");
 		return NULL;

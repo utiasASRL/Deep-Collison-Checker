@@ -68,10 +68,11 @@ static PyObject* batch_neighbors(PyObject* self, PyObject* args, PyObject* keywd
 	PyObject* s_batches_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "queries", "supports", "q_batches", "s_batches", "radius", NULL };
+	static char* kwlist[] = {(char *)"queries", (char *)"supports", (char *)"q_batches",
+							 (char *)"s_batches", (char *)"radius", NULL};
 	float radius = 0.1;
 
-	// Parse the input  
+	// Parse the input
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "OOOO|$f", kwlist, &queries_obj, &supports_obj, &q_batches_obj, &s_batches_obj, &radius))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");

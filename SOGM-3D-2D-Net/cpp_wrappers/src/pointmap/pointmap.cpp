@@ -51,7 +51,7 @@ void get_ray_keys(PointXYZ &A,
 	PointXYZ maxP = max_point(A, B);
 
 	// Find intersections for x = n * dl
-	float t, x, y, z;
+	float t;
 	VoxKey k0;
 	PointXYZ p0;
 	for (size_t dim = 0; dim < 3; dim++)
@@ -307,8 +307,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	float inv_theta_dl = 1.0 / theta_dl;
 	float inv_phi_dl = 1.0 / phi_dl;
 	float inv_dl = 1.0 / dl;
-	float max_angle = 5 * M_PI / 12;
-	float min_vert_cos = cos(M_PI / 3);
+	//float max_angle = 5 * M_PI / 12;
+	//float min_vert_cos = cos(M_PI / 3);
 	bool motion_distortion = n_slices > 1;
 
 	// Convert alignment matrices to float
@@ -424,7 +424,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	slice_inds.push_back(0);
 	if (motion_distortion)
 	{
-		for (int i = 0; i < frame_alphas.size(); i++)
+		for (int i = 0; i < (int)frame_alphas.size(); i++)
 		{
 			if (frame_alphas[i] >= current_alpha)
 			{
@@ -499,7 +499,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	for (int s = 0; s < n_slices; s++)
 	{
 		float sum = 0;
-		for (int j = slice_inds[s]; j < slice_inds[s + 1]; j++)
+		for (int j = slice_inds[s]; j < (int)slice_inds[s + 1]; j++)
 			sum += polar_frame[j].z;
 		slices_phi[s] = sum / (float)(slice_inds[s + 1] - slice_inds[s]);
 	}
@@ -572,7 +572,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 	// Apply margin to free ranges
 	float margin = dl;
-	for (int j = 0; j < frustum_radiuses.size(); j++)
+	for (int j = 0; j < (int)frustum_radiuses.size(); j++)
 	{
 		i_ring = j % (int)grid_n_ring;
 		float frustum_alpha = ring_d_thetas[i_ring];
@@ -667,7 +667,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 		fp_i++;
 
 		// Change slice
-		if (fp_i >= slice_inds[tile_s + 1])
+		if (fp_i >= (int)slice_inds[tile_s + 1])
 			tile_s++;
 	}
 
@@ -780,11 +780,11 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	// Update free pixels
 	float min_r = 2 * dl;
 	size_t p_i = 0;
-	Eigen::Matrix4d H_half = pose_interp(0.5, H0, H1, 0);
-	Eigen::Matrix3f R_half = (H_half.block(0, 0, 3, 3)).cast<float>();
-	Eigen::Vector3f T_half = (H_half.block(0, 3, 3, 1)).cast<float>();
-	Eigen::Matrix3f R_t = R.transpose();
-	Eigen::Matrix3f R_half_t = R_half.transpose();
+	//Eigen::Matrix4d H_half = pose_interp(0.5, H0, H1, 0);
+	//Eigen::Matrix3f R_half = (H_half.block(0, 0, 3, 3)).cast<float>();
+	//Eigen::Vector3f T_half = (H_half.block(0, 3, 3, 1)).cast<float>();
+	//Eigen::Matrix3f R_t = R.transpose();
+	//Eigen::Matrix3f R_half_t = R_half.transpose();
 	for (auto &tile_key : cloud_keys)
 	{
 		// Ignore points updated just now

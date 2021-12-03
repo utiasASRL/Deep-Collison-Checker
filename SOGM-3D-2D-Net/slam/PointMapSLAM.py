@@ -1873,12 +1873,12 @@ def annotation_process(dataset,
     map_counts = data['counts']
     print('OK')
 
-    # TODO: HAndle height everywhere
-    height_mask = np.logical_and(map_points[:, 2] < 1.8, map_points[:, 2] > -0.4)
-    map_points = map_points[height_mask]
-    map_normals = map_normals[height_mask]
-    map_scores = map_scores[height_mask]
-    map_counts = map_counts[height_mask]
+    # # TODO: HAndle height everywhere
+    # height_mask = np.logical_and(map_points[:, 2] < 1.8, map_points[:, 2] > -0.4)
+    # map_points = map_points[height_mask]
+    # map_normals = map_normals[height_mask]
+    # map_scores = map_scores[height_mask]
+    # map_counts = map_counts[height_mask]
 
     ##############
     # LOOP ON DAYS
@@ -2008,9 +2008,9 @@ def annotation_process(dataset,
                                               verbose_time=5.0,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.08,
+                                              icp_planar_dist=0.12,
                                               icp_max_iter=icp_max_iter,
-                                              icp_avg_steps=3,
+                                              icp_avg_steps=5,
                                               odom_H=odom_H)
 
             # Verify that there was no error
@@ -2040,10 +2040,10 @@ def annotation_process(dataset,
         day_counts = data['f0']
         day_scores = data['f1']
             
-        height_mask = np.logical_and(day_points[:, 2] < 1.8, day_points[:, 2] > -0.4)
-        day_points = day_points[height_mask]
-        day_normals = day_normals[height_mask]
-        day_counts = day_counts[height_mask]
+        # height_mask = np.logical_and(day_points[:, 2] < 1.8, day_points[:, 2] > -0.4)
+        # day_points = day_points[height_mask]
+        # day_normals = day_normals[height_mask]
+        # day_counts = day_counts[height_mask]
 
         ######################
         # Step 3: Get Movables

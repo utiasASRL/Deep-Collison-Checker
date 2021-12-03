@@ -33,6 +33,16 @@ def num_messages(topic_name, bagfile):
     return count
 
 
+def read_frames_times(topic_name, bagfile):
+    '''returns a list of tuples: (stamp,numpy_array) where stamp is the time and numpy_array is a labelled array with the pointcloud data'''
+    frame_times = []
+
+    for topic, msg, t in bagfile.read_messages(topics=[topic_name]):
+        frame_times.append(msg.header.stamp)
+
+    return frame_times
+
+
 def read_pointcloud_frames(topic_name, bagfile):
     '''returns a list of tuples: (stamp,numpy_array) where stamp is the time and numpy_array is a labelled array with the pointcloud data'''
     frames = []

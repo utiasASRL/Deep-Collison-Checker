@@ -81,14 +81,14 @@ static PyObject* map_sim_sequence(PyObject* self, PyObject* args, PyObject* keyw
 	const char* save_path;
 
 	// Keywords containers
-	static char* kwlist[] = { (char*)"frame_names", (char*)"frame_times",
-		(char*)"gt_poses", (char*)"gt_times", (char*)"save_path",
-		(char*)"init_points", (char*)"init_normals", (char*)"init_scores",
-		(char*)"map_voxel_size", (char*)"frame_voxel_size", (char*)"motion_distortion", (char*)"filtering", (char*)"verbose_time",
-		(char*)"icp_samples", (char*)"icp_pairing_dist", (char*)"icp_planar_dist", 
-		(char*)"icp_avg_steps", (char*)"icp_max_iter", 
-		(char*)"H_velo_base", (char*)"odom_H", 
-		NULL };
+	static char* kwlist[] = {(char *)"frame_names", (char *)"frame_times",
+							 (char *)"gt_poses", (char *)"gt_times", (char *)"save_path",
+							 (char *)"init_points", (char *)"init_normals", (char *)"init_scores",
+							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", (char *)"filtering", (char *)"verbose_time",
+							 (char *)"icp_samples", (char *)"icp_pairing_dist", (char *)"icp_planar_dist",
+							 (char *)"icp_avg_steps", (char *)"icp_max_iter",
+							 (char *)"H_velo_base", (char *)"odom_H",
+							 NULL};
 
 	// Parse the input  
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOOOsOOO|$ffppflffllOO", kwlist,
@@ -328,13 +328,13 @@ static PyObject* map_real_sequence(PyObject* self, PyObject* args, PyObject* key
 	const char* save_path;
 
 	// Keywords containers
-	static char* kwlist[] = { (char*)"frame_names", (char*)"frame_times", (char*)"save_path",
-		(char*)"init_points", (char*)"init_normals", (char*)"init_scores",
-		(char*)"map_voxel_size", (char*)"frame_voxel_size", (char*)"motion_distortion", (char*)"filtering", (char*)"verbose_time",
-		(char*)"icp_samples", (char*)"icp_pairing_dist", (char*)"icp_planar_dist", 
-		(char*)"icp_avg_steps", (char*)"icp_max_iter", 
-		(char*)"H_velo_base", (char*)"odom_H", 
-		NULL };
+	static char* kwlist[] = {(char *)"frame_names", (char *)"frame_times", (char *)"save_path",
+							 (char *)"init_points", (char *)"init_normals", (char *)"init_scores",
+							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", (char *)"filtering", (char *)"verbose_time",
+							 (char *)"icp_samples", (char *)"icp_pairing_dist", (char *)"icp_planar_dist",
+							 (char *)"icp_avg_steps", (char *)"icp_max_iter",
+							 (char *)"H_velo_base", (char *)"odom_H",
+							 NULL};
 
 	// Parse the input  
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOsOOO|$ffppflffllOO", kwlist,

@@ -2133,9 +2133,9 @@ class MyhalSimSlam:
                                              filtering=True,
                                              icp_samples=600,
                                              icp_pairing_dist=2.0,
-                                             icp_planar_dist=0.08,
+                                             icp_planar_dist=0.12,
                                              icp_max_iter=100,
-                                             icp_avg_steps=3,
+                                             icp_avg_steps=5,
                                              odom_H=odom_H)
 
             # Apply offset so that traj is aligned with groundtruth
@@ -2192,9 +2192,9 @@ class MyhalSimSlam:
                                  filtering=True,
                                  icp_samples=600,
                                  icp_pairing_dist=2.0,
-                                 icp_planar_dist=0.08,
+                                 icp_planar_dist=0.12,
                                  icp_max_iter=0,
-                                 icp_avg_steps=3,
+                                 icp_avg_steps=5,
                                  odom_H=odom_H)
 
         return

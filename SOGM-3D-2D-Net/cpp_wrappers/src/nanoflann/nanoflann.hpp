@@ -1912,6 +1912,12 @@ public:
     treeIndex[idx] = -1;
   }
 
+  bool isRemoved(size_t idx) {
+    if (idx >= pointCount)
+      return true;
+    return treeIndex[idx] == -1;
+  }
+
   /**
    * Find set of nearest neighbors to vec[0:dim-1]. Their indices are stored
    * inside the result object.

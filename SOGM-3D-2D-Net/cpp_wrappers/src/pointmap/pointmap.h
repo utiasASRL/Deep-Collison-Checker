@@ -460,6 +460,22 @@ public:
 		latest.push_back(c0);
 	}
 
+	// Init of voxel centroid
+	void reinit_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
+	{
+		// We place anew key in the hashmap
+		samples[k], cloud.pts.size();
+
+		// We add new voxel data but initiate only the centroid
+		cloud.pts.push_back(p0);
+		normals.push_back(n0);
+		scores.push_back(s0);
+
+		// Count is useless, instead save index of first frame placing a point in this cell
+		counts.push_back(c0);
+		latest.push_back(c0);
+	}
+
 	// Update of voxel centroid
 	void update_sample(const size_t idx, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
 	{
@@ -521,7 +537,16 @@ public:
 			}
 			else
 			{
-				update_sample(samples[k0], p, normals0[i], scores0[i], ind0);
+				// Case of previously deleted points
+				size_t idx = samples[k0];
+				if (tree.isRemoved(idx))
+				{
+					// We want to add previously deleted points, we have to recreate it from scratch
+					reinit_sample(k0, p, normals0[i], scores0[i], ind0);
+					num_added++;
+				}
+				else
+					update_sample(idx, p, normals0[i], scores0[i], ind0);
 			}
 			i++;
 		}
@@ -557,7 +582,7 @@ public:
 		for (auto &p : map0.cloud.pts)
 		{
 			// Stop when reaching the current index
-			if (map0.counts[i] > max_ind)
+			if (map0.counts[i] > (int)max_ind)
 				break;
 
 			// Position of point in sample map
@@ -587,8 +612,24 @@ public:
 		update_idx++;
 	}
 
-	// Compute movable probabilities
+	// Remove old indices from tree
+	int remove_old(int min_i, int last_min_i)
+	{
+		int removed_count = 0;
+		int i = 0;
+		for (auto &latest_i: latest)
+		{
+			if (latest_i < min_i && latest_i >= last_min_i)
+			{
+				tree.removePoint(i);
+				removed_count++;
+			}
+			i++;
+		}
+		return removed_count;
+	}
 
+	// Compute movable probabilities
 	void update_movable_pts(vector<PointXYZ> &frame_points,
 							vector<float> &frame_alphas,
 							Eigen::Matrix4d &H0,
@@ -703,7 +744,7 @@ public:
 		// Interpolate
 		next_i = 0;
 		last_i -= range_table.size();
-		while (next_i < range_table.size())
+		while (next_i < (int)range_table.size())
 		{
 			if (range_table[next_i] > 0)
 			{
@@ -799,7 +840,7 @@ public:
 		// Interpolate
 		next_i = 0;
 		last_i -= range_table.size();
-		while (next_i < range_table.size())
+		while (next_i < (int)range_table.size())
 		{
 			if (range_table[next_i] > 0)
 			{
@@ -880,7 +921,7 @@ public:
 
 		// Initialize variables
 		float inv_dl = 1 / dl;
-		size_t iX, iY, iZ, mapIdx;
+		size_t mapIdx;
 
 		// Limits of the map
 		PointXYZ minCorner = min_point(points3D);

@@ -153,7 +153,6 @@ void load_cloud(std::string& dataPath,
 	uint64_t num_points(0);
 	std::vector<npm::PLYType> types;
 	std::vector<std::string> properties;
-	char buffer[500];
 
 	size_t float_str_n = strlen(float_scalar_name.c_str());
 	size_t int_str_n = strlen(int_scalar_name.c_str());
@@ -202,7 +201,6 @@ void load_annot(std::string& dataPath,
 	uint64_t num_points(0);
 	std::vector<npm::PLYType> types;
 	std::vector<std::string> properties;
-	char buffer[500];
 
 	size_t int_str_n = strlen(int_scalar_name.c_str());
 

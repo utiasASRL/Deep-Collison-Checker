@@ -78,14 +78,14 @@ void grid_subsampling_spheres(vector<PointXYZ>& original_points,
 	// Inverse of sample dl
 	float inv_dl = 1 / sampleDl;
 
-	// Limits of the map
-	PointXYZ minCorner = min_point(original_points);
-	PointXYZ maxCorner = max_point(original_points);
-	PointXYZ originCorner = floor(minCorner * inv_dl - PointXYZ(1, 1, 1)) * sampleDl;
+	// // Limits of the map
+	// PointXYZ minCorner = min_point(original_points);
+	// PointXYZ maxCorner = max_point(original_points);
+	// PointXYZ originCorner = floor(minCorner * inv_dl - PointXYZ(1, 1, 1)) * sampleDl;
 
-	// Dimensions of the grid
-	size_t sampleNX = (size_t)floor((maxCorner.x - originCorner.x) / sampleDl) + 2;
-	size_t sampleNY = (size_t)floor((maxCorner.y - originCorner.y) / sampleDl) + 2;
+	// // Dimensions of the grid
+	// size_t sampleNX = (size_t)floor((maxCorner.x - originCorner.x) / sampleDl) + 2;
+	// size_t sampleNY = (size_t)floor((maxCorner.y - originCorner.y) / sampleDl) + 2;
 
 	// Create the sampled map
 	// **********************
@@ -271,7 +271,7 @@ void grid_subsampling(vector<PointXYZ>& original_points,
 		}
 		if (use_classes)
 		{
-		    for (int i = 0; i < ldim; i++)
+		    for (int i = 0; i < (int)ldim; i++)
 		        subsampled_classes.push_back(max_element(v.second.labels[i].begin(), v.second.labels[i].end(),
 		        [](const pair<int, int>&a, const pair<int, int>&b){return a.second < b.second;})->first);
 		}
@@ -312,7 +312,7 @@ void batch_grid_subsampling(vector<PointXYZ>& original_points,
 	// Loop over batches
 	// *****************
 
-	for (b = 0; b < original_batches.size(); b++)
+	for (b = 0; b < (int)original_batches.size(); b++)
 	{
 
 	    // Extract batch points features and labels
@@ -353,7 +353,7 @@ void batch_grid_subsampling(vector<PointXYZ>& original_points,
         // ****************************************
 
         // If too many points remove some
-        if (b_s_points.size() <= max_p)
+        if ((int)b_s_points.size() <= max_p)
         {
             subsampled_points.insert(subsampled_points.end(), b_s_points.begin(), b_s_points.end());
 

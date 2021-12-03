@@ -36,6 +36,8 @@ import plyfile as ply
 import shutil
 from utils import bag_tools as bt
 
+from ros_numpy import point_cloud2
+
 from utils.ply import write_ply
 
 
@@ -101,37 +103,53 @@ def main(save_velo=True,
             # read in lidar frames
             t1 = RealTime.time()
             print("Reading lidar frames")
-            frames = bt.read_pointcloud_frames("/velodyne_points", bag)
+            frame_times = bt.read_frames_times("/velodyne_points", bag)
 
-            if len(frames):
+            if len(frame_times):
+
+                total_duration = frame_times[-1].to_sec() - frame_times[0].to_sec()
+                print("Found {:d} frames, for a total duration of {:.1f} seconds".format(len(frame_times),
+                                                                                         total_duration))
+
                 if not exists(join(res_path, 'velodyne_frames')):
                     makedirs(join(res_path, 'velodyne_frames'))
 
-            # write lidar frames to .ply files
-            for timestamp, data in frames:
+                # Verify if the last file already exists
+                last_frame_name = "{:.6f}.ply".format(frame_times[-1].to_sec())
+                if exists(join(res_path, 'velodyne_frames', last_frame_name)):
+                    print("Frames already computed")
+                
+                else:
+                    
+                    # We need to compute everuthing load every frame data
+                    for topic, msg, t in bag.read_messages(topics=["/velodyne_points"]):
 
-                # Get timestamp
-                frame_time = timestamp.to_sec()
-                frame_name = "{:.6f}.ply".format(frame_time)
+                        # Read data from ros bag
+                        pc_array = point_cloud2.pointcloud2_to_array(msg)
+                        timestamp = msg.header.stamp
 
-                if (start_time == 0):
-                    start_time = frame_time
+                        # Get timestamp
+                        frame_time = timestamp.to_sec()
+                        frame_name = "{:.6f}.ply".format(frame_time)
 
-                # Verify if file already exists
-                ply_path = join(res_path, 'velodyne_frames', frame_name)
-                if exists(ply_path):
-                    continue
+                        if (start_time == 0):
+                            start_time = frame_time
 
-                # Convert to np arrays
-                points = np.vstack((data['x'], data['y'], data['z'])).T
-                intensity = data['intensity']
-                rings = data['ring']
-                times = data['time']
+                        # Verify if file already exists
+                        ply_path = join(res_path, 'velodyne_frames', frame_name)
+                        if exists(ply_path):
+                            continue
 
-                # Save
-                write_ply(ply_path,
-                          [points, intensity, rings.astype(np.int32), times],
-                          ['x', 'y', 'z', 'intensity', 'ring', 'time'])
+                        # Convert to np arrays
+                        points = np.vstack((pc_array['x'], pc_array['y'], pc_array['z'])).T
+                        intensity = pc_array['intensity']
+                        rings = pc_array['ring']
+                        times = pc_array['time']
+
+                        # Save
+                        write_ply(ply_path,
+                                  [points, intensity, rings.astype(np.int32), times],
+                                  ['x', 'y', 'z', 'intensity', 'ring', 'time'])
 
             t2 = RealTime.time()
             print("Done in {:.1f}s\n".format(t2 - t1))

@@ -136,6 +136,40 @@ def extract_ground(points, normals, out_folder,
 
     return plane_mask
 
+def extract_ground_old(points, normals, out_folder,
+                   vertical_thresh=10.0,
+                   dist_thresh=0.15,
+                   remove_dist=0.15,
+                   saving=True):
+                   
+    # Get points with vertical normal
+    vertical_angle = np.arccos(np.abs(np.clip(normals[:, 2], -1.0, 1.0)))
+
+    # Use the thresold on the vertical angle in degree
+    plane_mask = vertical_angle < vertical_thresh * np.pi / 180
+
+    # Get the ground plane with RANSAC
+    plane_P, plane_N, _ = RANSAC(points[plane_mask], threshold_in=dist_thresh)
+
+    # Get mask on all the points
+    plane_mask = in_plane(points, plane_P, plane_N, dist_thresh)
+    mask0 = np.copy(plane_mask)
+
+    # Get better ground/objects boundary
+    candidates = points[plane_mask]
+    others = points[np.logical_not(plane_mask)]
+    dists, inds = KDTree(others).query(candidates, 1)
+    plane_mask[plane_mask] = np.squeeze(dists) > remove_dist
+
+    if saving:
+        ground_points = points[plane_mask]
+        ground_normals = normals[plane_mask]
+        write_ply(join(out_folder, 'ground.ply'),
+                  [ground_points, ground_normals],
+                  ['x', 'y', 'z', 'nx', 'ny', 'nz'])
+
+    return plane_mask
+
 
 def read_pgm(filename, byteorder='>'):
     """Return image data from a raw PGM file as numpy array.
@@ -432,10 +466,10 @@ def interp_pose(t, H0, H1):
     return interp_H
 
 
-def frame_H_to_points(H_f, size=1.0):
+def frame_H_to_points(H_f, size=1.0, num_p=5):
 
     # Create artificial frames
-    x = np.linspace(0, size, 50, dtype=np.float32)
+    x = np.linspace(0, size, num_p, dtype=np.float32)
     points = np.hstack((np.vstack((x, x * 0, x * 0)), np.vstack((x * 0, x, x * 0)), np.vstack((x * 0, x * 0, x)))).T
     colors = ((points > 0.1 * size).astype(np.float32) * 255).astype(np.uint8)
     hpoints = np.hstack((points, np.ones_like(points[:, :1])))

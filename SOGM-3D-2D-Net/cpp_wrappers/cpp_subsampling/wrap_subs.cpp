@@ -72,13 +72,14 @@ static PyObject* batch_subsampling(PyObject* self, PyObject* args, PyObject* key
 	PyObject* batches_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "points", "batches", "features", "classes", "sampleDl", "method", "max_p", "verbose", NULL };
+	static char* kwlist[] = {(char *)"points", (char *)"batches", (char *)"features", (char *)"classes",
+							 (char *)"sampleDl", (char *)"method", (char *)"max_p", (char *)"verbose", NULL};
 	float sampleDl = 0.1;
-	const char* method_buffer = "barycenters";
+	const char *method_buffer = "barycenters";
 	int verbose = 0;
 	int max_p = 0;
 
-	// Parse the input  
+	// Parse the input
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "OO|$OOfsii", kwlist, &points_obj, &batches_obj, &features_obj, &classes_obj, &sampleDl, &method_buffer, &max_p, &verbose))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");
@@ -347,12 +348,13 @@ static PyObject* cloud_subsampling(PyObject* self, PyObject* args, PyObject* key
 	PyObject* classes_obj = NULL;
 
 	// Keywords containers
-	static char* kwlist[] = { "points", "features", "classes", "sampleDl", "method", "verbose", NULL };
+	static char* kwlist[] = {(char *)"points", (char *)"features", (char *)"classes",
+							 (char *)"sampleDl", (char *)"method", (char *)"verbose", NULL};
 	float sampleDl = 0.1;
-	const char* method_buffer = "barycenters";
+	const char *method_buffer = "barycenters";
 	int verbose = 0;
 
-	// Parse the input  
+	// Parse the input
 	if (!PyArg_ParseTupleAndKeywords(args, keywds, "O|$OOfsi", kwlist, &points_obj, &features_obj, &classes_obj, &sampleDl, &method_buffer, &verbose))
 	{
 		PyErr_SetString(PyExc_RuntimeError, "Error parsing arguments");

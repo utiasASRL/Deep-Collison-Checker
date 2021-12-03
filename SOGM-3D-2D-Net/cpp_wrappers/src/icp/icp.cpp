@@ -1097,7 +1097,7 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 			// Random picking
 			unordered_set<size_t> unique_inds;
 			int count_tries = 0;
-			while (unique_inds.size() < params.n_samples && count_tries < params.n_samples * 10)
+			while (unique_inds.size() < params.n_samples && count_tries < (int)params.n_samples * 10)
 			{
 				unique_inds.insert((size_t)distribution(generator));
 				count_tries++;
@@ -1106,13 +1106,13 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 			// Debugging if we could not pick enough indices
 			if (unique_inds.size() < params.n_samples)
 			{
-				for (int iiii = 0; iiii < tgt_w.size(); iiii++)
+				for (int iiii = 0; iiii < (int)tgt_w.size(); iiii++)
 				{
 					if (tgt_w[iiii] > 20.5 || tgt_w[iiii] < 0.3)
 					cout << "tgt_w: " << iiii << " -> " << tgt_w[iiii] << endl;
 				}
 				count_tries = 0;
-				while (unique_inds.size() < params.n_samples && count_tries < params.n_samples)
+				while (unique_inds.size() < params.n_samples && count_tries < (int)params.n_samples)
 				{
 					size_t picked_ind = (size_t)distribution(generator);
 					unique_inds.insert(picked_ind);

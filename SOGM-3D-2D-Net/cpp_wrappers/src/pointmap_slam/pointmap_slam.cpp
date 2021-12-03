@@ -44,7 +44,7 @@ void complete_map(string &frame_names,
 
 		// Get timestamps
 		float frame_time = (float)(frame_times[frame_ind] - timestamp_0);
-		for (int j = 0; j < timestamps.size(); j++)
+		for (int j = 0; j < (int)timestamps.size(); j++)
 			timestamps[j] += frame_time;
 		
 		// Get preprocessed frame
@@ -53,7 +53,8 @@ void complete_map(string &frame_names,
 		vector<float> norm_scores;
 		vector<double> icp_scores;
 		vector<size_t> sub_inds;
-		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, params);
+		Plane3D frame_ground;
+		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, params);
 		
 		// Get current pose (pose of the last timestamp of the current frame in case of motion distortion)
 		Eigen::Matrix4d H1 = slam_H.block(frame_ind * 4, 0, 4, 4);
@@ -71,7 +72,7 @@ void complete_map(string &frame_names,
 			// Apply motion distortion
 			float inv_factor = 1 / (t_max - t0);
 			size_t i_inds = 0;
-			for (int j = 0; j < sub_inds.size(); j++)
+			for (int j = 0; j < (int)sub_inds.size(); j++)
 			{
 				float alpha = (timestamps[sub_inds[j]] - t0) * inv_factor;
 				Eigen::Matrix4d H_rect = pose_interp(alpha, H0, H1, 0);
@@ -112,6 +113,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<float> &norm_scores,
 					  vector<double> &icp_scores,
 					  vector<size_t> &sub_inds,
+					  Plane3D &frame_ground,
 					  SLAM_params &params)
 {
 	//////////////////////////////////////////
@@ -196,7 +198,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// Get sub_rings
 	vector<int> sub_rings;
 	sub_rings.reserve(sub_inds.size());
-	for (int j = 0; j < sub_inds.size(); j++)
+	for (int j = 0; j < (int)sub_inds.size(); j++)
 		sub_rings.push_back(f_rings[sub_inds[j]]);
 	
 	// Call polar processing function
@@ -215,7 +217,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// Ransac ground extraction
 	float vertical_thresh_deg = 20.0;
 	float max_dist = 0.1;
-	Plane3D frame_ground = frame_ground_ransac(sub_pts, normals, vertical_thresh_deg, max_dist);
+	frame_ground = frame_ground_ransac(sub_pts, normals, vertical_thresh_deg, max_dist);
 
 	// Ensure ground normal is pointing upwards
 	if (frame_ground.u.z < 0)
@@ -284,8 +286,9 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	vector<float> norm_scores;
 	vector<double> icp_scores;
 	vector<size_t> sub_inds;
+	Plane3D frame_ground;
 
-	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, params);
+	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, params);
 
 	// // Debug (Points with scores)
 	// if (frame_i > 0)
@@ -322,7 +325,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	{
 		float inv_factor = 1 / (t_max - params.icp_params.last_time);
 		sub_alphas.reserve(sub_inds.size());
-		for (int j = 0; j < sub_inds.size(); j++)
+		for (int j = 0; j < (int)sub_inds.size(); j++)
 			sub_alphas.push_back((f_ts[sub_inds[j]] - params.icp_params.last_time) * inv_factor);
 	}
 
@@ -408,16 +411,16 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 					string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
 					char buffer00[100];
 					char buffer01[100];
-					char buffer02[100];
-					sprintf(buffer00, "f_%05d_%03d-iter_map.ply", int(frame_i), icp_results.all_plane_rms.size());
-					sprintf(buffer01, "f_%05d_%03d-iter_init.ply", int(frame_i), icp_results.all_plane_rms.size());
-					sprintf(buffer02, "f_%05d_%03d-iter_map0.ply", int(frame_i), icp_results.all_plane_rms.size());
+					//char buffer02[100];
+					sprintf(buffer00, "f_%05d_%03d-iter_map.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
+					sprintf(buffer01, "f_%05d_%03d-iter_init.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
+					// sprintf(buffer02, "f_%05d_%03d-iter_map0.ply", int(frame_i), icp_results.all_plane_rms.size());
 					string filepath00 = path000 + string(buffer00);
 					string filepath01 = path000 + string(buffer01);
-					string filepath02 = path000 + string(buffer02);
+					// string filepath02 = path000 + string(buffer02);
 					vector<float> float_counts(map.counts.begin(), map.counts.end());
 					save_cloud(filepath00, map.cloud.pts, map.normals, float_counts);
-					save_cloud(filepath02, map0.cloud.pts, map0.normals, map0.scores);
+					// save_cloud(filepath02, map0.cloud.pts, map0.normals, map0.scores);
 
 					vector<PointXYZ> copy_pts(sub_pts);
 					if (params.motion_distortion)
@@ -516,7 +519,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	{
 		string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
 		char buffer02[100];
-		sprintf(buffer02, "f_%05d_%03d-iter_last.ply", int(frame_i), icp_results.all_plane_rms.size());
+		sprintf(buffer02, "f_%05d_%03d-iter_last.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
 		string filepath02 = path000 + string(buffer02);
 		save_cloud(filepath02, sub_pts, normals);
 	}
@@ -717,7 +720,7 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 			cout << "R_error = " << R_error << endl;
 			cout << "Stopping mapping and saving debug frames" << endl;
 			char buffer[100];
-			sprintf(buffer, "Frame %d named %s", (int)frame_i, line);
+			sprintf(buffer, "Frame %d named %s", (int)frame_i, line.c_str());
 			cout << string(buffer) << endl;
 			cout <<"*************************************************" << endl << endl;
 			save_cloud("debug_map.ply", mapper.map.cloud.pts, mapper.map.normals, mapper.map.scores);
@@ -745,7 +748,7 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 			int remaining_min = (int)floor(remaining_sec / 60.0);
 			remaining_sec = remaining_sec - remaining_min * 60.0;
 			char buffer[100];
-			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_i, frame_times.size(), fps, remaining_min, remaining_sec);
+			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_i, (int)frame_times.size(), fps, remaining_min, remaining_sec);
 			cout << string(buffer) << endl;
 			last_disp_t1 = t1;
 		}
@@ -940,6 +943,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 	// Number of closed loops
 	int closed_loops = 0;
+	int last_min_frame_i = -2;
 
 	// Timing
 	float fps = 0.0;
@@ -986,7 +990,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 		// Get timestamps
 		float frame_time = (float)(frame_times[frame_ind] - timestamp_0);
-		for (int j = 0; j < timestamps.size(); j++)
+		for (int j = 0; j < (int)timestamps.size(); j++)
 			timestamps[j] += frame_time;
 
 		// Get frame pose and update map
@@ -1000,7 +1004,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		all_times.push_back(mapper.t_max);
 
 		// Save position for loop closure
-		float closure_d = 1.0;
+		float closure_d = 2.0;
 		float closure_d2 =  closure_d * closure_d;
 		float save_d = closure_d / 2;
 		float save_d2 = save_d * save_d;
@@ -1012,6 +1016,39 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		{
 			sparse_positions.push_back(current_position);
 			sparse_f_inds.push_back(frame_ind);
+		}
+
+		// We remove old points from the map neighbor tree to make sure there is no jump
+		// in the lidar odom when comming in a loop closure
+		if (mapper.params.icp_params.max_iter > 0 &&
+			mapper.params.local_map_dist > save_d)
+		{
+			// vector<clock_t> t;
+			// t.reserve(2);
+			// t.push_back(std::clock());
+
+			// Get the new frame index limit based on travelled distance
+			int min_frame_i = -3;
+
+			// Convert dist threshold to number of sparse poses
+			int n_sparse = (int)floor(mapper.params.local_map_dist / save_d) + 1;
+			if ((int)sparse_f_inds.size() > n_sparse)
+				min_frame_i = sparse_f_inds[sparse_f_inds.size() - n_sparse];
+
+			// Remove indics from tree
+			int removed_count = 0;
+			if (min_frame_i > last_min_frame_i)
+			{
+				removed_count = mapper.map.remove_old(min_frame_i, last_min_frame_i);
+				last_min_frame_i = min_frame_i;
+			}
+			
+			// if (removed_count > 0)
+			// {
+			// 	t.push_back(std::clock());
+			// 	double duration = 1000 * (t[1] - t[0]) / (double)CLOCKS_PER_SEC;
+			// 	cout << "  >>> Removed " << removed_count << " inds in " << duration << " ms" << endl;
+			// }
 		}
 
 		clock_t t1 = clock();
@@ -1119,19 +1156,6 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			save_cloud(path000 + string(buffer02), mapper.map.cloud.pts, mapper.map.normals, all_features2);
 		}
 
-
-		// // Debug: compare pose to gt
-		// // *************************
-
-		// if (frame_ind % 100 == 0)
-		// {
-		// 	char buffer[100];
-		// 	sprintf(buffer, "cc_map_%05d.ply", (int)frame_ind);
-		// 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-		// 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-		// 	save_cloud(string(buffer), mapper.map.cloud.pts, mapper.map.normals, counts);
-		// }
-
 		// Timing
 		// ******
 
@@ -1144,7 +1168,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			int remaining_min = (int)floor(remaining_sec / 60.0);
 			remaining_sec = remaining_sec - remaining_min * 60.0;
 			char buffer[100];
-			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_ind, frame_times.size(), fps, remaining_min, remaining_sec);
+			sprintf(buffer, "Mapping %5d/%d at %5.1f fps - %d min %.0f sec remaining", (int)frame_ind, (int)frame_times.size(), fps, remaining_min, remaining_sec);
 			cout << string(buffer) << endl;
 			last_disp_t1 = t1;
 		}
@@ -1154,7 +1178,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		if (mapper.warning_count > 6)
 			break;
 
-		// if (frame_ind > 3)
+		// if (frame_ind > 500)
 		// 	break;
 	}
 
@@ -1165,6 +1189,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 	string day_str = save_path.substr(ns0, ns1);
 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+	counts.insert(counts.end(), mapper.map.latest.begin(),  mapper.map.latest.end());
 	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, counts);
 
 	return all_H;

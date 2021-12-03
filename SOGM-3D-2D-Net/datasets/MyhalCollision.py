@@ -1824,15 +1824,16 @@ class MyhalCollisionSlam:
             map_H = np.delete(map_H, remove_inds, axis=0)
 
             # Get short term movables
-            movable_prob, movable_count = ray_casting_annot(
-                frame_names,
-                map_points,
-                map_normals,
-                map_H,
-                theta_dl=1.29 * np.pi / 180,
-                phi_dl=0.1 * np.pi / 180,
-                map_dl=map_dl,
-                motion_distortion=False)
+            movable_prob, movable_count = ray_casting_annot(frame_names,
+                                                            map_points,
+                                                            map_normals,
+                                                            map_H,
+                                                            theta_dl=0.33 * np.pi / 180,
+                                                            phi_dl=0.5 * np.pi / 180,
+                                                            map_dl=map_dl,
+                                                            verbose_time=5.0,
+                                                            motion_distortion_slices=16)
+
             movable_prob = movable_prob / (movable_count + 1e-6)
             movable_prob[movable_count < min_rays] -= 2
             all_movables_probs.append(movable_prob)
@@ -1927,9 +1928,9 @@ class MyhalCollisionSlam:
                                               verbose_time=5.0,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.08,
+                                              icp_planar_dist=0.12,
                                               icp_max_iter=0,
-                                              icp_avg_steps=3,
+                                              icp_avg_steps=5,
                                               odom_H=odom_H)
 
                     # Rename the saved map file
@@ -1955,9 +1956,9 @@ class MyhalCollisionSlam:
                                                   verbose_time=5.0,
                                                   icp_samples=600,
                                                   icp_pairing_dist=2.0,
-                                                  icp_planar_dist=0.08,
+                                                  icp_planar_dist=0.12,
                                                   icp_max_iter=100,
-                                                  icp_avg_steps=3)
+                                                  icp_avg_steps=5)
 
                     # Save the trajectory
                     save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
@@ -2326,9 +2327,9 @@ class MyhalCollisionSlam:
                                               verbose_time=5,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.08,
+                                              icp_planar_dist=0.12,
                                               icp_max_iter=100,
-                                              icp_avg_steps=3,
+                                              icp_avg_steps=5,
                                               odom_H=odom_H)
 
             # Apply offset so that traj is aligned with groundtruth
@@ -2374,9 +2375,9 @@ class MyhalCollisionSlam:
                                  filtering=True,
                                  icp_samples=600,
                                  icp_pairing_dist=2.0,
-                                 icp_planar_dist=0.08,
+                                 icp_planar_dist=0.12,
                                  icp_max_iter=0,
-                                 icp_avg_steps=3,
+                                 icp_avg_steps=5,
                                  odom_H=odom_H)
 
         return
