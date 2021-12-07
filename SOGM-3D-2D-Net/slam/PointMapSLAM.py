@@ -1980,6 +1980,12 @@ def annotation_process(dataset,
                                        [0.0, 0.0, 1.0, 0.7],
                                        [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
 
+                elif day.startswith('2021-11-3'):
+                    init_H = np.array([[1.0, 0.0, 0.0, 0.0],
+                                       [0.0, 1.0, 0.0, 0.0],
+                                       [0.0, 0.0, 1.0, 0.7],
+                                       [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
+
                 else:
 
                     raise ValueError('Initial alignment not implemented')

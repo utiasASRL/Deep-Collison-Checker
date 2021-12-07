@@ -299,6 +299,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 	t.push_back(std::clock());
 	// cout << clock_str[t.size() - 1] << endl;
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	////////////////
 	// Parameters //
@@ -348,6 +350,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	////////////////////////
 	// Update full voxels //
@@ -410,6 +414,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	////////////////
 	// Get slices //
@@ -460,6 +466,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////////////
 	// Get polar coordinates //
@@ -489,6 +497,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 	
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	////////////////////
 	// Get slices phi //
@@ -505,6 +515,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 	
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////////
 	// Init frustum grid //
@@ -542,6 +554,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	vector<float> frustum_radiuses(grid_n_ring * grid_n_phi, -1.0);
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////////
 	// Fill frustum grid //
@@ -565,6 +579,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	}
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////
 	// Apply margins //
@@ -599,6 +615,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	// cout << " OK" << endl;
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 	///////////////////////////////////////////
 	// Create tiles for fast slice detection //
@@ -753,6 +771,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 
 
 	t.push_back(std::clock());
+	if (verbose > 2)
+		cout << clock_str[t.size() - 1] << endl;
 
 
 	////////////////////////

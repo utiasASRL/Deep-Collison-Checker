@@ -57,6 +57,10 @@ public:
 	Eigen::Matrix4d last_transform1;
 	float last_time;
 
+	// Variables related to flat ground
+	double ground_z;
+	double ground_w;
+
 	// Methods
 	// *******
 
@@ -76,6 +80,8 @@ public:
 		last_transform0 = Eigen::Matrix4d::Identity(4, 4);
 		last_transform1 = Eigen::Matrix4d::Identity(4, 4);
 		last_time = 0;
+		ground_z = 0;
+		ground_w = -1;
 	}
 };
 
@@ -146,7 +152,9 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
 	vector<PointXYZ>& refNormals,
 	vector<float>& weights,
 	vector<pair<size_t, size_t>>& sample_inds,
-	Eigen::Matrix4d&  mOut);
+	Eigen::Matrix4d&  mOut,
+	vector<bool> &is_ground,
+	double ground_z=0);
 
 void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 	vector<float>& tgt_w,

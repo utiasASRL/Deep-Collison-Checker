@@ -186,6 +186,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<double> &icp_scores,
 					  vector<size_t> &sub_inds,
 					  Plane3D &frame_ground,
+					  vector<float> &heights,
 					  SLAM_params &params);
 
 void ceres_hello();

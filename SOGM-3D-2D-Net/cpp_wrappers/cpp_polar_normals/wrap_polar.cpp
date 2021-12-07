@@ -399,7 +399,14 @@ static PyObject* map_frame_comp(PyObject* self, PyObject* args, PyObject* keywds
 		vector<float> f_alphas;
 		if (motion_distortion)
 		{
-			float inv_factor = 1 / (t_max - t_min);
+			float inv_factor;
+			if (abs(t_max - t_min) > 1e-6)
+				inv_factor = 1 / (t_max - t_min);
+			else
+			{
+				cout << t_min << " - " << t_max << endl;
+				inv_factor = 1;
+			}
 			f_alphas.reserve(f_ts.size());
 			for (int j = 0; j < (int)f_ts.size(); j++)
 				f_alphas.push_back((f_ts[j] - t_min) * inv_factor);

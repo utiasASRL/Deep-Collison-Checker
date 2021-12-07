@@ -362,6 +362,8 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 	double min_height = -0.4;
 	double max_height = 1.8;
 	double outlier_s = 0.01; // -> prob to be picked for outlier points
+	double ground_dl = 0.15;
+	double cos45 = cos(M_PI / 4);
 
 	// Variables
 	double S1m0 = S1 - S0;
@@ -388,8 +390,14 @@ void smart_icp_score(vector<PointXYZ> &polar_pts,
 				s = H1;
 		}
 
+		// Ignore points below ground and too high
 		if (heights[i] < min_height || heights[i] > max_height)
 			s = outlier_s;
+
+		// Also ignor if vertical normal but not close to ground plane
+		if (abs(heights[i]) > ground_dl && normals[i].z > cos45)
+			s = outlier_s;
+
 
 		i++;
 	}

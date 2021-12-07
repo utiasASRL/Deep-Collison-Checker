@@ -492,3 +492,48 @@ Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 
 // 	}
 // }
+
+
+bool rot_u_to_v(PointXYZ u, PointXYZ v, Eigen::Matrix3d &R)
+{
+	//
+	// Get rotation matrix from u to v
+	//
+
+	// Get cross product
+	PointXYZ w = u.cross(v);
+	float norm_w = sqrt(w.sq_norm());
+	
+	// Do not go through if norm of vector w is too small
+	if (norm_w < 1e-9) // <=> ||w|| < 0.001mm
+		return false;
+
+	// Get cos of rot angle
+	float inv_norm_uv = 1 / sqrt( u.sq_norm() * v.sq_norm());
+	float C = u.dot(v) * inv_norm_uv;
+	
+	if (C < -0.99999)
+		return false;
+
+	// Get sin of rot angle
+	float S = norm_w * inv_norm_uv;
+
+	// Formula from https://math.stackexchange.com/questions/4155049/how-do-you-generate-a-rotation-matrix-in-3d-for-some-given-angle-and-axis
+	Eigen::Matrix<double, 3, 1> a;
+	a(0) = w.x / norm_w;
+	a(1) = w.y / norm_w;
+	a(2) = w.z / norm_w;
+
+	Eigen::Matrix3d skew = Eigen::Matrix3d::Zero(3, 3);
+	skew(0, 1) = - a(2);
+	skew(0, 2) = a(1);
+	skew(1, 2) = - a(0);
+	skew(1, 0) = a(2);
+	skew(2, 0) = - a(1);
+	skew(2, 1) = a(0);
+
+	Eigen::Matrix3d tmp = (1 - C) * (a * a.transpose());
+	R = tmp + S * skew + Eigen::Matrix3d::Identity() * C;
+
+	return true;
+}

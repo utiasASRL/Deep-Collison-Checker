@@ -98,13 +98,14 @@ void SolvePoint2PlaneLinearSystem(const Matrix6d& A, const Vector6d& b, Vector6d
 	}
 }
 
-
-void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
-	vector<PointXYZ>& references,
-	vector<PointXYZ>& refNormals,
-	vector<float>& weights,
-	vector<pair<size_t, size_t>>& sample_inds,
-	Eigen::Matrix4d& mOut)
+void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
+								vector<PointXYZ> &references,
+								vector<PointXYZ> &refNormals,
+								vector<float> &weights,
+								vector<pair<size_t, size_t>> &sample_inds,
+								Eigen::Matrix4d &mOut,
+								vector<bool> &is_ground,
+								double ground_z)
 {
 	// See: "Linear Least-Squares Optimization for Point-to-Plane ICP Surface Registration" (Kok-Lim Low)
 	// init A and b matrice
@@ -116,6 +117,7 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
 	// Fill matrices values
 	bool tgt_weights = weights.size() == targets.size();
 	bool ref_weights = weights.size() == references.size();
+	bool force_flat_ground = is_ground.size() == sample_inds.size();;
 	int i = 0;
 	for (const auto& ind : sample_inds)
 	{
@@ -127,12 +129,28 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
 		// Reference point
 		double dx = (double)references[ind.second].x;
 		double dy = (double)references[ind.second].y;
-		double dz = (double)references[ind.second].z;
+		double dz;
 
 		// Reference point normal
-		double nx = (double)refNormals[ind.second].x;
-		double ny = (double)refNormals[ind.second].y;
-		double nz = (double)refNormals[ind.second].z;
+		double nx;
+		double ny;
+		double nz;
+
+		// Special case to force a flat ground
+		if (force_flat_ground && is_ground[i])
+		{
+			dz = ground_z;
+			nx = 0;
+			ny = 0;
+			nz = 1;
+		}
+		else
+		{
+			dz = (double)references[ind.second].z;
+			nz = (double)refNormals[ind.second].z;
+			nx = (double)refNormals[ind.second].x;
+			ny = (double)refNormals[ind.second].y;
+		}
 
 		// setup least squares system
 		A(i, 0) = nz * sy - ny * sz;
@@ -183,8 +201,6 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ>& targets,
 		mOut.block(0, 0, 3, 3) = Eigen::Matrix4d::Identity(3, 3);
 	}
 }
-
-
 
 // ICP functions
 // *************
@@ -412,7 +428,8 @@ void BundleICP(vector<PointXYZ>& points,
 		{
 			// Do not use weights in minimization, because we used them for random sampling
 			vector<float> ones(weights.size(), 1.0);
-			PointToPlaneErrorMinimizer(points, references, normals, ones, all_sample_inds[b], H_icp[b]);
+			vector<bool> is_ground;
+			PointToPlaneErrorMinimizer(points, references, normals, ones, all_sample_inds[b], H_icp[b], is_ground);
 		}
 
 		t[3] = std::clock();
@@ -816,7 +833,8 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 		//////////////////
 
 		// Minimize error
-		PointToPlaneErrorMinimizer(aligned, map_points, map_normals, map_scores, filtered_sample_inds, H_icp);
+		vector<bool> is_ground;
+		PointToPlaneErrorMinimizer(aligned, map_points, map_normals, map_scores, filtered_sample_inds, H_icp, is_ground, params.ground_z);
 
 		t[4] = std::clock();
 
@@ -1099,7 +1117,10 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 			int count_tries = 0;
 			while (unique_inds.size() < params.n_samples && count_tries < (int)params.n_samples * 10)
 			{
-				unique_inds.insert((size_t)distribution(generator));
+				// Be sure to ignore points that are considered outliers
+				size_t picked = (size_t)distribution(generator);
+				if (tgt_w[picked] > 0.05)
+					unique_inds.insert(picked);
 				count_tries++;
 			}
 
@@ -1206,10 +1227,23 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 		//////////////////
 
 		// Minimize error
-		PointToPlaneErrorMinimizer(aligned, map.cloud.pts, map.normals, map.scores, filtered_sample_inds, H_icp);
+		vector<bool> is_ground;
+		if (params.ground_w > 0)
+		{
+			is_ground.reserve(filtered_sample_inds.size());
+			for (size_t i = 0; i < filtered_sample_inds.size(); i++)
+				is_ground.push_back(tgt_w[filtered_sample_inds[i].first] > params.ground_w);
+		}
+		PointToPlaneErrorMinimizer(aligned,
+								   map.cloud.pts,
+								   map.normals,
+								   map.scores,
+								   filtered_sample_inds,
+								   H_icp,
+								   is_ground,
+								   params.ground_z);
 
 		t[4] = std::clock();
-
 
 		//////////////////////////////////////
 		// Alignment with Motion distortion //

@@ -312,7 +312,35 @@ if __name__ == '__main__':
 
     map_day = '2021-11-30_12-05-32'
     train_days = ['2021-11-30_12-22-23',
-                  '2021-11-30_12-33-09']
+                  '2021-11-30_12-33-09',
+                  '2021-12-04_13-27-32',
+                  '2021-12-04_13-44-05',
+                  '2021-12-04_13-59-29']
+    dataset_path = '../Data/Real'
+    ################################################################################################################################################
+    
+          
+    ################################################################################################################################################
+    # TMP Just my house
+
+    # map_day = '2021-12-05_18-04-51'
+    # train_days = ['2021-12-05_18-04-51']
+    # dataset_path = '../Data/RealAlbany'
+    ################################################################################################################################################
+          
+    ################################################################################################################################################
+    # Exp 3
+    #
+    # In Myhal
+    # Notes for myself
+    #   > 1:
+
+    # map_day = '2021-12-06_08-12-39'
+    # train_days = ['2021-12-06_08-38-16',
+    #               '2021-12-06_08-44-07',
+    #               '2021-12-06_08-51-29']
+
+    # dataset_path = '../Data/RealMyhal'
     ################################################################################################################################################
 
     ######################
@@ -329,7 +357,7 @@ if __name__ == '__main__':
     # Check if we need to redo annotation (only if there is no collison folder)
     redo_annot = False
     for day in train_days:
-        annot_path = join('../Data/Real/collisions', day)
+        annot_path = join(dataset_path, 'collisions', day)
         if not exists(annot_path):
             redo_annot = True
             break
@@ -338,7 +366,7 @@ if __name__ == '__main__':
     if redo_annot:
 
         # Initiate dataset
-        slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day)
+        slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day, dataset_path=dataset_path)
 
         # Create a refined map from the map_day.
         # UNCOMMENT THIS LINE if you are using your own data for the first time

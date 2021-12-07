@@ -60,11 +60,6 @@ def main(save_velo=True,
          save_collider=False,
          save_traj=True):
 
-    # Result folder
-    run_path = '../Data/Real/runs'
-    if not exists(run_path):
-        makedirs(run_path)
-
     # Path to the bag files
     bags_path = '../Data/Real/rosbags'
 
@@ -73,6 +68,21 @@ def main(save_velo=True,
     bag_dates = [f[:-4] for f in bag_files]
 
     for i, file in enumerate(bag_files):
+
+        # Result folder
+        if (file >= '2021-11-30_12-05-32.bag' and file <= '2021-12-04_13-59-29.bag'):
+            run_path = '../Data/Real/runs'
+        elif (file >= '2021-12-06_06-44-07.bag' and file <= '2021-12-06_23-44-07.bag'):
+            run_path = '../Data/RealMyhal/runs'
+        elif (file == '2021-12-05_18-04-51.bag'):
+            run_path = '../Data/RealAlbany/runs'
+        elif (file == 'only-map.bag'):
+            continue
+        else:
+            raise ValueError('rosbag dataset not specified')
+
+        if not exists(run_path):
+            makedirs(run_path)
 
         ######
         # Init
@@ -102,54 +112,66 @@ def main(save_velo=True,
 
             # read in lidar frames
             t1 = RealTime.time()
-            print("Reading lidar frames")
-            frame_times = bt.read_frames_times("/velodyne_points", bag)
 
-            if len(frame_times):
 
-                total_duration = frame_times[-1].to_sec() - frame_times[0].to_sec()
-                print("Found {:d} frames, for a total duration of {:.1f} seconds".format(len(frame_times),
-                                                                                         total_duration))
+            all_done_path = join(res_path, 'all.done')
+            if exists(all_done_path):
+                print("Reading lidar frames")
 
-                if not exists(join(res_path, 'velodyne_frames')):
-                    makedirs(join(res_path, 'velodyne_frames'))
+            else:
 
-                # Verify if the last file already exists
-                last_frame_name = "{:.6f}.ply".format(frame_times[-1].to_sec())
-                if exists(join(res_path, 'velodyne_frames', last_frame_name)):
-                    print("Frames already computed")
-                
-                else:
+                print("Reading lidar frames")
+                frame_times = bt.read_frames_times("/velodyne_points", bag)
+
+                if len(frame_times):
+
+                    total_duration = frame_times[-1].to_sec() - frame_times[0].to_sec()
+                    print("Found {:d} frames, for a total duration of {:.1f} seconds".format(len(frame_times),
+                                                                                             total_duration))
+
+                    if not exists(join(res_path, 'velodyne_frames')):
+                        makedirs(join(res_path, 'velodyne_frames'))
+
+                    # Verify if the last file already exists
+                    last_frame_name = "{:.6f}.ply".format(frame_times[-1].to_sec())
+                    if exists(join(res_path, 'velodyne_frames', last_frame_name)):
+                        print("Frames already computed")
                     
-                    # We need to compute everuthing load every frame data
-                    for topic, msg, t in bag.read_messages(topics=["/velodyne_points"]):
+                    else:
+                        
+                        # We need to compute everuthing load every frame data
+                        for topic, msg, t in bag.read_messages(topics=["/velodyne_points"]):
 
-                        # Read data from ros bag
-                        pc_array = point_cloud2.pointcloud2_to_array(msg)
-                        timestamp = msg.header.stamp
+                            # Read data from ros bag
+                            pc_array = point_cloud2.pointcloud2_to_array(msg)
+                            timestamp = msg.header.stamp
 
-                        # Get timestamp
-                        frame_time = timestamp.to_sec()
-                        frame_name = "{:.6f}.ply".format(frame_time)
+                            # Get timestamp
+                            frame_time = timestamp.to_sec()
+                            frame_name = "{:.6f}.ply".format(frame_time)
 
-                        if (start_time == 0):
-                            start_time = frame_time
+                            if (start_time == 0):
+                                start_time = frame_time
 
-                        # Verify if file already exists
-                        ply_path = join(res_path, 'velodyne_frames', frame_name)
-                        if exists(ply_path):
-                            continue
+                            # Verify if file already exists
+                            ply_path = join(res_path, 'velodyne_frames', frame_name)
+                            if exists(ply_path):
+                                continue
 
-                        # Convert to np arrays
-                        points = np.vstack((pc_array['x'], pc_array['y'], pc_array['z'])).T
-                        intensity = pc_array['intensity']
-                        rings = pc_array['ring']
-                        times = pc_array['time']
+                            # Convert to np arrays
+                            points = np.vstack((pc_array['x'], pc_array['y'], pc_array['z'])).T
+                            intensity = pc_array['intensity']
+                            rings = pc_array['ring']
+                            times = pc_array['time']
 
-                        # Save
-                        write_ply(ply_path,
-                                  [points, intensity, rings.astype(np.int32), times],
-                                  ['x', 'y', 'z', 'intensity', 'ring', 'time'])
+                            # Save
+                            write_ply(ply_path,
+                                      [points, intensity, rings.astype(np.int32), times],
+                                      ['x', 'y', 'z', 'intensity', 'ring', 'time'])
+
+                # Write a file to say that all frames are computed
+                with open(all_done_path, 'wb') as f:
+                    pass
 
             t2 = RealTime.time()
             print("Done in {:.1f}s\n".format(t2 - t1))
@@ -281,5 +303,6 @@ def main(save_velo=True,
 if __name__ == '__main__':
 
     main(save_velo=True,
-         save_classif=True,
-         save_collider=False)
+         save_classif=False,
+         save_collider=False,
+         save_traj=True)

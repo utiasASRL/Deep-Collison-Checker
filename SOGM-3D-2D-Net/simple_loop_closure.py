@@ -144,36 +144,55 @@ def test_loop_closure():
     #
     #
 
+    ############
+    # Parameters
+    ############
+
+    # Data path
+    root_path = "/home/hth/Deep-Collison-Checker/"
+    frame_path = join(root_path, "Data/Real/icp_frames/tmp/")
+
+    map_day = "2021-11-30_12-05-32"
+    map_folder = join(root_path, "Data/Real/slam_offline", map_day)
+    poses_path = join(map_folder, "map0_traj_{:s}.pkl".format(map_day))
+
+    original_path = join(root_path, 'Data/Real/runs/{:s}/velodyne_frames'.format(map_day))
+
+
+    # Reducing the number of frame optimized
+    min_f_i = 0
+    max_f_i = 10000000
+    f_i_stride = 1
     # min_f_i = 50
     # max_f_i = 6501
     # f_i_stride = 50
 
-    # Full loop closure
-    min_f_i = 0
-    max_f_i = 1000000
-    f_i_stride = 1
-    loop_edges = [[150, 6450],
-                  [250, 6350],
-                  [600, 6000],
-                  [800, 5800]]
-    loop_edges = np.array(loop_edges, dtype=np.int32)
-    loop_edges = (loop_edges - min_f_i) // f_i_stride 
+    #################
+    # LOAD LOOP EDGES
+    #################
+
+    # Number od points per poses in the saved ply
+    n_per_poses = 15
+
+    # Read them from a point picking list in cloud compare
+    picking_path = join(map_folder, "picking_list.txt")
+    picking_data = np.loadtxt(picking_path, delimiter=',')
+    if (picking_data.shape[0] % 2 == 1):
+        raise ValueError('Error: Odd number od points picked')
+    picking_list = np.reshape(picking_data[:, 0].astype(np.int64), (-1, 2))
+
+    # Rescale indices due to saving poses as multiple points
+    picking_list = picking_list // n_per_poses
+
+    # Addapt if we reduced the poses
+    loop_edges = (picking_list - min_f_i) // f_i_stride
     
-    # Ground closure
-    min_f_i = 600
-    max_f_i = 1400
-    f_i_stride = 1
-    loop_edges = np.zeros((0, 2))
-
-
     #################
     # LOAD ALL FRAMES
     #################
 
     # Load all frame corrected and aligned
-    frame_path = "/home/hth/Deep-Collison-Checker/Data/Real/icp_frames/tmp/"
     frame_names = np.sort([join(frame_path, f) for f in listdir(frame_path) if f.endswith('.ply')])
-
     frame_names = frame_names[min_f_i:max_f_i:f_i_stride]
     
     # Advanced display
@@ -209,13 +228,11 @@ def test_loop_closure():
     print(fmt_str.format('#' * progress_n, 100), flush=True)
     print('\n')
 
-    print(np.array(all_lens, dtype=np.int32))
+    # print(np.array(all_lens, dtype=np.int32))
 
     ################
     # LOAD ALL POSES
     ################
-
-    poses_path = "/home/hth/Deep-Collison-Checker/Data/Real/slam_offline/2021-11-16_19-42-45/map0_traj_2021-11-16_19-42-45.pkl"
 
     with open(poses_path, 'rb') as file:
         map_H = pickle.load(file)
@@ -226,85 +243,77 @@ def test_loop_closure():
     # LOAD ALL TIMES
     ################
 
-    original_path = '/home/hth/Deep-Collison-Checker/Data/Real/runs/2021-11-16_19-42-45/velodyne_frames'
     frame_times = np.sort(np.array([float(f[:-4]) for f in listdir(original_path) if f.endswith('.ply')], dtype=np.float64))
     frame_times = frame_times[min_f_i:max_f_i:f_i_stride]
 
     print(len(map_H), len(all_points), len(frame_times))
 
-    ####################################################################################################################################################
-    # Try to get better ground
-
-    # Only get interesting frames
-
-    voxel_size = 0.1
-    d_coarse = voxel_size * 15
-    d_fine = voxel_size * 1.5
-    with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
-        pose_graph = full_registration(all_pcds,
-                                       loop_edges,
-                                       d_coarse,
-                                       d_fine)
-
+    # ####################################################################################################################################################
+    # # Try to get better ground
+    # # Only get interesting frames
+    # voxel_size = 0.1
+    # d_coarse = voxel_size * 15
+    # d_fine = voxel_size * 1.5
+    # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
+    #     pose_graph = full_registration(all_pcds,
+    #                                    loop_edges,
+    #                                    d_coarse,
+    #                                    d_fine)
+    # ####################################################################################################################################################
 
 
+    # #######################
+    # # Simple loop detection
+    # #######################
 
+    # closure_d = 1.0
+    # closure_d2 = closure_d * closure_d
+    # save_d = closure_d / 2
+    # save_d2 = save_d * save_d
+    # closure_t = 20.0
+    # closed_loops = 0
 
-    ####################################################################################################################################################
+    # sparse_positions = []
+    # sparse_f_inds = []
+    # for f_i, f_H in enumerate(map_H):
+    #     current_position = f_H[:3, 3]
+    #     if (len(sparse_positions) < 1):
+    #         sparse_positions.append(current_position)
+    #         sparse_f_inds.append(f_i)
+    #     else:
+    #         diff = current_position - sparse_positions[-1]
+    #         if diff.dot(diff) > save_d2:
+    #             sparse_positions.append(current_position)
+    #             sparse_f_inds.append(f_i)
 
+    #     closure_ind = -1
+    #     if (closed_loops < 1):
+    #         for i, p in enumerate(sparse_positions):
 
-    #######################
-    # Simple loop detection
-    #######################
+    #             if (frame_times[f_i] - frame_times[sparse_f_inds[i]] > closure_t):
 
-    closure_d = 1.0
-    closure_d2 = closure_d * closure_d
-    save_d = closure_d / 2
-    save_d2 = save_d * save_d
-    closure_t = 20.0
-    closed_loops = 0
+    #                 diff = p - current_position
+    #                 diff[2] = 0
+    #                 d2 = diff.dot(diff)
 
-    sparse_positions = []
-    sparse_f_inds = []
-    for f_i, f_H in enumerate(map_H):
-        current_position = f_H[:3, 3]
-        if (len(sparse_positions) < 1):
-            sparse_positions.append(current_position)
-            sparse_f_inds.append(f_i)
-        else:
-            diff = current_position - sparse_positions[-1]
-            if diff.dot(diff) > save_d2:
-                sparse_positions.append(current_position)
-                sparse_f_inds.append(f_i)
+    #                 if (d2 < closure_d2):
+    #                     closure_ind = sparse_f_inds[i]
+    #                     closed_loops += 1
+    #                     print(closure_ind)
+    #                     break
 
-        closure_ind = -1
-        if (closed_loops < 1):
-            for i, p in enumerate(sparse_positions):
+    #     # Here close
+    #     if closure_ind > 0:
+    #         print('Close loop here', f_i, frame_times[i])
 
-                if (frame_times[f_i] - frame_times[sparse_f_inds[i]] > closure_t):
-
-                    diff = p - current_position
-                    diff[2] = 0
-                    d2 = diff.dot(diff)
-
-                    if (d2 < closure_d2):
-                        closure_ind = sparse_f_inds[i]
-                        closed_loops += 1
-                        print(closure_ind)
-                        break
-
-        # Here close
-        if closure_ind > 0:
-            print('Close loop here', f_i, frame_times[i])
-
-            # print("Full registration ...")
-            # voxel_size = 0.1
-            # d_coarse = voxel_size * 15
-            # d_fine = voxel_size * 1.5
-            # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
-            #     pose_graph = full_registration(all_pcds,
-            #                                    d_coarse,
-            #                                    d_fine)
+    #         # print("Full registration ...")
+    #         # voxel_size = 0.1
+    #         # d_coarse = voxel_size * 15
+    #         # d_fine = voxel_size * 1.5
+    #         # with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
+    #         #     pose_graph = full_registration(all_pcds,
+    #         #                                    d_coarse,
+    #         #                                    d_fine)
 
 
     # Or here close
@@ -337,11 +346,7 @@ def test_loop_closure():
         new_map_H.append(np.matmul(pose_graph.nodes[point_id].pose, map_H[point_id]))
     # o3d.visualization.draw_geometries(all_pcds)
 
-    a = 1/0
-
     # Save new trajectory
-    map_folder = '/home/hth/Deep-Collison-Checker/Data/Real/slam_offline/2021-11-16_19-42-45/'
-    map_day = '2021-11-16_19-42-45'
     save_trajectory(join(map_folder, 'loopclosed_traj_{:s}.ply'.format(map_day)), new_map_H)
     new_traj_file = join(map_folder, 'loopclosed_traj_{:s}.pkl'.format(map_day))
     with open(new_traj_file, 'wb') as file:

@@ -1325,7 +1325,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
                 seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
                 frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
 
-                sogm_folder = '../Data/Real/sogm_preds/Log_{:s}'.format(seq_name)
+                sogm_folder = join(test_dataset.path, 'sogm_preds/Log_{:s}'.format(seq_name))
                 if not exists(sogm_folder):
                     makedirs(sogm_folder)
                 im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, ax_i))

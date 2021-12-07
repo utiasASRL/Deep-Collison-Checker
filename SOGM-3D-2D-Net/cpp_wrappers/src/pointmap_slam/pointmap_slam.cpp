@@ -54,7 +54,8 @@ void complete_map(string &frame_names,
 		vector<double> icp_scores;
 		vector<size_t> sub_inds;
 		Plane3D frame_ground;
-		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, params);
+		vector<float> heights;
+		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params);
 		
 		// Get current pose (pose of the last timestamp of the current frame in case of motion distortion)
 		Eigen::Matrix4d H1 = slam_H.block(frame_ind * 4, 0, 4, 4);
@@ -114,6 +115,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<double> &icp_scores,
 					  vector<size_t> &sub_inds,
 					  Plane3D &frame_ground,
+					  vector<float> &heights,
 					  SLAM_params &params)
 {
 	//////////////////////////////////////////
@@ -224,7 +226,6 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 		frame_ground.reverse();
 
 	// Get height above ground
-	vector<float> heights(sub_pts.size());
 	frame_ground.point_distances_signed(sub_pts, heights);
 
 
@@ -245,6 +246,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	filter_pointcloud(normals, norm_scores, min_score);
 	filter_anyvector(sub_inds, norm_scores, min_score);
 	filter_anyvector(icp_scores, norm_scores, min_score);
+	filter_anyvector(heights, norm_scores, min_score);
 	filter_floatvector(norm_scores, min_score);
 }
 
@@ -287,8 +289,9 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	vector<double> icp_scores;
 	vector<size_t> sub_inds;
 	Plane3D frame_ground;
-
-	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, params);
+	vector<float> heights;
+	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params);
+	
 
 	// // Debug (Points with scores)
 	// if (frame_i > 0)
@@ -360,10 +363,38 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	else
 	{
 		if (map.size() < 1)
-		{
-			// Case where we do not have a map yet. Override the first cloud position so that ground is at z=0
+		{ // Case where we do not have a map yet. Override the first cloud position so that ground is at z=0
+			
+			// Get transformation that make the ground plane horizontal
+			Eigen::Matrix3d ground_R;
+			if (!rot_u_to_v(frame_ground.u, PointXYZ(0, 0, 1), ground_R))
+				ground_R = Eigen::Matrix3d::Identity();
+			
+			// Get a point that belongs to the ground
+			float min_dist = 1e9;
+			PointXYZ ground_P;
+			for (int j = 0; j < (int)heights.size(); j++)
+			{
+				float dist = abs(heights[j]);
+				if (dist < min_dist)
+				{
+					min_dist = dist;
+					ground_P = sub_pts[j];
+				}
+			}
+
+			// Rotate point and get new ground height
+			Eigen::Map<Eigen::Matrix<float, 3, 1>> ground_P_mat((float*)&ground_P, 3, 1);
+			ground_P_mat = ground_R.cast<float>() * ground_P_mat;
+
+			// // Update icp parameters to trigger flat ground
+			params.icp_params.ground_w = 9.0;
+			params.icp_params.ground_z = 0.0;
+
+			// Update result transform
 			icp_results.transform = Eigen::Matrix4d::Identity();
-			icp_results.transform(2, 3) = 0.7;
+			icp_results.transform.block(0, 0, 3, 3) = ground_R;
+			icp_results.transform(2, 3) = - ground_P_mat(2);
 			params.icp_params.last_transform0 = icp_results.transform;
 		}
 		else
@@ -527,6 +558,21 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	{
 		warning_count = 0;
 	}
+
+	// ----------------------------------------------------------------
+	// Saving all frames for loop closure
+	bool saving_for_loop_closure = true;
+	if (saving_for_loop_closure)
+	{
+		string path000 = "/home/hth/Deep-Collison-Checker/Data/Real/icp_frames/tmp/";
+		char buffer02[100];
+		sprintf(buffer02, "f_%05d.ply", int(frame_i));
+		string filepath02 = path000 + string(buffer02);
+		vector<float> f12(icp_scores.begin(), icp_scores.end());
+		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+		save_cloud(filepath02, sub_pts, normals, f12);
+	}
+	// ----------------------------------------------------------------
 
 	
 	// The update function is called only on subsampled points as the others have no normal
@@ -1021,6 +1067,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		// We remove old points from the map neighbor tree to make sure there is no jump
 		// in the lidar odom when comming in a loop closure
 		if (mapper.params.icp_params.max_iter > 0 &&
+			mapper.map0.size() < 1 &&
 			mapper.params.local_map_dist > save_d)
 		{
 			// vector<clock_t> t;

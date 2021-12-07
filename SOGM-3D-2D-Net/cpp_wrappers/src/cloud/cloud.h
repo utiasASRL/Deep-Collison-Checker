@@ -120,4 +120,6 @@ Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 							float vertical_thresh_deg = 10.0,
 							float max_dist = 0.1);
 
+bool rot_u_to_v(PointXYZ u, PointXYZ v, Eigen::Matrix3d &R);
+
 // float tukey(float x);

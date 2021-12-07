@@ -68,13 +68,14 @@ class MyhalCollisionSlam:
                  last_day='',
                  day_list=None,
                  map_day=None,
+                 dataset_path='../Data/Real',
                  verbose=1):
 
         # Name of the dataset
         self.name = 'MyhalCollisionSlam'
 
         # Data path
-        self.original_path = '../Data/Real'
+        self.original_path = dataset_path
         self.data_path = self.original_path
         self.days_folder = join(self.original_path, 'runs')
         self.frame_folder_name = 'velodyne_frames'
@@ -1748,6 +1749,7 @@ class MyhalCollisionSlam:
 
         else:
 
+            # TODO : HERE GO MAP UPDATE
             print('Error: Refine map not modified for motion distortion yet')
             print('Refine map skipped for now \n')
             return
@@ -1905,8 +1907,6 @@ class MyhalCollisionSlam:
             init_map_pkl = join(map_folder, 'map0_traj_{:s}.pkl'.format(self.map_day))
             loop_pkl = join(map_folder, 'loopclosed_traj_{:s}.pkl'.format(self.map_day))
 
-
-            #DEBUG
             if exists(loop_pkl):
                 with open(loop_pkl, 'rb') as file:
                     loop_H = pickle.load(file)
@@ -1969,6 +1969,8 @@ class MyhalCollisionSlam:
                     old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
                     new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
                     os.rename(old_name, new_name)
+
+                    a = 1/0
 
 
         #####################################
@@ -2054,7 +2056,7 @@ class MyhalCollisionSlam:
                                                             theta_dl=0.33 * np.pi / 180,
                                                             phi_dl=0.5 * np.pi / 180,
                                                             map_dl=map_dl,
-                                                            verbose_time=5.0,
+                                                            verbose_time=5,
                                                             motion_distortion_slices=16)
 
             movable_prob = movable_prob / (movable_count + 1e-6)
@@ -2068,9 +2070,9 @@ class MyhalCollisionSlam:
                       [points, normals, movable_prob, movable_count],
                       ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
 
-        #####################
-        # Reproject on frames
-        # ###################
+        ###############
+        # Detect ground
+        # #############
 
         # Extract ground ransac
         print('Get ground')
@@ -2083,6 +2085,11 @@ class MyhalCollisionSlam:
 
         # Do not remove ground points
         movable_prob[ground_mask] = 0
+
+
+        ###################
+        # Loop closure case
+        ###################
 
         # Stop here if we did loop closure
         loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
@@ -2122,7 +2129,9 @@ class MyhalCollisionSlam:
             return
 
 
-
+        #####################
+        # Reproject on frames
+        # ###################
 
 
         # Folder where we save the first annotated_frames
@@ -2626,6 +2635,7 @@ class MyhalCollisionDataset(PointCloudDataset):
                  config,
                  day_list,
                  chosen_set='training',
+                 dataset_path='../Data/Real',
                  balance_classes=True,
                  load_data=True):
         PointCloudDataset.__init__(self, 'MyhalCollision')
@@ -2638,7 +2648,7 @@ class MyhalCollisionDataset(PointCloudDataset):
         self.path = '../Data/KPConv_data'
 
         # Original data path
-        self.original_path = '../Data/Real'
+        self.original_path = dataset_path
 
         # Type of task conducted on this dataset
         self.dataset_task = 'collision_prediction'
