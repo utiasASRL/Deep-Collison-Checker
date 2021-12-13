@@ -57,6 +57,38 @@ import re
 from utils.mayavi_visu import show_point_cloud
 
 
+def filter_frame_timestamps(map_t, f_names):
+
+    # Verify which frames we need:
+    frame_names = []
+    f_name_i = 0
+    last_t = map_t[0] - 0.1
+    remove_inds = []
+    for i, t in enumerate(map_t):
+
+        # Handle cases were we have two identical timestamps in map_t
+        if np.abs(t - last_t) < 0.01:
+            remove_inds.append(i)
+            continue
+        last_t = t
+
+        f_name = '{:.6f}.ply'.format(t)
+        while f_name_i < len(f_names) and not (
+                f_names[f_name_i].endswith(f_name)):
+            #print(f_names[f_name_i], ' skipped for ', f_name)
+            f_name_i += 1
+
+        if f_name_i >= len(f_names):
+            break
+
+        frame_names.append(f_names[f_name_i])
+        f_name_i += 1
+
+    # Remove the double inds form map_t and map_H
+    map_t = np.delete(map_t, remove_inds, axis=0)
+
+    return map_t, frame_names
+
 
 def compute_plane(points):
     ref_point = points[0]

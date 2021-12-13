@@ -41,13 +41,15 @@ from utils.config import bcolors
 from datasets.common import grid_subsampling
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from scipy.spatial.transform import Rotation as scipyR
 from sklearn.neighbors import KDTree
 from slam.PointMapSLAM import PointMap, extract_map_ground, extract_ground
 from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, slam_on_sim_sequence, ray_casting_annot, get_lidar_visibility, slam_on_real_sequence
-from slam.dev_slam import frame_H_to_points, interp_pose, rot_trans_diffs, normals_orientation, save_trajectory, RANSAC
+from slam.dev_slam import frame_H_to_points, interp_pose, rot_trans_diffs, normals_orientation, save_trajectory, RANSAC, filter_frame_timestamps
 from utils.ply import read_ply, write_ply
-from utils.mayavi_visu import save_future_anim, fast_save_future_anim
+from utils.mayavi_visu import save_future_anim, fast_save_future_anim, Box
+from simple_loop_closure import loop_closure
 
 # OS functions
 from os import listdir, makedirs
@@ -1726,7 +1728,613 @@ class MyhalCollisionSlam:
 
         return pointmap
 
-    def refine_map(self, map_dl=0.03, min_rays=10, occup_threshold=0.9):
+    def loop_closure_edges_prompt(self, lim_box, init_H):
+            
+        global picked_loop_edges
+        picked_loop_edges = []
+
+        # define Matplotlib figure and axis
+        fig, ax = plt.subplots()
+
+        margin = (lim_box.x2 - lim_box.x1) * 0.1
+        ax.set_xlim(lim_box.x1 - margin, lim_box.x2 + margin)
+        ax.set_ylim(lim_box.y1 - margin, lim_box.y2 + margin)
+        ax.set_aspect('equal', adjustable='box')
+
+        # add rectangle to plot
+        ax.add_patch(lim_box.plt_rect(edgecolor='black', facecolor='cyan', fill=False, lw=2))
+
+        # Plot the trajectory with color
+        traj_color = np.arange(init_H.shape[0])
+        coll = ax.scatter(init_H[:, 0, 3], init_H[:, 1, 3], c=traj_color, marker='.', picker=10)
+        plt.grid(True)
+
+        def on_pick(event):
+            global picked_loop_edges
+
+            # Cluster points close together
+            max_gap = 30
+            group = []
+            centers = []
+            for ind in event.ind:
+                
+                if len(group) < 1:
+                    # Start a new group
+                    group.append(ind)
+                
+                else:
+                    # Fill group
+                    if (ind - group[-1]) < max_gap:
+                        group.append(ind)
+
+                    # Finish group
+                    else:
+                        centers.append(group[len(group) // 2])
+                        group = [ind]
+            
+            # Add last group
+            centers.append(group[len(group) // 2])
+
+            # Create edges
+            picked = False
+            if len(centers) <= 1:
+                print("not enough picked trajectory points in the vicinity to create an edge: ", centers)
+            elif len(centers) == 2:
+                print("Adding the following loop closure edge: ", centers)
+                picked_loop_edges.append(centers)
+                picked = True
+            else:
+                print("To many picked trajectory points in the vicinity (TODO HANDLE THIS CASE): ", centers)
+
+            if (picked):
+                # Show a circle of the loop closure area
+                ax.add_patch(Circle((event.mouseevent.xdata, event.mouseevent.ydata), radius=1.0,
+                                    edgecolor='red',
+                                    fill=False,
+                                    lw=0.5))
+                plt.draw()
+
+
+            return
+
+        # fig.canvas.mpl_connect('button_press_event', onclick)
+        fig.canvas.mpl_connect('pick_event', on_pick)
+
+        # display plot
+        plt.show()
+
+        return np.array(picked_loop_edges, dtype=np.int32)
+
+    def init_map(self, map_dl=0.03):
+
+        # Map is initiated by removing movable points with its own trajectory
+        #   > Step 0: REdo the point map from scratch
+        #   > Step 1: annotate short-term movables for each frame
+        #   > Step 2: Do a pointmap slam without the short-term movables (enforce horizontal planar ground)
+        #   > Step 3: Apply loop closure on the poses of this second slam
+        #   > Step 4: With the corrected poses and the full point clouds, create a barycentre pointmap
+        #   > Step 5: Remove the short-term movables from this good map.
+
+        print('\n')
+        print('Build Initial Map')
+        print('*****************')
+        print('\n')
+        print('Using run', self.map_day)
+
+        # Load hardcoded map limits
+        map_lim_file = join(self.data_path, 'calibration/map_limits.txt')
+        if exists(map_lim_file):
+            map_limits = np.loadtxt(map_lim_file)
+        else:
+            map_limits = None
+
+        lim_box = Box(map_limits[0, 0], map_limits[1, 0], map_limits[0, 1], map_limits[1, 1])
+        min_z = map_limits[2, 0]
+        max_z = map_limits[2, 1]
+
+        ##########################
+        # Initial odometry mapping
+        ##########################
+
+        print('\n----- Initial odometry on the mapping session')
+        
+        # Folder where the incrementally updated map is stored
+        map_folder = join(self.data_path, 'slam_offline', self.map_day)
+        if not exists(map_folder):
+            makedirs(map_folder)
+
+        # Get frame names and times
+        map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
+        map_t, frame_names = filter_frame_timestamps(map_t, self.map_f_names)
+
+        # Check if initial mapping 
+        init_map_pkl = join(map_folder, 'map0_traj_{:s}.pkl'.format(self.map_day))
+        if exists(init_map_pkl):
+            with open(init_map_pkl, 'rb') as file:
+                map_H = pickle.load(file)
+
+            print('\n    > Done (recovered from previous file)')
+
+        else:
+
+            map_H = slam_on_real_sequence(frame_names,
+                                          map_t,
+                                          map_folder,
+                                          map_voxel_size=map_dl,
+                                          frame_voxel_size=3 * map_dl,
+                                          motion_distortion=True,
+                                          filtering=False,
+                                          verbose_time=5.0,
+                                          icp_samples=600,
+                                          icp_pairing_dist=2.0,
+                                          icp_planar_dist=0.12,
+                                          icp_max_iter=100,
+                                          icp_avg_steps=5)
+
+            # Save the trajectory
+            save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
+            with open(init_map_pkl, 'wb') as file:
+                pickle.dump(map_H, file)
+
+            # Rename the saved map file
+            old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
+            new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
+            os.rename(old_name, new_name)
+
+            print('\n    > Done')
+
+        ######################
+        # Loop closure utility
+        ######################
+
+        print('\n----- Loop closure')
+        
+        new_traj_file = join(map_folder, 'loopclosed_traj_{:s}.pkl'.format(self.map_day))
+        if exists(new_traj_file):
+            with open(new_traj_file, 'rb') as file:
+                loop_H = pickle.load(file)
+                
+            print('\n    > Done (recovered from previous file)')
+
+        else:
+
+            # Get loop edges with a simple UI
+            print('\nPicking loop edges')
+            loop_edges = self.loop_closure_edges_prompt(lim_box, map_H)
+            
+            print('\nResult:')
+            print(loop_edges)
+            
+            print('\nPerform loop closure')
+
+            # Close the loop
+            loop_H = loop_closure(self.map_day, self.data_path, loop_edges)
+            
+            # Save new trajectory
+            save_trajectory(join(map_folder, 'loopclosed_traj_{:s}.ply'.format(self.map_day)), loop_H)
+            with open(new_traj_file, 'wb') as file:
+                pickle.dump(loop_H, file)
+        
+            print('\n    > Done')
+        
+
+        print('\n----- Build loop closed map')
+
+        loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
+        if not exists(loop_closed_map_name):
+
+            odom_H = [np.linalg.inv(odoH) for odoH in loop_H]
+            odom_H = np.stack(odom_H, 0)
+            _ = slam_on_real_sequence(frame_names,
+                                      map_t,
+                                      map_folder,
+                                      map_voxel_size=map_dl,
+                                      frame_voxel_size=3 * map_dl,
+                                      motion_distortion=True,
+                                      filtering=False,
+                                      verbose_time=5.0,
+                                      icp_samples=600,
+                                      icp_pairing_dist=2.0,
+                                      icp_planar_dist=0.12,
+                                      icp_max_iter=0,
+                                      icp_avg_steps=5,
+                                      odom_H=odom_H)
+
+            # Rename the saved map file
+            old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
+            os.rename(old_name, loop_closed_map_name)
+            print('\n    > Done')
+
+        else:
+            print('\n    > Done (recovered from previous file)')
+
+
+        #####################################
+        # Annotate short-term on original map
+        #####################################
+
+        print('\n----- Remove dynamic points from map')
+
+        first_annot_name = join(map_folder, 'movable_final.ply')
+        if exists(first_annot_name):
+
+            print('\nLoad annot')
+            data = read_ply(first_annot_name)
+            points = np.vstack((data['x'], data['y'], data['z'])).T
+            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            movable_prob = data['movable']
+            movable_count = data['counts']
+            print('OK')
+            
+            print('\n    > Done (recovered from previous file)')
+
+        else:
+
+            print('\nPrepare pointmap')
+
+            # Get the map
+            map_original_name = join(map_folder, 'loopclosed_map0_' + self.map_day + '.ply')
+            if not exists(map_original_name):
+                map_original_name = join(map_folder, 'map0_' + self.map_day + '.ply')
+            data = read_ply(map_original_name)
+            points = np.vstack((data['x'], data['y'], data['z'])).T
+            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            scores = data['f0']
+            counts = data['f1']
+
+            print('\nStart ray casting')
+
+            # Get short term movables TODO: HERE implement motion distortion and correct double linked list bug
+            movable_prob, movable_count = ray_casting_annot(frame_names,
+                                                            points,
+                                                            normals,
+                                                            loop_H,
+                                                            theta_dl=0.33 * np.pi / 180,
+                                                            phi_dl=0.5 * np.pi / 180,
+                                                            map_dl=map_dl,
+                                                            verbose_time=5,
+                                                            motion_distortion_slices=16)
+
+            movable_prob = movable_prob / (movable_count + 1e-6)
+            movable_prob[movable_count < 1e-6] = -1
+
+            print('\nSave movable probs')
+
+            # Save it
+            # write_ply(first_annot_name,
+            write_ply(join(map_folder, 'movable_final.ply'),
+                      [points, normals, movable_prob, movable_count],
+                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
+
+            print('\n    > Done')
+
+        ###############
+        # Detect ground
+        ###############
+
+        # Extract ground ransac
+        print('\n----- Get ground')
+        ground_mask = extract_map_ground(points,
+                                         normals,
+                                         map_folder,
+                                         vertical_thresh=10.0,
+                                         dist_thresh=0.2,
+                                         remove_dist=0.21)
+
+        # Do not remove ground points
+        movable_prob[ground_mask] = 0
+
+        print('\n    > Done')
+
+        #####################
+        # Enhance map quality
+        #####################
+
+        # TODO: C++ function for loop closure and flatten ground with ceres and pt2pl loss
+
+        # TODO: Here redo the map with spherical barycenters
+        # TODO: Find way to realign frames locally because loop closure could have made problems
+        #       => ICP with alignement on the median/average along the normal dimension
+        # TODO: Use frames without dynamic for this alignement
+        
+        correct_H = loop_H
+
+        ################
+        # Final map file
+        ################
+
+        print('\n----- Save the obtained initial map file')
+
+        initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
+        if not exists(initial_map_file):
+
+            # Save the new corrected trajectory
+            save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
+            with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
+                pickle.dump(correct_H, file)
+
+            data = read_ply(loop_closed_map_name)
+            counts = data['f0']
+            scores = data['f1']
+
+            still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.8)
+            still_mask = np.logical_and(still_mask, points[:, 0] > lim_box.x1)
+            still_mask = np.logical_and(still_mask, points[:, 0] < lim_box.x2)
+            still_mask = np.logical_and(still_mask, points[:, 1] > lim_box.y1)
+            still_mask = np.logical_and(still_mask, points[:, 1] < lim_box.y2)
+            still_mask = np.logical_and(still_mask, points[:, 2] > min_z)
+            still_mask = np.logical_and(still_mask, points[:, 2] < max_z)
+
+            write_ply(initial_map_file,
+                      [points[still_mask], normals[still_mask], scores[still_mask], counts[still_mask]],
+                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
+
+        print('\n    > Done')
+
+        a = 1/0
+
+        # #####################
+        # # Reproject on frames
+        # # ###################
+
+        # # Folder where we save the first annotated_frames
+        # annot_folder = join(map_folder, 'tmp_frames')
+        # if not exists(annot_folder):
+        #     makedirs(annot_folder)
+
+        # # Create KDTree on the map
+        # print('Reprojection of map day {:s}'.format(self.map_day))
+        # map_tree = None
+        # N = len(frame_names)
+        # new_frame_names = []
+        # last_t = time.time()
+        # fps = 0
+        # fps_regu = 0.9
+        # for i, f_name in enumerate(frame_names):
+
+        #     # Check if we already did reprojection
+        #     new_f_name = join(annot_folder, f_name.split('/')[-1])
+        #     new_frame_names.append(new_f_name)
+        #     if exists(new_f_name):
+        #         continue
+        #     elif i < 1:
+        #         map_tree = KDTree(points)
+
+        #     t = [time.time()]
+
+        #     # Load points
+        #     points = self.load_frame_points(f_name)
+
+        #     # Apply transf
+        #     world_pts = np.hstack((points, np.ones_like(points[:, :1])))
+        #     world_pts = np.matmul(world_pts, map_H[i].T).astype(np.float32)[:, :3]
+
+        #     # Get closest map points
+        #     neighb_inds = np.squeeze(map_tree.query(world_pts, return_distance=False))
+        #     frame_movable_prob = movable_prob[neighb_inds]
+        #     frame_ground_mask = ground_mask[neighb_inds]
+
+        #     # Save frame with annotation
+        #     categories = np.zeros(frame_movable_prob.shape, np.int32)
+        #     categories[frame_movable_prob > 0.9] = 4
+        #     categories[frame_ground_mask] = 1
+        #     write_ply(new_f_name, [categories], ['cat'])
+
+        #     t += [time.time()]
+        #     fps = fps_regu * fps + (1.0 - fps_regu) / (t[-1] - t[0])
+
+        #     if (t[-1] - last_t > 5.0):
+        #         print('Reproj {:s} {:5d} --- {:5.1f}%% at {:.1f} fps'.format(self.map_day,
+        #                                                                      i + 1,
+        #                                                                      100 * (i + 1) / N,
+        #                                                                      fps))
+        #         last_t = t[-1]
+        # print('OK')
+
+        # # ###########################################
+        # # # Aligned the transformation on groundtruth
+        # # ###########################################
+        # # # This is not cheating as if we did not add ground truth, the map would be the ground truth
+
+        # # gt_t, gt_H = self.load_map_gt_poses()
+
+        # # # Do not align with the first frame in case it is not a good one
+        # # f_i0 = 3
+        # # f_t0 = map_t[f_i0]
+
+        # # # Find closest gt poses
+        # # gt_i1 = np.argmin(np.abs(gt_t - f_t0))
+        # # if f_t0 < gt_t[gt_i1]:
+        # #     gt_i0 = gt_i1 - 1
+        # # else:
+        # #     gt_i0 = gt_i1
+        # #     gt_i1 = gt_i0 + 1
+
+        # # # Interpolate the ground truth pose at current time
+        # # interp_t = (f_t0 - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
+        # # frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
+        # # gt_H_velo_world = np.matmul(frame_H, self.H_velo_base)
+
+        # # # Align everything
+        # # correction_H = np.matmul(gt_H_velo_world, np.linalg.inv(map_H[f_i0]))
+        # # map_H = [np.matmul(correction_H, mH) for mH in map_H]
+        # # map_H = np.stack(map_H, 0)
+
+        # # save_trajectory(
+        # #     join(map_folder, 'init_traj_{:s}.ply'.format(self.map_day)), map_H)
+
+        # # # Save the grounbdtruth traj but of the velodyne pose
+        # # gt_H_velo_world = []
+        # # for f_i, f_t in enumerate(map_t):
+
+        # #     # Find closest gt poses
+        # #     gt_i1 = np.argmin(np.abs(gt_t - f_t))
+
+        # #     if gt_i1 == 0 or gt_i1 == len(gt_t) - 1:
+        # #         continue
+
+        # #     if f_t < gt_t[gt_i1]:
+        # #         gt_i0 = gt_i1 - 1
+        # #     else:
+        # #         gt_i0 = gt_i1
+        # #         gt_i1 = gt_i0 + 1
+
+        # #     # Interpolate the ground truth pose at current time
+        # #     interp_t = (f_t - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
+        # #     frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
+        # #     gt_H_velo_world.append(np.matmul(frame_H, self.H_velo_base))
+
+        # # gt_H_velo_world = np.stack(gt_H_velo_world, 0)
+        # # save_trajectory(
+        # #     join(map_folder, 'gt_traj_{:s}.ply'.format(self.map_day)),
+        # #     gt_H_velo_world)
+
+        # ##########################
+        # # Make a horizontal ground
+        # ##########################
+
+        # # TODO HERE: Well it os not so horizontal...
+        # # Maybe use something like imls for noise reduction on this flat surface
+        # # instead of forcing globally flat ground, force local flat ground!
+
+        # # Find the global transform that makes the ground flat and with height z = 0
+        # global_correct_H = np.eye(4)
+        
+        # # Align all ground point on a horizontal plane (height does not matter so much as we correct it later)
+        # ground_points = points[ground_mask]
+        # ground_pointsh = np.hstack((ground_points, np.ones_like(ground_points[:, :1])))
+        # ground_points = np.matmul(ground_pointsh, global_correct_H.T).astype(np.float32)[:, :3]
+        
+        # # Remove noise on the ground
+        # ground_z = 0
+        # ground_points[:, 2] = ground_z
+
+        # # Only vertical normals
+        # ground_normals = np.zeros_like(ground_points)
+        # ground_normals[:, 2] = 1.0
+
+        # # High scores to keep normals
+        # ground_scores = np.ones(ground_points.shape[0],
+        #                         dtype=np.float32) * 0.99
+
+        # # Add the first frame in init point to avoid optimization problems
+        # # Hopefully during mapping the fist frame should not have motion distortion
+        # f_i0 = 1
+        # points, labels = self.load_frame_points_labels(frame_names[f_i0], new_frame_names[f_i0])
+        # normals, planarity, linearity = polar_normals(points,
+        #                                               radius=1.5,
+        #                                               lidar_n_lines=32,
+        #                                               h_scale=0.5,
+        #                                               r_scale=1000.0)
+        # norm_scores = planarity + linearity
+        # points = points[norm_scores > 0.1]
+        # labels = labels[norm_scores > 0.1]
+        # normals = normals[norm_scores > 0.1]
+
+        # # Eliminate moving and ground points
+        # points = points[labels == 0]
+        # normals = normals[labels == 0]
+
+        # # Reorient the first frame to be on the ground
+        # frame_H = np.matmul(global_correct_H, map_H[f_i0])
+        # world_points = np.hstack((points, np.ones_like(points[:, :1])))
+        # world_points = np.matmul(world_points, frame_H.T).astype(np.float32)[:, :3]
+        # world_normals = np.matmul(normals, frame_H[:3, :3].T).astype(np.float32)
+        # world_scores = np.ones(world_points.shape[0], dtype=np.float32) * 0.1
+
+        # # Add ground to init points
+        # world_points = np.vstack((world_points, ground_points))
+        # world_normals = np.vstack((world_normals, ground_normals))
+        # world_scores = np.hstack((world_scores, ground_scores))
+
+        # # Save for debug
+        # write_ply(join(map_folder, 'horizontal_ground.ply'),
+        #           [world_points, world_normals],
+        #           ['x', 'y', 'z', 'nx', 'ny', 'nz'])
+
+        # print('OK')
+
+        # #############################################################
+        # # Pointmap slam without short-term and with horizontal ground
+        # # ###########################################################
+
+        # initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
+
+        # if not exists(initial_map_file):
+
+        #     # Odometry is given as Scanner to Odom so we have to invert matrices
+        #     odom_H = [np.linalg.inv(odoH) for odoH in map_H]
+        #     odom_H = np.stack(odom_H, 0)
+
+        #     correct_H = slam_on_real_sequence(frame_names,
+        #                                       map_t,
+        #                                       map_folder,
+        #                                       init_points=world_points,
+        #                                       init_normals=world_normals,
+        #                                       init_scores=world_scores,
+        #                                       map_voxel_size=map_dl,
+        #                                       frame_voxel_size=3 * map_dl,
+        #                                       motion_distortion=True,
+        #                                       filtering=True,
+        #                                       verbose_time=5,
+        #                                       icp_samples=600,
+        #                                       icp_pairing_dist=2.0,
+        #                                       icp_planar_dist=0.12,
+        #                                       icp_max_iter=100,
+        #                                       icp_avg_steps=5,
+        #                                       odom_H=odom_H)
+
+        #     # Apply offset so that traj is aligned with groundtruth
+        #     # correct_H = correct_H
+
+        #     # Save the new corrected trajectory
+        #     save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
+        #     with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
+        #         pickle.dump(correct_H, file)
+
+        #     # TODO: C++ function for creating a map with spherical barycenters of frames?
+        #     #       We have to do it anyway for the annotation process after
+        #     # # Create a point map with all the points and sphere barycentres.
+
+        #     # Instead just load c++ map and save it as the final result
+        #     data = read_ply(join(map_folder, 'map_{:s}.ply'.format(self.map_day)))
+        #     points = np.vstack((data['x'], data['y'], data['z'])).T
+        #     normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+        #     scores = data['f1']
+        #     counts = data['f0']
+        #     write_ply(initial_map_file,
+        #               [points, normals, scores, counts],
+        #               ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
+
+        # else:
+
+        #     # Load traj
+        #     with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'rb') as f:
+        #         correct_H = pickle.load(f)
+
+        # # Optional stuff done for the ICRA video
+        # if False:
+        #     odom_H = [np.linalg.inv(odoH) for odoH in correct_H]
+        #     odom_H = np.stack(odom_H, 0)
+        #     slam_on_sim_sequence(frame_names,
+        #                          map_t,
+        #                          map_H,
+        #                          map_t,
+        #                          map_folder,
+        #                          map_voxel_size=map_dl,
+        #                          frame_voxel_size=3 * map_dl,
+        #                          motion_distortion=False,
+        #                          filtering=True,
+        #                          icp_samples=600,
+        #                          icp_pairing_dist=2.0,
+        #                          icp_planar_dist=0.12,
+        #                          icp_max_iter=0,
+        #                          icp_avg_steps=5,
+        #                          odom_H=odom_H)
+
+        return
+
+    def refine_map(self, refine_days, map_dl=0.03, min_rays=10, occup_threshold=0.9):
         """
         Remove moving objects via ray-tracing. (Step 1 in the annotation process)
         """
@@ -1741,19 +2349,14 @@ class MyhalCollisionSlam:
 
         # First check if we never initiated the map
         if len(map_names) == 0:
+            raise ValueError('Map not initialized')
 
-            self.init_map(map_folder)
+        # else:
 
-            # Stop computation here as we have nothing to train on
-            a = 1 / 0
-
-        else:
-
-            # TODO : HERE GO MAP UPDATE
-            print('Error: Refine map not modified for motion distortion yet')
-            print('Refine map skipped for now \n')
-            return
-
+        #     # TODO : HERE GO MAP UPDATE
+        #     print('Error: Refine map not modified for motion distortion yet')
+        #     print('Refine map skipped for now \n')
+        #     return
 
         # Now check if these days were already used for updating
         day_movable_names = [f for f in listdir(map_folder) if f.startswith('last_movables_')]
@@ -1763,7 +2366,7 @@ class MyhalCollisionSlam:
             if day in day_movable_names:
                 seen_inds.append(d)
         if len(seen_inds) == len(self.days):
-            print('Not updating if no new days are given')
+            print('Refinement with the given days has already been Done')
             return
 
         print('Start Map Update')
@@ -1781,6 +2384,98 @@ class MyhalCollisionSlam:
         map_scores = data['scores']
         map_counts = data['counts']
         print('OK')
+
+
+        #################
+        # Frame alignment
+        #################
+        
+        # Localize against with precise ICP for each session
+        for d, day in enumerate(self.days):
+
+            # No update if this day have already been seen
+            if d in seen_inds:
+                continue
+
+            # Out folder
+            out_folder = join(self.data_path, 'annotation', day)
+            if not exists(out_folder):
+                makedirs(out_folder)
+
+            # Frame names
+            f_names = self.day_f_names[d]
+                
+            # Get frame timestamps
+            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in f_names], dtype=np.float64)
+
+            # Filter timestamps
+            map_t, frame_names = filter_frame_timestamps(map_t, f_names)
+
+            # Previously computed files
+            # cpp_map_name = join(out_folder, 'map_{:s}.ply'.format(day))
+            cpp_traj_name = join(out_folder, 'correct_traj_{:s}.pkl'.format(day))
+
+            # Align frames on the map
+            if not exists(cpp_traj_name):
+
+                correct_H = slam_on_real_sequence(frame_names,
+                                                  map_t,
+                                                  out_folder,
+                                                  init_points=map_points,
+                                                  init_normals=map_normals,
+                                                  init_scores=map_scores,
+                                                  map_voxel_size=map_dl,
+                                                  frame_voxel_size=3 * map_dl,
+                                                  motion_distortion=True,
+                                                  verbose_time=5.0,
+                                                  icp_samples=600,
+                                                  icp_pairing_dist=2.0,
+                                                  icp_planar_dist=0.12,
+                                                  icp_max_iter=100,
+                                                  icp_avg_steps=5)
+
+                # Verify that there was no error
+                test = np.sum(np.abs(correct_H), axis=(1, 2)) > 1e-6
+                if not np.all(test):
+                    num_computed = np.sum(test.astype(np.int32))
+                    raise ValueError('PointSlam returned without only {:d} poses computed out of {:d}'.format(num_computed, test.shape[0]))
+                             
+                # Save traj
+                save_trajectory(join(out_folder, 'correct_traj_{:s}.ply'.format(day)), correct_H)
+                with open(cpp_traj_name, 'wb') as file:
+                    pickle.dump(correct_H, file)
+                    
+                a = 1/0
+
+            else:
+
+                # Load traj
+                with open(cpp_traj_name, 'rb') as f:
+                    correct_H = pickle.load(f)
+
+
+        # TODO: HERE SHOULD WE ADD NEW POINTS TO COMPLETE THE MAP???
+
+        ###################
+        # Movable detection
+        ###################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         # Get remove point form each day independently
         # Otherwise if a table is there in only one day, it will not be removed.
@@ -1876,518 +2571,6 @@ class MyhalCollisionSlam:
             map_counts[mask]
         ], ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
         print('OK')
-
-        return
-
-    def init_map(self, map_folder, map_dl=0.03):
-
-        # Map is initiated by removing movable points with its own trajectory
-        #   > Step 0: REdo the point map from scratch
-        #   > Step 1: annotate short-term movables for each frame
-        #   > Step 2: Do a pointmap slam without the short-term movables (enforce horizontal planar ground)
-        #   > Step 3: Apply loop closure on the poses of this second slam
-        #   > Step 4: With the corrected poses and the full point clouds, create a barycentre pointmap
-        #   > Step 5: Remove the short-term movables from this good map.
-
-
-        #################
-        # Initial mapping
-        #################
-
-        try:
-            # Get map_poses
-            from_nav = True
-            map_t, map_H = self.load_map_poses(self.map_day)
-
-        except FileNotFoundError as e:
-
-            # If not available perfrom an initial mapping
-            from_nav = False
-            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
-            init_map_pkl = join(map_folder, 'map0_traj_{:s}.pkl'.format(self.map_day))
-            loop_pkl = join(map_folder, 'loopclosed_traj_{:s}.pkl'.format(self.map_day))
-
-            if exists(loop_pkl):
-                with open(loop_pkl, 'rb') as file:
-                    loop_H = pickle.load(file)
-
-                map_H = loop_H
-
-                loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
-                if not exists(loop_closed_map_name):
-
-                    odom_H = [np.linalg.inv(odoH) for odoH in loop_H]
-                    odom_H = np.stack(odom_H, 0)
-                    _ = slam_on_real_sequence(self.map_f_names,
-                                              map_t,
-                                              map_folder,
-                                              map_voxel_size=map_dl,
-                                              frame_voxel_size=3 * map_dl,
-                                              motion_distortion=True,
-                                              filtering=False,
-                                              verbose_time=5.0,
-                                              icp_samples=600,
-                                              icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.12,
-                                              icp_max_iter=0,
-                                              icp_avg_steps=5,
-                                              odom_H=odom_H)
-
-                    # Rename the saved map file
-                    old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
-                    os.rename(old_name, loop_closed_map_name)
-                    
-
-            else:
-
-                if exists(init_map_pkl):
-                    with open(init_map_pkl, 'rb') as file:
-                        map_H = pickle.load(file)
-
-                else:
-
-                    map_H = slam_on_real_sequence(self.map_f_names,
-                                                  map_t,
-                                                  map_folder,
-                                                  map_voxel_size=map_dl,
-                                                  frame_voxel_size=3 * map_dl,
-                                                  motion_distortion=True,
-                                                  filtering=False,
-                                                  verbose_time=5.0,
-                                                  icp_samples=600,
-                                                  icp_pairing_dist=2.0,
-                                                  icp_planar_dist=0.12,
-                                                  icp_max_iter=100,
-                                                  icp_avg_steps=5)
-
-                    # Save the trajectory
-                    save_trajectory(join(map_folder, 'map0_traj_{:s}.ply'.format(self.map_day)), map_H)
-                    with open(init_map_pkl, 'wb') as file:
-                        pickle.dump(map_H, file)
-
-                    # Rename the saved map file
-                    old_name = join(map_folder, 'map_{:s}.ply'.format(self.map_day))
-                    new_name = join(map_folder, 'map0_{:s}.ply'.format(self.map_day))
-                    os.rename(old_name, new_name)
-
-                    a = 1/0
-
-
-        #####################################
-        # Annotate short-term on original map
-        #####################################
-
-        # Verify which frames we need:
-        frame_names = []
-        f_name_i = 0
-        last_t = map_t[0] - 0.1
-        remove_inds = []
-        for i, t in enumerate(map_t):
-
-            # Handle cases were we have two identical timestamps in map_t
-            if np.abs(t - last_t) < 0.01:
-                remove_inds.append(i)
-                continue
-            last_t = t
-
-            # Skip ply frames that are not present in the timestamps of map_t
-            f_name = '{:.6f}.ply'.format(t)
-            while f_name_i < len(self.map_f_names) and not (self.map_f_names[f_name_i].endswith(f_name)):
-                f_name_i += 1
-
-            if f_name_i >= len(self.map_f_names):
-                break
-
-            frame_names.append(self.map_f_names[f_name_i])
-            f_name_i += 1
-
-        # Remove the double inds form map_t and map_H
-        map_t = np.delete(map_t, remove_inds, axis=0)
-        map_H = np.delete(map_H, remove_inds, axis=0)
-
-        print('OK')
-
-        first_annot_name = join(map_folder, 'movable_final.ply')
-        if exists(first_annot_name):
-
-            print('Load annot')
-            # pointmap = PointMap(map_dl)
-            data = read_ply(first_annot_name)
-            points = np.vstack((data['x'], data['y'], data['z'])).T
-            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-            movable_prob = data['movable']
-            movable_count = data['counts']
-            print('OK')
-
-        else:
-
-            print('Load pointmap')
-
-            # Get the map
-            if from_nav:
-                map_original_name = join(self.data_path, 'simulated_runs',
-                                         self.map_day, 'logs-' + self.map_day,
-                                         'pointmap_00000.ply')
-            else:
-                map_original_name = join(map_folder, 'loopclosed_map0_' + self.map_day + '.ply')
-                if not exists(map_original_name):
-                    map_original_name = join(map_folder, 'map0_' + self.map_day + '.ply')
-
-            data = read_ply(map_original_name)
-            points = np.vstack((data['x'], data['y'], data['z'])).T
-            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-            scores = data['f0']
-            counts = data['f1']
-
-            print('OK')
-            print('Update pointmap')
-
-            # pointmap = PointMap(map_dl)
-            # pointmap.update(points, normals, scores)
-
-            print('OK')
-            print('Start ray casting')
-
-            # Get short term movables TODO: HERE implement motion distortion and correct double linked list bug
-            movable_prob, movable_count = ray_casting_annot(frame_names,
-                                                            points,
-                                                            normals,
-                                                            map_H,
-                                                            theta_dl=0.33 * np.pi / 180,
-                                                            phi_dl=0.5 * np.pi / 180,
-                                                            map_dl=map_dl,
-                                                            verbose_time=5,
-                                                            motion_distortion_slices=16)
-
-            movable_prob = movable_prob / (movable_count + 1e-6)
-            movable_prob[movable_count < 1e-6] = -1
-
-            print('Ray_casting done')
-
-            # Save it
-            # write_ply(first_annot_name,
-            write_ply(join(map_folder, 'movable_final.ply'),
-                      [points, normals, movable_prob, movable_count],
-                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'movable', 'counts'])
-
-        ###############
-        # Detect ground
-        # #############
-
-        # Extract ground ransac
-        print('Get ground')
-        ground_mask = extract_map_ground(points,
-                                         normals,
-                                         map_folder,
-                                         vertical_thresh=10.0,
-                                         dist_thresh=0.2,
-                                         remove_dist=0.21)
-
-        # Do not remove ground points
-        movable_prob[ground_mask] = 0
-
-
-        ###################
-        # Loop closure case
-        ###################
-
-        # Stop here if we did loop closure
-        loop_closed_map_name = join(map_folder, 'loopclosed_map0_{:s}.ply'.format(self.map_day))
-        if exists(loop_closed_map_name):
-
-            initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
-            if not exists(initial_map_file):
-            
-                correct_H = map_H
-
-                # Save the new corrected trajectory
-                save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
-                with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
-                    pickle.dump(correct_H, file)
-
-                # TODO: C++ function for creating a map with spherical barycenters of frames?
-                #       We have to do it anyway for the annotation process after
-                #       Create a point map with all the points and sphere barycentres.
-
-                # TODO: C++ function for loop closure and flatten ground with ceres and pt2pl loss
-
-                data = read_ply(loop_closed_map_name)
-                counts = data['f0']
-                scores = data['f1']
-
-                print(points.shape)
-                print(scores.shape)
-                print(movable_prob.shape)
-
-                still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.9)
-
-                write_ply(initial_map_file,
-                          [points[still_mask], normals[still_mask], scores[still_mask], counts[still_mask]],
-                          ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
-
-            print('Early stop because of loop closure')
-            return
-
-
-        #####################
-        # Reproject on frames
-        # ###################
-
-
-        # Folder where we save the first annotated_frames
-        annot_folder = join(map_folder, 'tmp_frames')
-        if not exists(annot_folder):
-            makedirs(annot_folder)
-
-        # Create KDTree on the map
-        print('Reprojection of map day {:s}'.format(self.map_day))
-        map_tree = None
-        N = len(frame_names)
-        new_frame_names = []
-        last_t = time.time()
-        fps = 0
-        fps_regu = 0.9
-        for i, f_name in enumerate(frame_names):
-
-            # Check if we already did reprojection
-            new_f_name = join(annot_folder, f_name.split('/')[-1])
-            new_frame_names.append(new_f_name)
-            if exists(new_f_name):
-                continue
-            elif i < 1:
-                map_tree = KDTree(points)
-
-            t = [time.time()]
-
-            # Load points
-            points = self.load_frame_points(f_name)
-
-            # Apply transf
-            world_pts = np.hstack((points, np.ones_like(points[:, :1])))
-            world_pts = np.matmul(world_pts, map_H[i].T).astype(np.float32)[:, :3]
-
-            # Get closest map points
-            neighb_inds = np.squeeze(map_tree.query(world_pts, return_distance=False))
-            frame_movable_prob = movable_prob[neighb_inds]
-            frame_ground_mask = ground_mask[neighb_inds]
-
-            # Save frame with annotation
-            categories = np.zeros(frame_movable_prob.shape, np.int32)
-            categories[frame_movable_prob > 0.9] = 4
-            categories[frame_ground_mask] = 1
-            write_ply(new_f_name, [categories], ['cat'])
-
-            t += [time.time()]
-            fps = fps_regu * fps + (1.0 - fps_regu) / (t[-1] - t[0])
-
-            if (t[-1] - last_t > 5.0):
-                print('Reproj {:s} {:5d} --- {:5.1f}%% at {:.1f} fps'.format(self.map_day,
-                                                                             i + 1,
-                                                                             100 * (i + 1) / N,
-                                                                             fps))
-                last_t = t[-1]
-        print('OK')
-
-        # ###########################################
-        # # Aligned the transformation on groundtruth
-        # ###########################################
-        # # This is not cheating as if we did not add ground truth, the map would be the ground truth
-
-        # gt_t, gt_H = self.load_map_gt_poses()
-
-        # # Do not align with the first frame in case it is not a good one
-        # f_i0 = 3
-        # f_t0 = map_t[f_i0]
-
-        # # Find closest gt poses
-        # gt_i1 = np.argmin(np.abs(gt_t - f_t0))
-        # if f_t0 < gt_t[gt_i1]:
-        #     gt_i0 = gt_i1 - 1
-        # else:
-        #     gt_i0 = gt_i1
-        #     gt_i1 = gt_i0 + 1
-
-        # # Interpolate the ground truth pose at current time
-        # interp_t = (f_t0 - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
-        # frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
-        # gt_H_velo_world = np.matmul(frame_H, self.H_velo_base)
-
-        # # Align everything
-        # correction_H = np.matmul(gt_H_velo_world, np.linalg.inv(map_H[f_i0]))
-        # map_H = [np.matmul(correction_H, mH) for mH in map_H]
-        # map_H = np.stack(map_H, 0)
-
-        # save_trajectory(
-        #     join(map_folder, 'init_traj_{:s}.ply'.format(self.map_day)), map_H)
-
-        # # Save the grounbdtruth traj but of the velodyne pose
-        # gt_H_velo_world = []
-        # for f_i, f_t in enumerate(map_t):
-
-        #     # Find closest gt poses
-        #     gt_i1 = np.argmin(np.abs(gt_t - f_t))
-
-        #     if gt_i1 == 0 or gt_i1 == len(gt_t) - 1:
-        #         continue
-
-        #     if f_t < gt_t[gt_i1]:
-        #         gt_i0 = gt_i1 - 1
-        #     else:
-        #         gt_i0 = gt_i1
-        #         gt_i1 = gt_i0 + 1
-
-        #     # Interpolate the ground truth pose at current time
-        #     interp_t = (f_t - gt_t[gt_i0]) / (gt_t[gt_i1] - gt_t[gt_i0])
-        #     frame_H = interp_pose(interp_t, gt_H[gt_i0], gt_H[gt_i1])
-        #     gt_H_velo_world.append(np.matmul(frame_H, self.H_velo_base))
-
-        # gt_H_velo_world = np.stack(gt_H_velo_world, 0)
-        # save_trajectory(
-        #     join(map_folder, 'gt_traj_{:s}.ply'.format(self.map_day)),
-        #     gt_H_velo_world)
-
-        ##########################
-        # Make a horizontal ground
-        ##########################
-
-        # TODO HERE: Well it os not so horizontal...
-        # Maybe use something like imls for noise reduction on this flat surface
-        # instead of forcing globally flat ground, force local flat ground!
-
-        # Find the global transform that makes the ground flat and with height z = 0
-        global_correct_H = np.eye(4)
-        
-        # Align all ground point on a horizontal plane (height does not matter so much as we correct it later)
-        ground_points = points[ground_mask]
-        ground_pointsh = np.hstack((ground_points, np.ones_like(ground_points[:, :1])))
-        ground_points = np.matmul(ground_pointsh, global_correct_H.T).astype(np.float32)[:, :3]
-        
-        # Remove noise on the ground
-        ground_z = 0
-        ground_points[:, 2] = ground_z
-
-        # Only vertical normals
-        ground_normals = np.zeros_like(ground_points)
-        ground_normals[:, 2] = 1.0
-
-        # High scores to keep normals
-        ground_scores = np.ones(ground_points.shape[0],
-                                dtype=np.float32) * 0.99
-
-        # Add the first frame in init point to avoid optimization problems
-        # Hopefully during mapping the fist frame should not have motion distortion
-        f_i0 = 1
-        points, labels = self.load_frame_points_labels(frame_names[f_i0], new_frame_names[f_i0])
-        normals, planarity, linearity = polar_normals(points,
-                                                      radius=1.5,
-                                                      lidar_n_lines=32,
-                                                      h_scale=0.5,
-                                                      r_scale=1000.0)
-        norm_scores = planarity + linearity
-        points = points[norm_scores > 0.1]
-        labels = labels[norm_scores > 0.1]
-        normals = normals[norm_scores > 0.1]
-
-        # Eliminate moving and ground points
-        points = points[labels == 0]
-        normals = normals[labels == 0]
-
-        # Reorient the first frame to be on the ground
-        frame_H = np.matmul(global_correct_H, map_H[f_i0])
-        world_points = np.hstack((points, np.ones_like(points[:, :1])))
-        world_points = np.matmul(world_points, frame_H.T).astype(np.float32)[:, :3]
-        world_normals = np.matmul(normals, frame_H[:3, :3].T).astype(np.float32)
-        world_scores = np.ones(world_points.shape[0], dtype=np.float32) * 0.1
-
-        # Add ground to init points
-        world_points = np.vstack((world_points, ground_points))
-        world_normals = np.vstack((world_normals, ground_normals))
-        world_scores = np.hstack((world_scores, ground_scores))
-
-        # Save for debug
-        write_ply(join(map_folder, 'horizontal_ground.ply'),
-                  [world_points, world_normals],
-                  ['x', 'y', 'z', 'nx', 'ny', 'nz'])
-
-        print('OK')
-
-        #############################################################
-        # Pointmap slam without short-term and with horizontal ground
-        # ###########################################################
-
-        initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
-
-        if not exists(initial_map_file):
-
-            # Odometry is given as Scanner to Odom so we have to invert matrices
-            odom_H = [np.linalg.inv(odoH) for odoH in map_H]
-            odom_H = np.stack(odom_H, 0)
-
-            correct_H = slam_on_real_sequence(frame_names,
-                                              map_t,
-                                              map_folder,
-                                              init_points=world_points,
-                                              init_normals=world_normals,
-                                              init_scores=world_scores,
-                                              map_voxel_size=map_dl,
-                                              frame_voxel_size=3 * map_dl,
-                                              motion_distortion=True,
-                                              filtering=True,
-                                              verbose_time=5,
-                                              icp_samples=600,
-                                              icp_pairing_dist=2.0,
-                                              icp_planar_dist=0.12,
-                                              icp_max_iter=100,
-                                              icp_avg_steps=5,
-                                              odom_H=odom_H)
-
-            # Apply offset so that traj is aligned with groundtruth
-            # correct_H = correct_H
-
-            # Save the new corrected trajectory
-            save_trajectory(join(map_folder, 'correct_traj_{:s}.ply'.format(self.map_day)), correct_H)
-            with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'wb') as file:
-                pickle.dump(correct_H, file)
-
-            # TODO: C++ function for creating a map with spherical barycenters of frames?
-            #       We have to do it anyway for the annotation process after
-            # # Create a point map with all the points and sphere barycentres.
-
-            # Instead just load c++ map and save it as the final result
-            data = read_ply(join(map_folder, 'map_{:s}.ply'.format(self.map_day)))
-            points = np.vstack((data['x'], data['y'], data['z'])).T
-            normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-            scores = data['f1']
-            counts = data['f0']
-            write_ply(initial_map_file,
-                      [points, normals, scores, counts],
-                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'counts'])
-
-        else:
-
-            # Load traj
-            with open(join(map_folder, 'correct_traj_{:s}.pkl'.format(self.map_day)), 'rb') as f:
-                correct_H = pickle.load(f)
-
-        # Optional stuff done for the ICRA video
-        if False:
-            odom_H = [np.linalg.inv(odoH) for odoH in correct_H]
-            odom_H = np.stack(odom_H, 0)
-            slam_on_sim_sequence(frame_names,
-                                 map_t,
-                                 map_H,
-                                 map_t,
-                                 map_folder,
-                                 map_voxel_size=map_dl,
-                                 frame_voxel_size=3 * map_dl,
-                                 motion_distortion=False,
-                                 filtering=True,
-                                 icp_samples=600,
-                                 icp_pairing_dist=2.0,
-                                 icp_planar_dist=0.12,
-                                 icp_max_iter=0,
-                                 icp_avg_steps=5,
-                                 odom_H=odom_H)
 
         return
 

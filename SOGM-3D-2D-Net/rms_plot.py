@@ -79,8 +79,8 @@ def plot_rms():
     print(len(all_rms))
     print(len(all_plane_rms))
 
-    all_rms = all_rms[5000:]
-    all_plane_rms = all_plane_rms[5000:]
+    # all_rms = all_rms[5000:]
+    # all_plane_rms = all_plane_rms[5000:]
 
     ################
     # Plot functions
@@ -92,7 +92,7 @@ def plot_rms():
 
     # Plot last PR curve for each log
     plotsA = []
-    num_showed = 10
+    num_showed = 50
     for i in range(num_showed):
         if i < num_showed - 1:
             plotsA += axA.plot(np.arange(len(all_plane_rms[i])), all_plane_rms[i], 'b-', linewidth=1)

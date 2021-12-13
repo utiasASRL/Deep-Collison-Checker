@@ -370,7 +370,7 @@ public:
 	PointCloud cloud;
 	vector<PointXYZ> normals;
 	vector<float> scores;
-	vector<int> counts;
+	vector<int> oldest;
 	vector<int> latest;
 
 	// Container only used when ray tracing
@@ -413,7 +413,7 @@ public:
 		cloud = map0.cloud;
 		normals = map0.normals;
 		scores = map0.scores;
-		counts = map0.counts;
+		oldest = map0.oldest;
 		latest = map0.latest;
 		samples = map0.samples;
 		tree.addPoints(0, cloud.pts.size() - 1);
@@ -434,7 +434,7 @@ public:
 		cloud = map0.cloud;
 		normals = map0.normals;
 		scores = map0.scores;
-		counts = map0.counts;
+		oldest = map0.oldest;
 		latest = map0.latest;
 		samples = map0.samples;
 		tree.addPoints(0, cloud.pts.size() - 1);
@@ -443,6 +443,32 @@ public:
 
 	// Size of the map (number of point/voxel in the map)
 	size_t size() { return cloud.pts.size(); }
+
+	
+	// Handle init/reinit/update function all in one
+	void handle_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0, size_t &num_added)
+	{
+		// Update the point count
+		if (samples.count(k) < 1)
+		{
+			init_sample(k, p0, n0, s0, c0);
+			num_added++;
+		}
+		else
+		{
+			// Case of previously deleted points
+			size_t idx = samples[k];
+			if (tree.isRemoved(idx))
+			{
+				// We want to add previously deleted points, we have to recreate it from scratch
+				reinit_sample(k, p0, n0, s0, c0);
+				num_added++;
+			}
+			else
+				update_sample(idx, p0, n0, s0, c0);
+		}
+
+	}
 
 	// Init of voxel centroid
 	void init_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
@@ -456,7 +482,7 @@ public:
 		scores.push_back(s0);
 
 		// Count is useless, instead save index of first frame placing a point in this cell
-		counts.push_back(c0);
+		oldest.push_back(c0);
 		latest.push_back(c0);
 	}
 
@@ -472,7 +498,7 @@ public:
 		scores.push_back(s0);
 
 		// Count is useless, instead save index of first frame placing a point in this cell
-		counts.push_back(c0);
+		oldest.push_back(c0);
 		latest.push_back(c0);
 	}
 
@@ -500,7 +526,7 @@ public:
 		if (cloud.pts.capacity() < cloud.pts.size() + points0.size())
 		{
 			cloud.pts.reserve(cloud.pts.capacity() + points0.size());
-			counts.reserve(counts.capacity() + points0.size());
+			oldest.reserve(oldest.capacity() + points0.size());
 			latest.reserve(latest.capacity() + points0.size());
 			normals.reserve(normals.capacity() + points0.size());
 			scores.reserve(scores.capacity() + points0.size());
@@ -518,6 +544,59 @@ public:
 		size_t i = 0;
 		VoxKey k0;
 		size_t num_added = 0;
+
+		for (auto &p : points0)
+		{
+			// Position of point in sample map
+			PointXYZ p_pos = p * inv_dl;
+
+			// Corresponding key
+			k0.x = (int)floor(p_pos.x);
+			k0.y = (int)floor(p_pos.y);
+			k0.z = (int)floor(p_pos.z);
+			
+			// Handle init/reinit/update function all in one
+			handle_sample(k0, p, normals0[i], scores0[i], ind0, num_added);
+
+			i++;
+		}
+
+		// Update tree
+		tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
+
+		// Update frame count
+		update_idx++;
+	}
+
+	// Update map with a set of new points (version were we provide initial map to update too)
+	void update_double(vector<PointXYZ> &points0, vector<PointXYZ> &normals0, vector<float> &scores0, int ind0, PointMap &map0)
+	{
+
+		// Reserve new space if needed
+		if (samples.size() < 1)
+			samples.reserve(10 * points0.size());
+		if (cloud.pts.capacity() < cloud.pts.size() + points0.size())
+		{
+			cloud.pts.reserve(cloud.pts.capacity() + points0.size());
+			oldest.reserve(oldest.capacity() + points0.size());
+			latest.reserve(latest.capacity() + points0.size());
+			normals.reserve(normals.capacity() + points0.size());
+			scores.reserve(scores.capacity() + points0.size());
+		}
+
+		//std::cout << std::endl << "--------------------------------------" << std::endl;
+		//std::cout << "current max_load_factor: " << samples.max_load_factor() << std::endl;
+		//std::cout << "current size: " << samples.size() << std::endl;
+		//std::cout << "current bucket_count: " << samples.bucket_count() << std::endl;
+		//std::cout << "current load_factor: " << samples.load_factor() << std::endl;
+		//std::cout << "--------------------------------------" << std::endl << std::endl;
+
+		// Initialize variables
+		float inv_dl = 1 / dl;
+		size_t i = 0;
+		VoxKey k0;
+		size_t num_added = 0;
+		size_t map0_added = 0;
 
 		for (auto &p : points0)
 		{
@@ -546,13 +625,21 @@ public:
 					num_added++;
 				}
 				else
+				{
 					update_sample(idx, p, normals0[i], scores0[i], ind0);
+					if (oldest[idx] > 1 && oldest[idx] < ind0)
+						map0.handle_sample(k0, p, normals0[i], scores0[i], ind0, map0_added);
+				}
 			}
 			i++;
 		}
 
 		// Update tree
-		tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
+		if (num_added > 0)
+			tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
+
+		if (map0_added > 0)
+			map0.tree.addPoints(map0.cloud.pts.size() - map0_added, map0.cloud.pts.size() - 1);
 
 		// Update frame count
 		update_idx++;
@@ -567,7 +654,7 @@ public:
 		if (cloud.pts.capacity() < cloud.pts.size() + map0.cloud.pts.size())
 		{
 			cloud.pts.reserve(cloud.pts.capacity() + map0.cloud.pts.size());
-			counts.reserve(counts.capacity() + map0.cloud.pts.size());
+			oldest.reserve(oldest.capacity() + map0.cloud.pts.size());
 			latest.reserve(latest.capacity() + map0.cloud.pts.size());
 			normals.reserve(normals.capacity() + map0.cloud.pts.size());
 			scores.reserve(scores.capacity() + map0.cloud.pts.size());
@@ -582,7 +669,7 @@ public:
 		for (auto &p : map0.cloud.pts)
 		{
 			// Stop when reaching the current index
-			if (map0.counts[i] > (int)max_ind)
+			if (map0.oldest[i] > (int)max_ind)
 				break;
 
 			// Position of point in sample map
@@ -598,7 +685,7 @@ public:
 			// Update the point count
 			if (samples.count(k0) < 1)
 			{
-				init_sample(k0, p, map0.normals[i], map0.scores[i], map0.counts[i]);
+				init_sample(k0, p, map0.normals[i], map0.scores[i], map0.oldest[i]);
 				latest[samples[k0]] = map0.latest[i];
 				num_added++;
 			}
@@ -641,7 +728,7 @@ public:
 							vector<float> &ring_mids,
 							vector<float> &ring_d_thetas,
 							vector<float> &movable_probs,
-							vector<int> &movable_counts);
+							vector<int> &movable_oldest);
 };
 
 

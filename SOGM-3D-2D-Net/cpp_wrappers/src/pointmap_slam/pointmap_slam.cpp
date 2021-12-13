@@ -210,16 +210,19 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	/////////////////////////
 	// Get ground in frame //
 	/////////////////////////
-
-	// TODO: We can use this frame ground for other stuff, including ensuring planar ground???
-	// 		 We can also use the region growing code for ground detection. Do that?
-
-	// TODO: For complex corridor scenario, look into using the 3 normal orientations sampling of JE
+	
+	// Get a first estimate of the heights given previous orientation
+	vector<PointXYZ> prealigned(sub_pts);
+	Eigen::Map<Eigen::Matrix<float, 3, Eigen::Dynamic>> pts_mat((float *)prealigned.data(), 3, prealigned.size());
+	Eigen::Matrix3f R_tot = (params.icp_params.last_transform1.block(0, 0, 3, 3)).cast<float>();
+	Eigen::Vector3f T_tot = (params.icp_params.last_transform1.block(0, 3, 3, 1)).cast<float>();
+	pts_mat = (R_tot * pts_mat).colwise() + T_tot;
 
 	// Ransac ground extraction
 	float vertical_thresh_deg = 20.0;
 	float max_dist = 0.1;
-	frame_ground = frame_ground_ransac(sub_pts, normals, vertical_thresh_deg, max_dist);
+	float ground_z = 0.0;
+	frame_ground = frame_ground_ransac(sub_pts, normals, vertical_thresh_deg, max_dist, ground_z);
 
 	// Ensure ground normal is pointing upwards
 	if (frame_ground.u.z < 0)
@@ -254,6 +257,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 								 vector<float> &f_ts,
 								 vector<int> &f_rings,
 								 Eigen::Matrix4d &H_OdomToScanner,
+								 string save_path,
 								 int verbose)
 {
 
@@ -264,19 +268,34 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	vector<string> clock_str;
 	vector<clock_t> t;
 	clock_str.reserve(20);
+	clock_str.push_back("Frame to polar .... ");
+	clock_str.push_back("Lidar angle res ... ");
+	clock_str.push_back("Outlier reject .... ");
+	clock_str.push_back("Grid subsampling .. ");
+	clock_str.push_back("Sub to polar ...... ");
+	clock_str.push_back("Frame normals ..... ");
+	clock_str.push_back("ICP localization .. ");
+	clock_str.push_back("Map update ........ ");
 	t.reserve(20);
-	if (verbose)
-	{
-		clock_str.push_back("Frame to polar .... ");
-		clock_str.push_back("Lidar angle res ... ");
-		clock_str.push_back("Outlier reject .... ");
-		clock_str.push_back("Grid subsampling .. ");
-		clock_str.push_back("Sub to polar ...... ");
-		clock_str.push_back("Frame normals ..... ");
-		clock_str.push_back("ICP localization .. ");
-		clock_str.push_back("Map update ........ ");
-	}
 	t.push_back(std::clock());
+
+
+	//////////////////////
+	// Initialize poses //
+	//////////////////////
+	
+	// If no odometry is given, use identity
+	if (H_OdomToScanner.lpNorm<1>() < 0.001)
+		H_OdomToScanner = Eigen::Matrix4d::Identity(4, 4);
+
+	// Use odometry as init
+	Eigen::Matrix4d H_scannerToMap_init = H_OdomToMap * H_OdomToScanner.inverse();
+
+	if (frame_i < 1)
+	{
+		// In all cases if it is the first frame init the last_transform0
+		params.icp_params.last_transform0 = H_scannerToMap_init;
+	}
 
 
 	//////////////////////////////////////////
@@ -291,27 +310,30 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	Plane3D frame_ground;
 	vector<float> heights;
 	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params);
-	
 
-	// // Debug (Points with scores)
-	// if (frame_i > 0)
-	// {
-	// 	string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
-	// 	char buffer00[100];
-	// 	char buffer01[100];
-	// 	char buffer02[100];
-	// 	sprintf(buffer00, "f_%05d_map.ply", int(frame_i));
-	// 	sprintf(buffer01, "f_%05d_init1.ply", int(frame_i));
-	// 	sprintf(buffer02, "f_%05d_init2.ply", int(frame_i));
-	// 	string filepath00 = path000 + string(buffer00);
-	// 	string filepath01 = path000 + string(buffer01);
-	// 	string filepath02 = path000 + string(buffer02);
-	// 	save_cloud(filepath00, map.cloud.pts, map.normals, map.scores);
-	// 	save_cloud(filepath01, sub_pts, normals, norm_scores);
-		
-	// 	vector<float> f1(icp_scores.begin(), icp_scores.end());
-	// 	save_cloud(filepath02, sub_pts, f1);
-	// }
+	// Check icp scores in case too many outliers
+	int count_inliers = 0;
+	for(auto s: icp_scores)
+	{
+		if (s > 0.05)
+			count_inliers++;
+	}
+
+	if (count_inliers < params.icp_params.n_samples)
+	{
+		cout << "ERROR: at frame " << frame_i << ", Not enough inliers for ICP" << endl;
+		string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
+		char buffer00[100];
+		char buffer02[100];
+		sprintf(buffer00, "no_inliers_%05d_map.ply", int(frame_i));
+		sprintf(buffer02, "no_inliers_%05d_init.ply", int(frame_i));
+		string filepath00 = path000 + string(buffer00);
+		string filepath02 = path000 + string(buffer02);
+		save_cloud(filepath00, map.cloud.pts, map.normals, map.scores);
+		vector<float> f12(icp_scores.begin(), icp_scores.end());
+		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+		save_cloud(filepath02, sub_pts, normals, f12);
+	}
 
 	// Min and max times (dont loop on the whole frame as it is useless)
 	float loop_ratio = 0.01;
@@ -341,19 +363,6 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	// Create result containers
 	ICP_results icp_results;
 	bool warning = false;
-
-	// If no odometry is given, use identity
-	if (H_OdomToScanner.lpNorm<1>() < 0.001)
-		H_OdomToScanner = Eigen::Matrix4d::Identity(4, 4);
-
-	// Use odometry as init
-	Eigen::Matrix4d H_scannerToMap_init = H_OdomToMap * H_OdomToScanner.inverse();
-
-	if (frame_i < 1)
-	{
-		// In all cases if it is the first frame init the last_transform0
-		params.icp_params.last_transform0 = H_scannerToMap_init;
-	}
 
 	if (params.icp_params.max_iter < 1)
 	{
@@ -442,16 +451,23 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 					string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
 					char buffer00[100];
 					char buffer01[100];
-					//char buffer02[100];
+					char buffer02[100];
 					sprintf(buffer00, "f_%05d_%03d-iter_map.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
 					sprintf(buffer01, "f_%05d_%03d-iter_init.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
-					// sprintf(buffer02, "f_%05d_%03d-iter_map0.ply", int(frame_i), icp_results.all_plane_rms.size());
+					sprintf(buffer02, "f_%05d_%03d-iter_map0.ply", int(frame_i), icp_results.all_plane_rms.size());
 					string filepath00 = path000 + string(buffer00);
 					string filepath01 = path000 + string(buffer01);
-					// string filepath02 = path000 + string(buffer02);
-					vector<float> float_counts(map.counts.begin(), map.counts.end());
-					save_cloud(filepath00, map.cloud.pts, map.normals, float_counts);
-					// save_cloud(filepath02, map0.cloud.pts, map0.normals, map0.scores);
+					string filepath02 = path000 + string(buffer02);
+
+					vector<float> oldest(map.oldest.begin(), map.oldest.end());
+					oldest.insert(oldest.end(), map.scores.begin(),  map.scores.end());
+					oldest.insert(oldest.end(), map.latest.begin(),  map.latest.end());
+					save_cloud(filepath00, map.cloud.pts, map.normals, oldest);
+
+					vector<float> oldest0(map0.oldest.begin(), map0.oldest.end());
+					oldest0.insert(oldest0.end(), map0.scores.begin(),  map0.scores.end());
+					oldest0.insert(oldest0.end(), map0.latest.begin(),  map0.latest.end());
+					save_cloud(filepath02, map0.cloud.pts, map0.normals, oldest0);
 
 					vector<PointXYZ> copy_pts(sub_pts);
 					if (params.motion_distortion)
@@ -561,22 +577,32 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 
 	// ----------------------------------------------------------------
 	// Saving all frames for loop closure
-	bool saving_for_loop_closure = true;
-	if (saving_for_loop_closure)
+	if (params.saving_for_loop_closure)
 	{
-		string path000 = "/home/hth/Deep-Collison-Checker/Data/Real/icp_frames/tmp/";
+		if (!std::filesystem::exists(save_path + string("/icp_frames")))
+			std::filesystem::create_directories(save_path + string("/icp_frames"));
 		char buffer02[100];
 		sprintf(buffer02, "f_%05d.ply", int(frame_i));
-		string filepath02 = path000 + string(buffer02);
-		vector<float> f12(icp_scores.begin(), icp_scores.end());
-		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
-		save_cloud(filepath02, sub_pts, normals, f12);
+		string path_f = save_path + string("/icp_frames/") +  string(buffer02);
+		if (!std::filesystem::exists(path_f))
+		{
+			vector<float> f12(icp_scores.begin(), icp_scores.end());
+			f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+			save_cloud(path_f, sub_pts, normals, f12);
+		}
 	}
 	// ----------------------------------------------------------------
 
+
 	
 	// The update function is called only on subsampled points as the others have no normal
-	map.update(sub_pts, normals, norm_scores, frame_i);
+	params.update_init_map = true;
+
+	if (params.update_init_map)
+		map.update_double(sub_pts, normals, norm_scores, frame_i, map0);
+	else
+		map.update(sub_pts, normals, norm_scores, frame_i);
+	
 
 	// Update the last pose for future frames
 	Eigen::Matrix4d H0 = params.icp_params.last_transform0;
@@ -607,6 +633,28 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	// Debugging messages //
 	////////////////////////
 
+	
+	// Save timings for a report
+	bool saving_timings = true;
+	if (saving_timings)
+	{
+		string t_path = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/all_timings.txt";
+		std::fstream outfile;
+		if (frame_i < 2)
+		{
+			outfile.open(t_path, std::fstream::out);
+			for (size_t i = 0; i < min(t.size() - 1, clock_str.size()); i++)
+				outfile << clock_str[i] << "\n";
+		}
+		else
+			outfile.open(t_path, std::fstream::app);
+		outfile << frame_i;
+		for (size_t i = 0; i < min(t.size() - 1, clock_str.size()); i++)
+			outfile << " " << 1000 * (t[i + 1] - t[i]) / (double)CLOCKS_PER_SEC;
+		outfile << "\n";
+		outfile.close();
+	}
+
 	if (verbose)
 	{
 		for (size_t i = 0; i < min(t.size() - 1, clock_str.size()); i++)
@@ -619,10 +667,6 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 
 	return;
 }
-
-
-
-
 
 // main functions
 // **************
@@ -738,7 +782,7 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 		// Get frame pose and update map
 		vector<float> timestamps;
 		vector<int> f_rings;
-		mapper.add_new_frame(f_pts, timestamps, f_rings, H_OdomToScanner, 0);
+		mapper.add_new_frame(f_pts, timestamps, f_rings, H_OdomToScanner, string(""));
 
 		// Save transform
 		all_H.block(frame_i * 4, 0, 4, 4) = mapper.last_H;
@@ -777,9 +821,9 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 		// {
 		// 	char buffer[100];
 		// 	sprintf(buffer, "cc_map_%05d.ply", (int)frame_i);
-		// 	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-		// 	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-		// 	save_cloud(string(buffer), mapper.map.cloud.pts, mapper.map.normals, counts);
+		// 	vector<float> oldest(mapper.map.oldest.begin(), mapper.map.oldest.end());
+		// 	oldest.insert(oldest.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+		// 	save_cloud(string(buffer), mapper.map.cloud.pts, mapper.map.normals, oldest);
 		// }
 
 		// Timing
@@ -808,9 +852,9 @@ Eigen::MatrixXd call_on_sim_sequence(string& frame_names,
 	size_t ns1 = 19;
 	size_t ns0 = save_path.size() - ns1;
 	string day_str = save_path.substr(ns0, ns1);
-	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, counts);
+	vector<float> oldest(mapper.map.oldest.begin(), mapper.map.oldest.end());
+	oldest.insert(oldest.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, oldest);
 
 	return all_H;
 }
@@ -1041,9 +1085,9 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 		// Get frame pose and update map
 		if (slam_params.verbose_time > 0 && slam_params.verbose_time < 0.001)
-			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, 1);
+			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, save_path, 1);
 		else
-			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, 0);
+			mapper.add_new_frame(f_pts, timestamps, rings, H_OdomToScanner, save_path, 0);
 
 		// Save transform
 		all_H.block(frame_ind * 4, 0, 4, 4) = mapper.params.icp_params.last_transform1;
@@ -1133,7 +1177,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			string path000 = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
 			char buffer00[100];
 			sprintf(buffer00, "f_%05d_map_before.ply", int(frame_ind));
-			vector<float> all_features(mapper.map.counts.begin(), mapper.map.counts.end());
+			vector<float> all_features(mapper.map.oldest.begin(), mapper.map.oldest.end());
 			all_features.insert(all_features.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
 			save_cloud(path000 + string(buffer00), mapper.map.cloud.pts, mapper.map.normals, all_features);
 
@@ -1143,7 +1187,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			
 			char buffer01[100];
 			sprintf(buffer01, "f_%05d_map_clean.ply", int(frame_ind));
-			vector<float> all_features1(clean_map.counts.begin(), clean_map.counts.end());
+			vector<float> all_features1(clean_map.oldest.begin(), clean_map.oldest.end());
 			all_features1.insert(all_features1.end(), clean_map.scores.begin(),  clean_map.scores.end());
 			save_cloud(path000 + string(buffer01), clean_map.cloud.pts, clean_map.normals, all_features1);
 
@@ -1198,7 +1242,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 			char buffer02[100];
 			sprintf(buffer02, "f_%05d_map_after.ply", int(frame_ind));
-			vector<float> all_features2(mapper.map.counts.begin(), mapper.map.counts.end());
+			vector<float> all_features2(mapper.map.oldest.begin(), mapper.map.oldest.end());
 			all_features2.insert(all_features2.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
 			save_cloud(path000 + string(buffer02), mapper.map.cloud.pts, mapper.map.normals, all_features2);
 		}
@@ -1222,7 +1266,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 		frame_ind++;
 
-		if (mapper.warning_count > 6)
+		if (mapper.warning_count > 3)
 			break;
 
 		// if (frame_ind > 500)
@@ -1234,10 +1278,10 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 	size_t ns1 = 19;
 	size_t ns0 = save_path.size() - ns1;
 	string day_str = save_path.substr(ns0, ns1);
-	vector<float> counts(mapper.map.counts.begin(), mapper.map.counts.end());
-	counts.insert(counts.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-	counts.insert(counts.end(), mapper.map.latest.begin(),  mapper.map.latest.end());
-	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, counts);
+	vector<float> oldest(mapper.map.oldest.begin(), mapper.map.oldest.end());
+	oldest.insert(oldest.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+	oldest.insert(oldest.end(), mapper.map.latest.begin(),  mapper.map.latest.end());
+	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, oldest);
 
 	return all_H;
 }

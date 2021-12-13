@@ -310,13 +310,14 @@ if __name__ == '__main__':
     #   > 2: TODO We perform the loop closure manually by chossing which frames to align
     #   > 3: TODO We implemented the map refinement to remove doors
 
-    map_day = '2021-11-30_12-05-32'
-    train_days = ['2021-11-30_12-22-23',
-                  '2021-11-30_12-33-09',
-                  '2021-12-04_13-27-32',
-                  '2021-12-04_13-44-05',
-                  '2021-12-04_13-59-29']
-    dataset_path = '../Data/Real'
+    # map_day = '2021-11-30_12-05-32'
+    # # train_days = ['2021-11-30_12-22-23',
+    # #               '2021-11-30_12-33-09',
+    # #               '2021-12-04_13-27-32',
+    # #               '2021-12-04_13-44-05',
+    # #               '2021-12-04_13-59-29']
+    # dataset_path = '../Data/Real'
+
     ################################################################################################################################################
     
           
@@ -329,18 +330,32 @@ if __name__ == '__main__':
     ################################################################################################################################################
           
     ################################################################################################################################################
-    # Exp 3
+    # Exp 4
     #
     # In Myhal
     # Notes for myself
     #   > 1:
 
-    # map_day = '2021-12-06_08-12-39'
-    # train_days = ['2021-12-06_08-38-16',
-    #               '2021-12-06_08-44-07',
-    #               '2021-12-06_08-51-29']
+    dataset_path = '../Data/RealMyhal'
+    train_days = ['2021-12-06_08-12-39',    # - \
+                  '2021-12-06_08-38-16',    # -  \
+                  '2021-12-06_08-44-07',    # -   > First runs with controller for mapping of the environment
+                  '2021-12-06_08-51-29',    # -  /
+                  '2021-12-06_08-54-58',    # - /
+                  '2021-12-10_13-32-10',    # - \
+                  '2021-12-10_13-26-07',    # -  \
+                  '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
+                  '2021-12-10_13-06-09',    # -  /
+                  '2021-12-10_12-53-37']    # - /
+    map_i = 3
+    refine_i = np.array([0, 6, 7, 8])
+    train_i = np.array([5, 6, 7, 8, 9])
+    val_inds = [0]
+         
+    map_day = train_days[map_i]
+    refine_days = np.array(train_days)[refine_i]
+    train_days = np.array(train_days)[train_i]
 
-    # dataset_path = '../Data/RealMyhal'
     ################################################################################################################################################
 
     ######################
@@ -349,10 +364,6 @@ if __name__ == '__main__':
 
     # Choose the dataset between train_days_RandBounce, train_days_RandWand, or train_days_RandFlow
     train_days = np.array(train_days)
-
-    # Validation sessions
-    val_inds = [0]
-    train_inds = [i for i in range(len(train_days)) if i not in val_inds]
 
     # Check if we need to redo annotation (only if there is no collison folder)
     redo_annot = False
@@ -392,6 +403,9 @@ if __name__ == '__main__':
     print()
     print('Data Preparation')
     print('****************')
+
+    # Validation sessions
+    train_inds = [i for i in range(len(train_days)) if i not in val_inds]
 
     # Initialize configuration class
     config = MyhalCollisionConfig()

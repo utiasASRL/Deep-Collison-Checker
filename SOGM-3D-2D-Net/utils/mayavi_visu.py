@@ -36,6 +36,7 @@ from os.path import exists, join
 import time
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.patches import Rectangle
 import imageio
 from PIL import Image
 
@@ -53,6 +54,97 @@ from utils.metrics import fast_confusion, IoU_from_confusions
 from utils.config import Config
 
 
+
+class Box:
+    """Box class"""
+
+    def __init__(self, x1, y1, x2, y2):
+        """
+        Initialize parameters here.
+        """
+        self.x1 = min(x1, x2)
+        self.y1 = min(y1, y2)
+        self.x2 = max(x1, x2)
+        self.y2 = max(y1, y2)
+
+        return
+
+    def dx(self):
+        return self.x2 - self.x1
+
+    def dy(self):
+        return self.y2 - self.y1
+
+    def plt_rect(self, edgecolor='black', facecolor='cyan', fill=False, lw=2):
+        return Rectangle((self.x1, self.y1), self.dx(), self.dy(),
+                         edgecolor=edgecolor,
+                         facecolor=facecolor,
+                         fill=fill,
+                         lw=lw)
+
+    def inside(self, x, y, margin=0):
+
+        if margin == 0:
+            return self.x1 < x < self.x2 \
+                   and self.y1 < y < self.y2
+        else:
+            return self.x1 - margin < x < self.x2 + margin \
+                   and self.y1 - margin < y < self.y2 + margin
+
+    def min_box_repulsive_vector(self, pos):
+
+        # Check along edges
+        edges = self.get_edges()
+        corners = self.get_corners()
+        found = False
+        min_mag = 1e9
+        min_normal = np.zeros((2,), dtype=np.float32)
+        for edge, corner in zip(edges, corners):
+
+            edge_l = np.linalg.norm(edge)
+            edge_dir = edge / edge_l
+
+            # Project position on edge
+            pos_vector = pos - corner
+            proj = np.dot(pos_vector, edge_dir)
+            proj_vec = proj * edge_dir
+
+            if 0 < proj < edge_l:
+                normal = pos_vector - proj_vec
+
+                if np.linalg.norm(normal) < min_mag:
+                    min_normal = normal
+                    min_mag = np.linalg.norm(normal)
+                    found = True
+
+        # Check in diagonal from corners
+        if not found:
+            min_mag = 1e9
+            for corner in corners:
+                pos_vector = pos - corner
+                dist = np.linalg.norm(pos_vector)
+                if dist < min_mag:
+                    min_mag = dist
+                    min_normal = pos_vector
+
+        return min_normal
+
+
+    def get_corners(self):
+
+        A = np.array([self.x1, self.y1])
+        B = np.array([self.x2, self.y1])
+        C = np.array([self.x2, self.y2])
+        D = np.array([self.x1, self.y2])
+
+        return [A, B, C, D]
+
+
+    def get_edges(self):
+
+        A, B, C, D = self.get_corners()
+
+        return [B - A, C - B, D - C, A - D]
 
 
 

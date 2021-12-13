@@ -73,8 +73,6 @@ void filter_anyvector(std::vector<T>& vec, std::vector<float>& scores, float fil
 		vec.end());
 }
 
-
-
 // PLY reading/saving functions
 void save_cloud(std::string dataPath, std::vector<PointXYZ>& points, std::vector<PointXYZ>& normals, std::vector<float>& features);
 void save_cloud(std::string dataPath, std::vector<PointXYZ>& points, std::vector<float>& features);
@@ -118,7 +116,8 @@ Plane3D plane_ransac(std::vector<PointXYZ> &points,
 Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 							std::vector<PointXYZ> &normals,
 							float vertical_thresh_deg = 10.0,
-							float max_dist = 0.1);
+							float max_dist = 0.1,
+							float ground_z = 0.0);
 
 bool rot_u_to_v(PointXYZ u, PointXYZ v, Eigen::Matrix3d &R);
 

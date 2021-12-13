@@ -371,7 +371,8 @@ Plane3D plane_ransac(std::vector<PointXYZ> &points,
 Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 							std::vector<PointXYZ> &normals,
 							float vertical_thresh_deg,
-							float max_dist)
+							float max_dist,
+							float ground_z)
 {
 
 	// Parameters
@@ -382,6 +383,7 @@ Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 	float clip1 = 0.99999999;
 
 	// Get points with a vetical normal (we assume the lidar is horizontal)
+	// Also get point only within 1 meter of ground_z
 	std::vector<float> vertical_angles;
 	std::vector<PointXYZ> candidates;
 	vertical_angles.reserve(points.size());
@@ -392,7 +394,7 @@ Plane3D frame_ground_ransac(std::vector<PointXYZ> &points,
 		float clip_nz = std::max(std::min(n.z, clip1), clip0);
 		float vertical_angle = acos(abs(clip_nz));
 		vertical_angles.push_back(vertical_angle);
-		if (vertical_angle < vertical_thresh)
+		if (vertical_angle < vertical_thresh && std::abs(points[i].z - ground_z) < 1.0)
 			candidates.push_back(points[i]);
 
 		i++;

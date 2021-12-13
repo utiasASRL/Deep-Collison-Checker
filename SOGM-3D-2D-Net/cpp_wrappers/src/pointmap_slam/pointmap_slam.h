@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <numeric>
 #include <fstream>
+#include <filesystem>
 
 
 #define _USE_MATH_DEFINES
@@ -59,6 +60,10 @@ public:
 	// Are we filtering frames
 	bool filtering;
 
+	// Should we save subsampled and aligned frames for loop closure
+	bool saving_for_loop_closure;
+	bool update_init_map;
+
 	// Verbose option (time in sec between each verbose negative for no verbose)
 	float verbose_time;
 
@@ -83,12 +88,14 @@ public:
 	SLAM_params()
 	{
 		lidar_n_lines = 32;
-		min_theta_radius = 0.015;
+		min_theta_radius = 0.025;
 		map_voxel_size = 0.08;
 		frame_voxel_size = 0.2;
 		local_map_dist = 10.0;
 		motion_distortion = false;
 		filtering = false;
+		saving_for_loop_closure = false;
+		update_init_map = true;
 		verbose_time = -1;
 		H_velo_base = Eigen::Matrix4d::Identity(4, 4);
 
@@ -158,7 +165,12 @@ public:
 
 	// Mapping functions
 	void init_map() { return; }
-	void add_new_frame(vector<PointXYZ> &f_pts, vector<float>& f_ts, vector<int>& f_rings, Eigen::Matrix4d &H_OdomToScanner, int verbose = 0);
+	void add_new_frame(vector<PointXYZ> &f_pts,
+					   vector<float> &f_ts,
+					   vector<int> &f_rings,
+					   Eigen::Matrix4d &H_OdomToScanner,
+					   string save_path,
+					   int verbose = 0);
 };
 
 // Function declaration

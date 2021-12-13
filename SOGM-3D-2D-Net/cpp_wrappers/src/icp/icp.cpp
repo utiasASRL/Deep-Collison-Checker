@@ -117,7 +117,7 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
 	// Fill matrices values
 	bool tgt_weights = weights.size() == targets.size();
 	bool ref_weights = weights.size() == references.size();
-	bool force_flat_ground = is_ground.size() == sample_inds.size();;
+	bool force_flat_ground = is_ground.size() == sample_inds.size();
 	int i = 0;
 	for (const auto& ind : sample_inds)
 	{
@@ -200,6 +200,91 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
 		// be determined, it comes out full of NaNs. The correct rotation is the identity.
 		mOut.block(0, 0, 3, 3) = Eigen::Matrix4d::Identity(3, 3);
 	}
+}
+
+void RandomPointAssociation(vector<size_t> &w_inds,
+							PointMap &map,
+							vector<PointXYZ> &aligned,
+							vector<pair<size_t, size_t>> &sample_inds,
+							default_random_engine &generator,
+							discrete_distribution<int> &distribution,
+							nanoflann::SearchParams &search_params,
+							float &max_planar_d,
+							ICP_params &params,
+							ICP_results &results)
+{
+
+	// Parameters
+	size_t N = w_inds.size();
+	float max_pair_d2 = params.max_pairing_dist * params.max_pairing_dist;
+	float rms2 = 0;
+	float prms2 = 0;
+
+	// Specific behavior in case the input frame does not have enough points
+	if (params.n_samples > N)
+	{
+		char buffer[300];
+		sprintf(buffer, "\nERROR: ICP want %d samples but input frame only has %d inliers\n", int(params.n_samples), int(N));
+		throw std::invalid_argument(string(buffer));
+	}
+
+	// Init picking containers
+	unordered_set<size_t> unique_inds;
+	unique_inds.reserve(N);
+	vector<size_t> valid_inds;
+	valid_inds.reserve(params.n_samples);
+	sample_inds.reserve(params.n_samples);
+	
+	// Random picking
+	int count_tries = 0;
+	while (sample_inds.size() < params.n_samples && count_tries < (int)params.n_samples * 10)
+	{
+		// Weighted random pick among inliers
+		pair<size_t, size_t> assoc;
+		assoc.first = w_inds[distribution(generator)];
+
+		// Ensure pick has not already been tried
+		if (unique_inds.count(assoc.first))
+		{
+			count_tries++;
+			continue;
+		}
+		else
+			unique_inds.insert(assoc.first);
+
+		// get nearest neighbor
+		float nn_d2;
+		nanoflann::KNNResultSet<float> resultSet(1);
+		resultSet.init(&assoc.second, &nn_d2);
+		map.tree.findNeighbors(resultSet, (float*)&aligned[assoc.first], search_params);
+
+		// Add point to the association if it is good
+		if (nn_d2 < max_pair_d2)
+		{
+			// Check planar distance (only after a few steps for initial alignment)
+			PointXYZ diff = (map.cloud.pts[assoc.second] - aligned[assoc.first]);
+			float planar_dist = abs(diff.dot(map.normals[assoc.second]));
+			if (planar_dist < max_planar_d)
+			{
+				// Keep samples
+				sample_inds.push_back(assoc);
+
+				// Update pt2pt rms
+				rms2 += nn_d2;
+
+				// update pt2pl rms
+				prms2 += planar_dist * planar_dist;
+			}
+		}
+
+		count_tries++;
+	}
+	
+	// Compute RMS
+	results.all_rms.push_back(sqrt(rms2 / (float)sample_inds.size()));
+	results.all_plane_rms.push_back(sqrt(prms2 / (float)sample_inds.size()));
+
+	return;
 }
 
 // ICP functions
@@ -1021,7 +1106,6 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 	// **********
 
 	size_t N = tgt_pts.size();
-	float max_pair_d2 = params.max_pairing_dist * params.max_pairing_dist;
 	size_t first_steps = params.avg_steps / 2 + 1;
 
 	// Initially use a large associating dist (we change that during the interations)
@@ -1065,10 +1149,23 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 		aligned_mat = (R_tot * targets_mat).colwise() + T_tot;	
 	}
 
-	// Random generator
+	// Random generator (ignoring outliers)
+	vector<double> filtered_w;
+	vector<size_t> filtered_wi;
+	filtered_w.reserve(tgt_w.size());
+	size_t w_i = 0;
+	for (auto w : tgt_w)
+	{
+		if (w > 0.05)
+		{
+			filtered_w.push_back(w);
+			filtered_wi.push_back(w_i);
+		}
+		w_i++;
+	}
   	unsigned seed = chrono::system_clock::now().time_since_epoch().count();
 	default_random_engine generator(seed);
-	discrete_distribution<int> distribution(tgt_w.begin(), tgt_w.end());
+	discrete_distribution<int> distribution(filtered_w.begin(), filtered_w.end());
 
 	// Init result containers
 	Eigen::Matrix4d H_icp;
@@ -1081,13 +1178,13 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 	size_t max_it = params.max_iter;
 	bool stop_cond = false;
 
-	vector<clock_t> t(6);
-	vector<string> clock_str;
-	clock_str.push_back("Random_Sample ... ");
-	clock_str.push_back("KNN_search ...... ");
-	clock_str.push_back("Optimization .... ");
-	clock_str.push_back("Regularization .. ");
-	clock_str.push_back("Result .......... ");
+	// vector<clock_t> t(6);
+	// vector<string> clock_str;
+	// clock_str.push_back("Random_Sample ... ");
+	// clock_str.push_back("KNN_search ...... ");
+	// clock_str.push_back("Optimization .... ");
+	// clock_str.push_back("Regularization .. ");
+	// clock_str.push_back("Result .......... ");
 	
 	// // Debug (save map.cloud.pts)
 	// string path = "/home/hth/Deep-Collison-Checker/SOGM-3D-2D-Net/results/";
@@ -1105,122 +1202,28 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 		/////////////////
 		// Association //
 		/////////////////
-
-		// vector<float> chosen_inds(aligned.size(), 0.0f);
-
-		// Pick random queries (use unordered set to ensure uniqueness)
-		vector<pair<size_t, size_t>> sample_inds;
-		if (params.n_samples < N)
-		{
-			// Random picking
-			unordered_set<size_t> unique_inds;
-			int count_tries = 0;
-			while (unique_inds.size() < params.n_samples && count_tries < (int)params.n_samples * 10)
-			{
-				// Be sure to ignore points that are considered outliers
-				size_t picked = (size_t)distribution(generator);
-				if (tgt_w[picked] > 0.05)
-					unique_inds.insert(picked);
-				count_tries++;
-			}
-
-			// Debugging if we could not pick enough indices
-			if (unique_inds.size() < params.n_samples)
-			{
-				for (int iiii = 0; iiii < (int)tgt_w.size(); iiii++)
-				{
-					if (tgt_w[iiii] > 20.5 || tgt_w[iiii] < 0.3)
-					cout << "tgt_w: " << iiii << " -> " << tgt_w[iiii] << endl;
-				}
-				count_tries = 0;
-				while (unique_inds.size() < params.n_samples && count_tries < (int)params.n_samples)
-				{
-					size_t picked_ind = (size_t)distribution(generator);
-					unique_inds.insert(picked_ind);
-					count_tries++;
-					cout << count_tries << ": " << picked_ind << " -> " << unique_inds.size() << "/" << params.n_samples << endl;
-				}
-				throw std::invalid_argument( "Impossible to pick enough icp samples" );
-			}
-
-			sample_inds = vector<pair<size_t, size_t>>(params.n_samples);
-			size_t i = 0;
-			for (const auto& ind : unique_inds)
-			{
-				sample_inds[i].first = ind;
-				// chosen_inds[ind] = 1.0f;
-				i++;
-			}
-		}
-		else
-		{
-			sample_inds = vector<pair<size_t, size_t>>(N);
-			for (size_t i = 0; i < N; i++)
-			{
-				sample_inds[i].first = i;
-				i++;
-			}
-		}
-
-		t[1] = std::clock();
-
-		// Init neighbors container
-		vector<float> nn_dists(sample_inds.size());
-
-		// Find nearest neigbors
-		// #pragma omp parallel for shared(max_neighbs) schedule(dynamic, 10) num_threads(n_thread)
-		for (size_t i = 0; i < sample_inds.size(); i++)
-		{
-			nanoflann::KNNResultSet<float> resultSet(1);
-			resultSet.init(&sample_inds[i].second, &nn_dists[i]);
-			map.tree.findNeighbors(resultSet, (float*)&aligned[sample_inds[i].first], search_params);
-		}
-
-		t[2] = std::clock();
-
-
-		///////////////////////
-		// Distances metrics //
-		///////////////////////
+		
 
 		// Update association distance after a few iterations
 		if (step == first_steps)
 			max_planar_d = params.max_planar_dist;
 
+		vector<pair<size_t, size_t>> sample_inds;
 
-		// Erase sample_inds if dists is too big
-		vector<pair<size_t, size_t>> filtered_sample_inds;
-		filtered_sample_inds.reserve(sample_inds.size());
-		float rms2 = 0;
-		float prms2 = 0;
-		for (size_t i = 0; i < sample_inds.size(); i++)
+		RandomPointAssociation(filtered_wi, map, aligned,
+							   sample_inds,
+							   generator, distribution,
+							   search_params, max_planar_d,
+							   params, results);
+
+		// Verify if we have enough
+			
+		if (params.n_samples > sample_inds.size())
 		{
-			if (nn_dists[i] < max_pair_d2)
-			{
-				// Check planar distance (only after a few steps for initial alignment)
-				PointXYZ diff = (map.cloud.pts[sample_inds[i].second] - aligned[sample_inds[i].first]);
-				float planar_dist = abs(diff.dot(map.normals[sample_inds[i].second]));
-				if (planar_dist < max_planar_d)
-				{
-					// Keep samples
-					filtered_sample_inds.push_back(sample_inds[i]);
-
-					// Update pt2pt rms
-					rms2 += nn_dists[i];
-
-					// update pt2pl rms
-					prms2 += planar_dist;
-				}
-
-			}
+			char buffer[300];
+			sprintf(buffer, "WARNING: ICP want %d samples but only %d valid associations have been found\n", int(params.n_samples), int(sample_inds.size()));
+			throw std::invalid_argument(string(buffer));
 		}
-
-		// Compute RMS
-		results.all_rms.push_back(sqrt(rms2 / (float)filtered_sample_inds.size()));
-		results.all_plane_rms.push_back(sqrt(prms2 / (float)filtered_sample_inds.size()));
-
-		t[3] = std::clock();
-
 
 		//////////////////
 		// Optimization //
@@ -1230,20 +1233,18 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 		vector<bool> is_ground;
 		if (params.ground_w > 0)
 		{
-			is_ground.reserve(filtered_sample_inds.size());
-			for (size_t i = 0; i < filtered_sample_inds.size(); i++)
-				is_ground.push_back(tgt_w[filtered_sample_inds[i].first] > params.ground_w);
+			is_ground.reserve(sample_inds.size());
+			for (size_t i = 0; i < sample_inds.size(); i++)
+				is_ground.push_back(tgt_w[sample_inds[i].first] > params.ground_w);
 		}
 		PointToPlaneErrorMinimizer(aligned,
 								   map.cloud.pts,
 								   map.normals,
 								   map.scores,
-								   filtered_sample_inds,
+								   sample_inds,
 								   H_icp,
 								   is_ground,
 								   params.ground_z);
-
-		t[4] = std::clock();
 
 		//////////////////////////////////////
 		// Alignment with Motion distortion //
@@ -1277,8 +1278,6 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 			aligned_mat = (R_tot * targets_mat).colwise() + T_tot;
 		}
 
-		t[5] = std::clock();
-
 
 		// Update all result matrices
 		if (step == 0)
@@ -1290,8 +1289,6 @@ void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 			temp.bottomRows(4) = Eigen::MatrixXd(results.transform);
 			results.all_transforms = temp;
 		}
-
-		t[5] = std::clock();
 
 		///////////////////////
 		// Check convergence //

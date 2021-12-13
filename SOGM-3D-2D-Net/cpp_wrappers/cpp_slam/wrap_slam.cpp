@@ -84,14 +84,15 @@ static PyObject* map_sim_sequence(PyObject* self, PyObject* args, PyObject* keyw
 	static char* kwlist[] = {(char *)"frame_names", (char *)"frame_times",
 							 (char *)"gt_poses", (char *)"gt_times", (char *)"save_path",
 							 (char *)"init_points", (char *)"init_normals", (char *)"init_scores",
-							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", (char *)"filtering", (char *)"verbose_time",
+							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", 
+							 (char *)"filtering", (char *)"saving_for_loop_closure", (char *)"verbose_time",
 							 (char *)"icp_samples", (char *)"icp_pairing_dist", (char *)"icp_planar_dist",
 							 (char *)"icp_avg_steps", (char *)"icp_max_iter",
 							 (char *)"H_velo_base", (char *)"odom_H",
 							 NULL};
 
 	// Parse the input  
-	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOOOsOOO|$ffppflffllOO", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOOOsOOO|$ffpppflffllOO", kwlist,
 		&fnames_str,
 		&ftimes_obj,
 		&gt_H_obj,
@@ -104,6 +105,7 @@ static PyObject* map_sim_sequence(PyObject* self, PyObject* args, PyObject* keyw
 		&slam_params.frame_voxel_size,
 		&slam_params.motion_distortion,
 		&slam_params.filtering,
+		&slam_params.saving_for_loop_closure,
 		&slam_params.verbose_time,
 		&slam_params.icp_params.n_samples,
 		&slam_params.icp_params.max_pairing_dist,
@@ -330,14 +332,15 @@ static PyObject* map_real_sequence(PyObject* self, PyObject* args, PyObject* key
 	// Keywords containers
 	static char* kwlist[] = {(char *)"frame_names", (char *)"frame_times", (char *)"save_path",
 							 (char *)"init_points", (char *)"init_normals", (char *)"init_scores",
-							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", (char *)"filtering", (char *)"verbose_time",
+							 (char *)"map_voxel_size", (char *)"frame_voxel_size", (char *)"motion_distortion", 
+							 (char *)"filtering", (char *)"saving_for_loop_closure", (char *)"verbose_time",
 							 (char *)"icp_samples", (char *)"icp_pairing_dist", (char *)"icp_planar_dist",
 							 (char *)"icp_avg_steps", (char *)"icp_max_iter",
 							 (char *)"H_velo_base", (char *)"odom_H",
 							 NULL};
 
 	// Parse the input  
-	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOsOOO|$ffppflffllOO", kwlist,
+	if (!PyArg_ParseTupleAndKeywords(args, keywds, "sOsOOO|$ffpppflffllOO", kwlist,
 		&fnames_str,
 		&ftimes_obj,
 		&save_path,
@@ -348,6 +351,7 @@ static PyObject* map_real_sequence(PyObject* self, PyObject* args, PyObject* key
 		&slam_params.frame_voxel_size,
 		&slam_params.motion_distortion,
 		&slam_params.filtering,
+		&slam_params.saving_for_loop_closure,
 		&slam_params.verbose_time,
 		&slam_params.icp_params.n_samples,
 		&slam_params.icp_params.max_pairing_dist,

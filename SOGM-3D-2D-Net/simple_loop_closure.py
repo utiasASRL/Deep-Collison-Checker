@@ -127,6 +127,108 @@ def full_registration(pcds, loop_closure_edges, d_coarse, d_fine):
     return pose_graph
 
 
+def loop_closure(map_day, dataset_path, loop_edges):
+
+    ############
+    # Parameters
+    ############
+
+    # Data path
+    map_folder = join(dataset_path, "slam_offline", map_day)
+    frame_path = join(map_folder, "icp_frames")
+    poses_path = join(map_folder, "map0_traj_{:s}.pkl".format(map_day))
+    original_path = join(dataset_path, 'runs/{:s}/velodyne_frames'.format(map_day))
+
+    #################
+    # LOAD ALL FRAMES
+    #################
+
+    # Load all frame corrected and aligned
+    frame_names = np.sort([join(frame_path, f) for f in listdir(frame_path) if f.endswith('.ply')])
+    
+    # Advanced display
+    N = len(frame_names)
+    progress_n = 30
+    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+    print('\nLoading frames')
+
+    all_points = []
+    all_normals = []
+    all_icp_scores = []
+    all_norm_scores = []
+    all_lens = []
+    all_pcds = []
+    for i, fname in enumerate(frame_names):
+
+        data = read_ply(fname)
+        all_points.append(np.vstack((data['x'], data['y'], data['z'])).T)
+        all_normals.append(np.vstack((data['nx'], data['ny'], data['nz'])).T)
+        all_icp_scores.append(data['f0'])
+        all_norm_scores.append(data['f1'])
+        all_lens.append(data.shape[0])
+        
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(all_points[-1])
+        pcd.normals = o3d.utility.Vector3dVector(all_normals[-1])
+        all_pcds.append(pcd)
+
+        print('', end='\r')
+        print(fmt_str.format('#' * ((i * progress_n) // N), 100 * i / N), end='', flush=True)
+
+    print('', end='\r')
+    print(fmt_str.format('#' * progress_n, 100), flush=True)
+    print('\n')
+
+    # print(np.array(all_lens, dtype=np.int32))
+
+    ################
+    # LOAD ALL POSES
+    ################
+
+    with open(poses_path, 'rb') as file:
+        map_H = pickle.load(file)
+
+    ################
+    # LOAD ALL TIMES
+    ################
+
+    frame_times = np.sort(np.array([float(f[:-4]) for f in listdir(original_path) if f.endswith('.ply')], dtype=np.float64))
+
+    print(len(map_H), len(all_points), len(frame_times))
+
+    # Or here close
+    print('Close after??')
+    print("Full registration ...")
+    voxel_size = 0.1
+    d_coarse = voxel_size * 15
+    d_fine = voxel_size * 1.5
+    with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
+        pose_graph = full_registration(all_pcds,
+                                       loop_edges,
+                                       d_coarse,
+                                       d_fine)
+                                        
+    print('Optimizing PoseGraph ...')
+    option = o3d.pipelines.registration.GlobalOptimizationOption(max_correspondence_distance=d_fine,
+                                                                 edge_prune_threshold=0.25,
+                                                                 reference_node=0)
+
+    with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
+        o3d.pipelines.registration.global_optimization(pose_graph,
+                                                       o3d.pipelines.registration.GlobalOptimizationLevenbergMarquardt(),
+                                                       o3d.pipelines.registration.GlobalOptimizationConvergenceCriteria(),
+                                                       option)
+
+    print('Transform points and display')
+    new_map_H = []
+    for point_id in range(len(all_pcds)):
+        all_pcds[point_id].transform(pose_graph.nodes[point_id].pose)
+        new_map_H.append(np.matmul(pose_graph.nodes[point_id].pose, map_H[point_id]))
+    # o3d.visualization.draw_geometries(all_pcds)
+
+    return new_map_H
+
+
 def test_loop_closure():
 
     # TODO: For graph slam look at this:
@@ -148,15 +250,18 @@ def test_loop_closure():
     # Parameters
     ############
 
+    # Parameter
+    map_day = "2021-12-06_08-51-29"
+
     # Data path
     root_path = "/home/hth/Deep-Collison-Checker/"
-    frame_path = join(root_path, "Data/Real/icp_frames/tmp/")
-
-    map_day = "2021-11-30_12-05-32"
-    map_folder = join(root_path, "Data/Real/slam_offline", map_day)
+    # dataset_path = join(root_path, "Data/Real")
+    dataset_path = join(root_path, "Data/RealMyhal")
+    map_folder = join(dataset_path, "slam_offline", map_day)
+    frame_path = join(map_folder, "icp_frames")
     poses_path = join(map_folder, "map0_traj_{:s}.pkl".format(map_day))
 
-    original_path = join(root_path, 'Data/Real/runs/{:s}/velodyne_frames'.format(map_day))
+    original_path = join(dataset_path, 'runs/{:s}/velodyne_frames'.format(map_day))
 
 
     # Reducing the number of frame optimized
@@ -355,8 +460,6 @@ def test_loop_closure():
     ###########################
     # Try multiway registration
     ###########################
-
-
 
     return
 

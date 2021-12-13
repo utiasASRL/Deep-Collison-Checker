@@ -163,6 +163,17 @@ void PointToMapICPDebug(vector<PointXYZ>& tgt_pts,
 	vector<float>& map_scores,
 	ICP_params& params,
 	ICP_results& results);
+	
+void RandomPointAssociation(vector<size_t> &w_inds,
+							PointMap &map,
+							vector<PointXYZ> &aligned,
+							vector<pair<size_t, size_t>> &sample_inds,
+							default_random_engine &generator,
+							discrete_distribution<int> &distribution,
+							nanoflann::SearchParams &search_params,
+							float &max_planar_d,
+							ICP_params &params,
+							ICP_results &results);
 
 void PointToMapICP(vector<PointXYZ>& tgt_pts, vector<float>& tgt_t,
 	vector<double>& tgt_w,
