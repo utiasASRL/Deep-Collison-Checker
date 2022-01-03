@@ -13,7 +13,7 @@ static char module_docstring[] = "This module provides lidar related functions";
 
 static char get_visibility_docstring[] = "Gets the visibility mask as 1D ranges or 2D costmap from a lidar pointcloud";
 
-static char other_utils_docstring[] = "TODO";
+static char other_utils_docstring[] = "OTHER";
 
 
 // Declare the functions

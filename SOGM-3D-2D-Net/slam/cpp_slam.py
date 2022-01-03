@@ -245,6 +245,34 @@ def slam_on_sim_sequence(f_names,
     return H
 
 
+def merge_pointmaps(points,
+                    normals,
+                    scores,
+                    add_points=None,
+                    add_normals=None,
+                    add_scores=None,
+                    map_voxel_size=0.1,
+                    merge_dist=0.5,
+                    barycenter_map=False):
+
+    if (add_points is None) or (add_normals is None) or (add_scores is None):
+        add_points = np.zeros((0, 3), dtype=np.float32)
+        add_normals = np.zeros((0, 3), dtype=np.float32)
+        add_scores = np.zeros((0,), dtype=np.float32)
+
+    p0, n0, s0, l0 = cpp_pointmap_slam.merge_pointmaps(points,
+                                                       normals,
+                                                       scores,
+                                                       add_points,
+                                                       add_normals,
+                                                       add_scores,
+                                                       map_voxel_size=map_voxel_size,
+                                                       merge_dist=merge_dist,
+                                                       barycenter_map=barycenter_map)
+
+    return p0, n0, s0, l0
+
+
 def slam_on_real_sequence(f_names,
                           f_times,
                           save_path,
@@ -256,6 +284,9 @@ def slam_on_real_sequence(f_names,
                           motion_distortion=False,
                           filtering=False,
                           saving_for_loop_closure=False,
+                          force_flat_ground=False,
+                          barycenter_map=False,
+                          update_init_map=True,
                           verbose_time=5.0,
                           icp_samples=400,
                           icp_pairing_dist=2.0,
@@ -292,6 +323,9 @@ def slam_on_real_sequence(f_names,
                                             motion_distortion=motion_distortion,
                                             filtering=filtering,
                                             saving_for_loop_closure=saving_for_loop_closure,
+                                            force_flat_ground=force_flat_ground,
+                                            barycenter_map=barycenter_map,
+                                            update_init_map=update_init_map,
                                             verbose_time=verbose_time,
                                             icp_samples=icp_samples,
                                             icp_pairing_dist=icp_pairing_dist,

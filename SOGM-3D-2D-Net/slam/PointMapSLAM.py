@@ -36,12 +36,13 @@ from utils.ply import read_ply, write_ply
 from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, \
     slam_on_sim_sequence, ray_casting_annot, slam_on_real_sequence
 from slam.dev_slam import normal_filtering, bundle_icp, frame_H_to_points, estimate_normals_planarity_debug, \
-    cart2pol, get_odometry, ssc_to_homo, extract_ground, save_trajectory
+    cart2pol, get_odometry, ssc_to_homo, extract_ground, save_trajectory, filter_frame_timestamps, extract_flat_ground
 
 #from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from sklearn.neighbors import KDTree
 
 from utils.metrics import fast_confusion
+from utils.mayavi_visu import Box
 
 
 class PointMap:
@@ -120,7 +121,6 @@ class PointMap:
         grid_indices0 = grid_indices - min_grid_indices
         scalar_indices = grid_indices0[:, 0] + grid_indices0[:, 1] * deltaX
         frame_img[scalar_indices, :] = polar_points
-        # TODO: not good switch to C++
 
         # Compute voxel indice for each map point
         grid_indices = (np.floor(polar_map[:, 1:] / theta_res)).astype(int)
@@ -333,7 +333,7 @@ class PointMap:
         self.plane_inds = None
 
 
-def apply_motion_distortion(points, phi0, last_H, new_H, normals=None):
+def apply_motion_distortion_old(points, phi0, last_H, new_H, normals=None):
 
     # Get the phi of the current transform
     phi = (3 * np.pi / 2 - np.arctan2(points[:, 1], points[:, 0]).astype(np.float32)) % (2 * np.pi)
@@ -365,6 +365,40 @@ def apply_motion_distortion(points, phi0, last_H, new_H, normals=None):
         world_normals = np.matmul(world_normals, interp_R.transpose((0, 2, 1))).astype(np.float32)
         world_normals = np.squeeze(world_normals)
         return world_pts, world_normals, phi1
+
+
+def motion_rectified(points, times, H0, H1, normals=None):
+
+    # get linear interpolation alphas
+    t0 = np.min(times)
+    t1 = np.max(times)
+    alphas = (times - t0) / (t1 - t0)
+
+    # Create a slerp interpolation function for the rotation part of the transform
+    R0 = H0[:3, :3]
+    R1 = H1[:3, :3]
+    key_rots = Rotation.from_matrix(np.stack((R0, R1), axis=0))
+    slerp = Slerp([0, 1], key_rots)
+    interp_R = slerp(alphas).as_matrix()
+
+    # Create linear interpolation for translation
+    T0 = H0[:3, 3:]
+    T1 = H1[:3, 3:]
+    interp_T = (1 - alphas) * T0 + alphas * T1
+
+    world_pts = np.expand_dims(points, 1)
+    world_pts = np.matmul(world_pts, interp_R.transpose((0, 2, 1))).astype(np.float32)
+
+    world_pts = np.squeeze(world_pts)
+    world_pts += interp_T.T
+
+    if normals is not None:
+        world_normals = np.expand_dims(normals, 1)
+        world_normals = np.matmul(world_normals, interp_R.transpose((0, 2, 1))).astype(np.float32)
+        world_normals = np.squeeze(world_normals)
+        return world_pts, world_normals
+
+    return world_pts
 
 
 def get_frame_slices(points, phi0, last_H, new_H, n_slices):
@@ -524,7 +558,7 @@ def pointmap_slam_v0debug(verbose=2):
                       [world_pts],
                       ['x', 'y', 'z'])
 
-            world_points, world_normals, phi1 = apply_motion_distortion(points,
+            world_points, world_normals, phi1 = apply_motion_distortion_old(points,
                                                                         phi0,
                                                                         transform_list[i - 1],
                                                                         world_H,
@@ -540,11 +574,6 @@ def pointmap_slam_v0debug(verbose=2):
             print(world_H * np.linalg.inv(transform_list[i - 1]))
             if i > 145:
                 a = 1 / 0
-
-            # TODO: At one point traj fail why? We see that traj frame are deformed so maybe transform is not rotation
-            #  anymore... Why ? Related to double free or courrptio nerror?
-
-            # TODO: frame stride=1 does not work why?
 
             # write_ply('testundistort.ply',
             #           [world_pts, phi, phit],
@@ -562,11 +591,7 @@ def pointmap_slam_v0debug(verbose=2):
             t += [time.time()]
 
             # Update map
-            # TODO: Update map with all the points and not only filtered frame?
-            # TODO: update only with closer points?
             pointmap.update(world_points, world_normals, norm_scores)
-
-            # TODO: reduce map size as we advance
 
             t += [time.time()]
 
@@ -615,7 +640,7 @@ def pointmap_slam_v0debug(verbose=2):
                     points = np.vstack((data['x'], data['y'], data['z'])).T
 
                     # Apply transf
-                    world_pts, phi1 = apply_motion_distortion(points,
+                    world_pts, phi1 = apply_motion_distortion_old(points,
                                                               phi0,
                                                               transform_list[i - 1],
                                                               world_H)
@@ -658,7 +683,7 @@ def pointmap_slam_v0debug(verbose=2):
             points = np.vstack((data['x'], data['y'], data['z'])).T
 
             # Apply transf
-            world_pts, phi1 = apply_motion_distortion(points,
+            world_pts, phi1 = apply_motion_distortion_old(points,
                                                       phi0,
                                                       transform_list[i - 1],
                                                       world_H)
@@ -708,10 +733,6 @@ def pointmap_slam_v1(verbose=1, dataset_name='NCLT'):
 
     # Stride (nb of frames skipped for transformations)
     frame_stride = 2
-    # TODO: frame stride=1 does not work why?
-    #  Reason is motion distortion. First phi of current frame is very close to last phi of last frame, therefore,
-    #  with motion distortion, ICP cannot move these points from their position. If because of wrong motion distortion
-    #  (not linear) these points are not aligned, then they will create a bias that is going to make the ICP diverge
 
     # Normal estimation parameters
     score_thresh = 0.99
@@ -834,7 +855,7 @@ def pointmap_slam_v1(verbose=1, dataset_name='NCLT'):
 
                 # Apply transf
                 transform_list[i] = world_H
-                world_points, world_normals, phi1 = apply_motion_distortion(points,
+                world_points, world_normals, phi1 = apply_motion_distortion_old(points,
                                                                             phi0,
                                                                             transform_list[i - 1],
                                                                             world_H,
@@ -848,17 +869,11 @@ def pointmap_slam_v1(verbose=1, dataset_name='NCLT'):
 
             t += [time.time()]
 
-            # TODO: problem with motion distortion, at mapping 120 - 130. Motion distortion is wrong... Why?
-            #   => the motion distortion is not linear (if robot encounters a step => bump in traj) or here because
-            #      segway is oscillating
-
             # Reset map for the first motion distorted clouds
             if i < 2:
                 pointmap.reset()
 
             # Update map
-            # TODO: Update map with all the points and not only filtered frame?
-            # TODO: update only with closer points?
             pointmap.update(world_points, world_normals, norm_scores)
 
             if i % 10 == 0:
@@ -909,7 +924,7 @@ def pointmap_slam_v1(verbose=1, dataset_name='NCLT'):
                     points = np.vstack((data['x'], data['y'], data['z'])).T
 
                     # Apply transf
-                    world_pts, phi1 = apply_motion_distortion(points,
+                    world_pts, phi1 = apply_motion_distortion_old(points,
                                                               tmp_phi0,
                                                               transform_list[i0 + i - 1],
                                                               world_H)
@@ -953,7 +968,7 @@ def pointmap_slam_v1(verbose=1, dataset_name='NCLT'):
             points = np.vstack((data['x'], data['y'], data['z'])).T
 
             # Apply transf
-            world_pts, phi1 = apply_motion_distortion(points,
+            world_pts, phi1 = apply_motion_distortion_old(points,
                                                       tmp_phi0,
                                                       transform_list[i0 + i - 1],
                                                       world_H)
@@ -1108,7 +1123,7 @@ def pointmap_slam(dataset,
 
                 # Apply transf
                 transform_list[i] = world_H
-                world_points, world_normals, phi1 = apply_motion_distortion(points,
+                world_points, world_normals, phi1 = apply_motion_distortion_old(points,
                                                                             phi0,
                                                                             transform_list[i - 1],
                                                                             world_H,
@@ -1119,17 +1134,11 @@ def pointmap_slam(dataset,
 
             t += [time.time()]
 
-            # TODO: problem with motion distortion, at mapping 120 - 130. Motion distortion is wrong... Why?
-            #   => the motion distortion is not linear (if robot encounters a step => bump in traj) or here because
-            #      segway is oscillating
-
             # Reset map for the first motion distorted clouds
             if i < 2:
                 pointmap.reset()
 
             # Update map
-            # TODO: Update map with all the points and not only filtered frame?
-            # TODO: update only with closer points?
             pointmap.update(world_points, world_normals, norm_scores)
 
             if i % 10 == 0:
@@ -1180,7 +1189,7 @@ def pointmap_slam(dataset,
                     points = dataset.load_frame_points(frame_names[i0 + i])
 
                     # Apply transf
-                    world_pts, phi1 = apply_motion_distortion(points,
+                    world_pts, phi1 = apply_motion_distortion_old(points,
                                                               tmp_phi0,
                                                               transform_list[i0 + i - 1],
                                                               world_H)
@@ -1229,7 +1238,7 @@ def pointmap_slam(dataset,
             points = dataset.load_frame_points(frame_names[i0 + i])
 
             # Apply transf
-            world_pts, phi1 = apply_motion_distortion(points,
+            world_pts, phi1 = apply_motion_distortion_old(points,
                                                       tmp_phi0,
                                                       transform_list[i0 + i - 1],
                                                       world_H)
@@ -1569,13 +1578,6 @@ def annotation_process_old(dataset,
             with open(in_file, 'rb') as file:
                 frame_names, transform_list, frame_stride, pointmap = pickle.load(file)
 
-            # TODO: IIIIIIIIIIIIIIICCCCCCCCCCCCCCIIIIIIIIIIIII
-            #       => The map was initialized with map from previous day so we have to compute again the map
-            #       for each single day. We already have the transformation, use c++ code for that
-            #       => We can remove short term object from maps to use them as initialization for the other days
-            #       =>
-            #
-
         # Keep the original data that we want to annotate
         N = pointmap.points.shape[0]
         classifs.append(np.zeros((N,), dtype=np.int32))
@@ -1851,7 +1853,18 @@ def annotation_process(dataset,
     # STEP 0 - Init
     ###############
 
-    print('Start Annotation')
+    print('\n')
+    print('------------------------------------------------------------------------------')
+    print('\n')
+    print('Annotation of the points')
+    print('************************')
+    print('\nInitial map run:', dataset.map_day)
+    print('\nAnnotated runs:')
+    for d, day in enumerate(dataset.days):
+        print(' >', day)
+    print('\n')
+
+    print('\n----- Initialization')
 
     # Folder where the incrementally updated map is stored
     map_folder = join(dataset.data_path, 'slam_offline', dataset.map_day)
@@ -1865,20 +1878,25 @@ def annotation_process(dataset,
     last_update_i = int(last_map[:-4].split('_')[-1])
 
     # Load map
-    print('Load last update')
+    print('\nLoad last update')
     data = read_ply(join(map_folder, last_map))
     map_points = np.vstack((data['x'], data['y'], data['z'])).T
     map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
     map_scores = data['scores']
-    map_counts = data['counts']
     print('OK')
 
-    # # TODO: HAndle height everywhere
-    # height_mask = np.logical_and(map_points[:, 2] < 1.8, map_points[:, 2] > -0.4)
-    # map_points = map_points[height_mask]
-    # map_normals = map_normals[height_mask]
-    # map_scores = map_scores[height_mask]
-    # map_counts = map_counts[height_mask]
+    # Load hardcoded map limits
+    map_lim_file = join(dataset.data_path, 'calibration/map_limits.txt')
+    if exists(map_lim_file):
+        map_limits = np.loadtxt(map_lim_file)
+    else:
+        map_limits = None
+
+    lim_box = Box(map_limits[0, 0], map_limits[1, 0], map_limits[0, 1], map_limits[1, 1])
+    min_z = map_limits[2, 0]
+    max_z = map_limits[2, 1]
+
+    print('\n    > Done')
 
     ##############
     # LOOP ON DAYS
@@ -1888,7 +1906,7 @@ def annotation_process(dataset,
     # Otherwise if a table is there in only one day, it will not be removed.
     for d, day in enumerate(dataset.days):
 
-        print('--- Movable detection day {:s}'.format(day))
+        print('\n----- Movable detection day {:s}'.format(day))
 
         ####################
         # Step 1: Load stuff
@@ -1901,49 +1919,10 @@ def annotation_process(dataset,
 
         # Frame names
         f_names = dataset.day_f_names[d]
-
-        #################
-        # Initial mapping
-        #################
-
-        try:
-            # Get map_poses
-            map_t, map_H = dataset.load_map_poses(day)
-
-        except FileNotFoundError as e:
-
-            # If not available perfrom an initial mapping
-            map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in f_names], dtype=np.float64)
-            map_H = None
-
-        # Verify which frames we need:
-        frame_names = []
-        f_name_i = 0
-        last_t = map_t[0] - 0.1
-        remove_inds = []
-        for i, t in enumerate(map_t):
-
-            # Handle cases were we have two identical timestamps in map_t
-            if np.abs(t - last_t) < 0.01:
-                remove_inds.append(i)
-                continue
-            last_t = t
-
-            f_name = '{:.6f}.ply'.format(t)
-            while f_name_i < len(f_names) and not (f_names[f_name_i].endswith(f_name)):
-                # print(f_names[f_name_i], ' skipped for ', f_name)
-                f_name_i += 1
-
-            if f_name_i >= len(f_names):
-                break
-
-            frame_names.append(f_names[f_name_i])
-            f_name_i += 1
-
-        # Remove the double inds form map_t and map_H
-        map_t = np.delete(map_t, remove_inds, axis=0)
-        if map_H is not None:
-            map_H = np.delete(map_H, remove_inds, axis=0)
+        map_t = dataset.day_f_times[d]
+        
+        # Filter timestamps
+        map_t, frame_names = filter_frame_timestamps(map_t, f_names)
 
         #########################
         # Step 2: Frame alignment
@@ -1954,52 +1933,18 @@ def annotation_process(dataset,
         cpp_traj_name = join(out_folder, 'correct_traj_{:s}.pkl'.format(day))
 
         # Always redo because map might have changed
-        if not exists(cpp_traj_name):
+        if not exists(cpp_map_name):
+            
+            print('\nAligning frames on map\n')
 
             # Align on map and add the points of this day
+            init_H = np.array([[1.0, 0.0, 0.0, 0.0],
+                               [0.0, 1.0, 0.0, 0.0],
+                               [0.0, 0.0, 1.0, 0.7],
+                               [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
 
-            if map_H is None:
-                icp_max_iter = 100
-
-                if day == '2021-11-04_10-03-09':
-                    init_H = np.array([[-1.0, 0.0, 0.0, 7.33],
-                                       [0.0, -1.0, 0.0, 0.00],
-                                       [0.0, 0.0, 1.0, 0.70],
-                                       [0.0, 0.0, 0.0, 1.00]], dtype=np.float64)
-
-                elif day == '2021-11-04_10-06-45':
-                    init_H = np.array([[0.989726383710, 0.14297442209, 0.00000000, 1.2],
-                                       [-0.14297442209, 0.98972638371, 0.00000000, 0.0],
-                                       [0.000000000000, 0.00000000000, 1.00000000, 0.9],
-                                       [0.000000000000, 0.00000000000, 0.00000000, 1.0]], dtype=np.float64)
-
-
-                elif day.startswith('2021-11-1'):
-                    init_H = np.array([[1.0, 0.0, 0.0, 0.0],
-                                       [0.0, 1.0, 0.0, 0.0],
-                                       [0.0, 0.0, 1.0, 0.7],
-                                       [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
-
-                elif day.startswith('2021-11-3'):
-                    init_H = np.array([[1.0, 0.0, 0.0, 0.0],
-                                       [0.0, 1.0, 0.0, 0.0],
-                                       [0.0, 0.0, 1.0, 0.7],
-                                       [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
-
-                else:
-
-                    raise ValueError('Initial alignment not implemented')
-                    init_H = None
-
-                odom_H = [np.linalg.inv(init_H) for _ in map_t]
-                odom_H = np.stack(odom_H, 0)
-
-            else:
-
-                # (Do not perform ICP to correct pose as it is already supposed to be good)
-                icp_max_iter = 0
-                odom_H = [np.linalg.inv(odoH) for odoH in map_H]
-                odom_H = np.stack(odom_H, 0)
+            odom_H = [np.linalg.inv(init_H) for _ in map_t]
+            odom_H = np.stack(odom_H, 0)
 
             correct_H = slam_on_real_sequence(frame_names,
                                               map_t,
@@ -2010,12 +1955,14 @@ def annotation_process(dataset,
                                               map_voxel_size=map_dl,
                                               frame_voxel_size=3 * map_dl,
                                               motion_distortion=True,
-                                              filtering=False,
+                                              force_flat_ground=True,
+                                              barycenter_map=False,
+                                              update_init_map=False,
                                               verbose_time=5.0,
                                               icp_samples=600,
                                               icp_pairing_dist=2.0,
                                               icp_planar_dist=0.12,
-                                              icp_max_iter=icp_max_iter,
+                                              icp_max_iter=100,
                                               icp_avg_steps=5,
                                               odom_H=odom_H)
 
@@ -2025,26 +1972,26 @@ def annotation_process(dataset,
                 num_computed = np.sum(test.astype(np.int32))
                 raise ValueError('PointSlam returned without only {:d} poses computed out of {:d}'.format(num_computed, test.shape[0]))
 
-                                              
+            # Save a ply file for traj visu
+            save_trajectory(join(out_folder, 'visu_traj_{:s}.ply'.format(day)), correct_H)
+
             # Save traj
             with open(cpp_traj_name, 'wb') as file:
                 pickle.dump(correct_H, file)
 
         else:
+            
+            print('\nLoading previous alignment\n')
 
             # Load traj
             with open(cpp_traj_name, 'rb') as f:
                 correct_H = pickle.load(f)
 
-        # Save a ply file for traj visu
-        save_trajectory(join(out_folder, 'visu_traj_{:s}.ply'.format(day)), correct_H)
-
         # Load c++ map
         data = read_ply(cpp_map_name)
         day_points = np.vstack((data['x'], data['y'], data['z'])).T
         day_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-        day_counts = data['f0']
-        day_scores = data['f1']
+        day_oldests = data['f0']
             
         # height_mask = np.logical_and(day_points[:, 2] < 1.8, day_points[:, 2] > -0.4)
         # day_points = day_points[height_mask]
@@ -2061,6 +2008,8 @@ def annotation_process(dataset,
             rename(old_movable_name, movable_name)
 
         if not exists(movable_name):
+            
+            print('\nPerforming ray-tracing movable detction\n')
 
             # Get short term movables
             movable_prob, movable_count = ray_casting_annot(frame_names,
@@ -2083,6 +2032,8 @@ def annotation_process(dataset,
                       ['x', 'y', 'z', 'nx', 'ny', 'nz', 'shortT', 'longT', 'counts'])
 
         else:
+            
+            print('\nLoading previous movables\n')
             data = read_ply(movable_name)
             movable_prob = data['shortT']
             long_prob = data['longT']
@@ -2098,22 +2049,49 @@ def annotation_process(dataset,
 
         annot_name = join(out_folder, 'annotated_{:s}.ply'.format(day))
         if not exists(annot_name):
+            
+            print('\nSaving annotated day map\n')
 
+            # Compute movable and dynamic points
             categories = np.zeros(movable_prob.shape, dtype=np.int32)
             categories[movable_prob > short_threshold] = 4
             categories[long_prob > long_threshold] = 3
+            
+            # get mask of the points outside the map area
+            outside_mask = np.logical_or(day_points[:, 2] < min_z, day_points[:, 2] > max_z)
+            outside_mask = np.logical_or(outside_mask, day_points[:, 0] < lim_box.x1)
+            outside_mask = np.logical_or(outside_mask, day_points[:, 0] > lim_box.x2)
+            outside_mask = np.logical_or(outside_mask, day_points[:, 1] < lim_box.y1)
+            outside_mask = np.logical_or(outside_mask, day_points[:, 1] > lim_box.y2)
 
             # Still points come from map
-            still_mask = double_still_reproj(day_points, day_counts)
+            valid_mask = np.logical_and(categories > 2, np.logical_not(outside_mask))
+            still_mask = double_still_reproj(day_points,
+                                             day_oldests,
+                                             valid_mask,
+                                             dist_thresh=0.2,
+                                             remove_dist=0.17)
             categories[still_mask] = 2
 
             # Ground overwrite every other class
-            ground_mask = extract_ground(day_points, day_normals,
-                                         out_folder,
-                                         vertical_thresh=10.0,
-                                         dist_thresh=0.12,
-                                         remove_dist=0.01)
+            ground_mask = extract_flat_ground(day_points,
+                                              dist_thresh=0.2,
+                                              remove_dist=0.17)
             categories[ground_mask] = 1
+
+            # Points outside map limits are unclassified
+            categories[outside_mask] = 0
+
+
+            # Dynamic and movable refine
+            #   > First small groups of movables inside dynamic get eaten (margin = 0.12)
+            #   > Then the remaining movables eat large group of dynamic (margin = 0.8)
+            #   > Eventually, the remaining dynamic eat back some of their fellows (margin = 0.6)
+            categories = dynamic_movable_refine(day_points,
+                                                categories,
+                                                dynamic_margin=0.12,
+                                                movable_margin=0.8,
+                                                remove_dist=0.6)
 
             # Save annotated day_map
             write_ply(annot_name,
@@ -2121,6 +2099,9 @@ def annotation_process(dataset,
                       ['x', 'y', 'z', 'classif'])
 
         else:
+            
+            print('\nLoading previously annotated bufer\n')
+
             data = read_ply(annot_name)
             categories = data['classif']
 
@@ -2133,10 +2114,8 @@ def annotation_process(dataset,
         if not exists(annot_folder):
             makedirs(annot_folder)
 
-        print(annot_folder)
-
         # Create KDTree on the map
-        print('Reprojection of map day {:s}'.format(day))
+        print('\nReprojection of map day {:s}\n'.format(day))
         map_tree = None
         N = len(frame_names)
         last_t = time.time()
@@ -2154,11 +2133,33 @@ def annotation_process(dataset,
             t = [time.time()]
 
             # Load points
-            f_points, f_labels = dataset.load_frame_points_labels(f_name)
+            data = read_ply(f_name)
+            f_points = np.vstack((data['x'], data['y'], data['z'])).T
+            f_ts = data['time']
 
-            # Apply transf
-            world_pts = np.hstack((f_points, np.ones_like(f_points[:, :1])))
-            world_pts = np.matmul(world_pts, correct_H[i].T).astype(np.float32)[:, :3]
+            # Apply transform with motion distorsion
+            if (i < 1):
+                H0 = correct_H[i]
+                H1 = correct_H[i]
+            else:
+                H0 = correct_H[i - 1]
+                H1 = correct_H[i]
+            world_pts = motion_rectified(f_points, f_ts, H0, H1)
+                    
+            # R0 = H0[:3, :3]
+            # R1 = H1[:3, :3]
+            # dR = R1 * R0.T
+            # R_error = np.arccos((np.trace(dR) - 1) / 2) * 180 / np.pi
+            # print(R_error)
+            # if (i > 10 and R_error > 10.0):
+            #     write_ply('test_motion_rect.ply',
+            #               [world_pts, f_ts],
+            #               ['x', 'y', 'z', 'time'])
+            #     world_pts2 = motion_rectified(f_points, f_ts, H1, H1)
+            #     write_ply('test_motion_naiv.ply',
+            #               [world_pts2, f_ts],
+            #               ['x', 'y', 'z', 'time'])
+            #     a = 1/0
 
             # Get closest map points
             neighb_inds = np.squeeze(map_tree.query(world_pts, return_distance=False))
@@ -2170,17 +2171,19 @@ def annotation_process(dataset,
 
             # Save (in original frame coordinates)
             write_ply(ply_name,
-                      [f_points, frame_classif, f_labels],
-                      ['x', 'y', 'z', 'classif', 'labels'])
+                      [frame_classif],
+                      ['classif'])
 
             t += [time.time()]
             fps = fps_regu * fps + (1.0 - fps_regu) / (t[-1] - t[0])
             if (t[-1] - last_t > 5.0):
+                last_t = t[-1]
                 print('Reproj {:s} {:5d} --- {:5.1f}%% at {:.1f} fps'.format(day,
                                                                              i + 1,
                                                                              100 * (i + 1) / N,
                                                                              fps))
-        print('OK')
+        
+        print('\n    > Done')
 
     return
 
@@ -2210,10 +2213,10 @@ def extract_map_ground(points, normals, out_folder,
     return plane_mask
 
 
-def double_still_reproj(points, counts, margin=0.1):
+def double_still_reproj(points, oldests, valid_mask, dist_thresh=0.2, remove_dist=0.17):
 
-    # Points of the original map have a count == -1
-    old_map_mask = counts < -0.5
+    # Points of the original map have a oldest == -1
+    old_map_mask = oldests < -0.5
     new_pts_mask = np.logical_not(old_map_mask)
     old_map_pts = points[old_map_mask]
 
@@ -2221,15 +2224,64 @@ def double_still_reproj(points, counts, margin=0.1):
     old_tree = KDTree(old_map_pts)
     dists, inds = old_tree.query(points[new_pts_mask], 1)
     still_mask = old_map_mask
-    still_mask[new_pts_mask] = np.squeeze(dists) < margin
+    still_mask[new_pts_mask] = np.squeeze(dists) < dist_thresh
 
     # Of these candidates remove the one that are still in range of other points
+    # Other point only comprise movables/dynamic and in limits points
+    other_mask = np.logical_not(still_mask)
+    other_mask = np.logical_and(other_mask, valid_mask)
+    others = points[other_mask]
     candidates = points[still_mask]
-    others = points[np.logical_not(still_mask)]
     dists, inds = KDTree(others).query(candidates, 1)
-    still_mask[still_mask] = np.squeeze(dists) > margin
+    still_mask[still_mask] = np.squeeze(dists) > remove_dist
 
     return still_mask
+
+
+def dynamic_movable_refine(day_points,
+                           categories,
+                           dynamic_margin=0.12,
+                           movable_margin=0.8,
+                           remove_dist=0.6):
+
+    # mask of movables and dynamic
+    movable_mask = categories == 3
+    dynamic_mask = categories == 4
+
+    # Set categories to movable and in the end we will set dynamics again
+    categories[dynamic_mask] = 3
+
+    # Get the movables not in range of dynamic
+    tree1 = KDTree(day_points[dynamic_mask])
+    dists, inds = tree1.query(day_points[movable_mask], 1)
+    remaining_mov_mask = np.copy(movable_mask)
+    remaining_mov_mask[movable_mask] = np.squeeze(dists) > dynamic_margin
+
+    # Set the rest as dynamic
+    dynamic_mask[movable_mask] = np.squeeze(dists) <= dynamic_margin
+
+    # Get the dynamic in range of the remaining movables
+    tree2 = KDTree(day_points[remaining_mov_mask])
+    dists, inds = tree2.query(day_points[dynamic_mask], 1)
+    remaining_dyn_mask = np.copy(dynamic_mask)
+    remaining_dyn_mask[dynamic_mask] = np.squeeze(dists) > movable_margin
+
+    # Get the uncertain points in between movables and dynamic
+    uncertain_dyn = np.copy(dynamic_mask)
+    uncertain_dyn[dynamic_mask] = np.squeeze(dists) <= movable_margin
+
+    # Among these, get the ones that will get dynamic again
+    tree3 = KDTree(day_points[remaining_dyn_mask])
+    dists, inds = tree3.query(day_points[uncertain_dyn], 1)
+    back_to_dyn_mask = np.copy(uncertain_dyn)
+    back_to_dyn_mask[uncertain_dyn] = np.squeeze(dists) < remove_dist
+
+    # Result:
+    dynamic_mask = np.logical_or(back_to_dyn_mask, remaining_dyn_mask)
+    categories[dynamic_mask] = 4
+
+    return categories
+
 
 
 def detect_short_term_movables(dataset, pointmap, frame_names, transform_list, frame_stride, out_folder, verbose=1):

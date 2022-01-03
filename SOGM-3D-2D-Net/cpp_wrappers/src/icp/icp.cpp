@@ -59,7 +59,7 @@ void SolvePoint2PlaneLinearSystem(const Matrix6d& A, const Vector6d& b, Vector6d
 		const Matrix Q1t = Aqr.matrixQ().transpose().block(0, 0, rank, rows);
 		const Matrix R1 = (Q1t * A * Aqr.colsPermutation()).block(0, 0, rank, rows);
 
-		const bool findMinimalNormSolution = true; // TODO is that what we want?
+		const bool findMinimalNormSolution = true; // is that what we want?
 
 		// The under-determined system R1 x = Q1^T b is made unique ..
 		if (findMinimalNormSolution) {
@@ -137,6 +137,7 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
 		double nz;
 
 		// Special case to force a flat ground
+		double score = 1.0;
 		if (force_flat_ground && is_ground[i])
 		{
 			dz = ground_z;
@@ -150,6 +151,10 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
 			nz = (double)refNormals[ind.second].z;
 			nx = (double)refNormals[ind.second].x;
 			ny = (double)refNormals[ind.second].y;
+			if (tgt_weights)
+				score = (double)weights[ind.first];
+			else if (ref_weights)
+				score = (double)weights[ind.second];
 		}
 
 		// setup least squares system
@@ -162,10 +167,7 @@ void PointToPlaneErrorMinimizer(vector<PointXYZ> &targets,
 		b(i, 0) = nx * dx + ny * dy + nz * dz - nx * sx - ny * sy - nz * sz;
 
 		// Apply weights if needed
-		if (tgt_weights)
-			wA.row(i) = A.row(i) * (double)weights[ind.first];
-		else if (ref_weights)
-			wA.row(i) = A.row(i) * (double)weights[ind.second];
+		wA.row(i) = A.row(i) * score;
 		i++;
 	}
 
@@ -688,8 +690,8 @@ void BundleICP(vector<PointXYZ>& points,
 		///////////// DEBUG /////////////
 
 		//
-		//	TODO: convergence check with RMSdiff? R_diff and T_diff?
-		//	TODO: residual error on full cloud?
+		//	convergence check with RMSdiff? R_diff and T_diff?
+		//	residual error on full cloud?
 		//
 	}
 

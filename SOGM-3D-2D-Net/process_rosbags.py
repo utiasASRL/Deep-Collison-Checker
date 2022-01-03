@@ -72,7 +72,7 @@ def main(save_velo=True,
         # Result folder
         if (file >= '2021-11-30_12-05-32.bag' and file <= '2021-12-04_13-59-29.bag'):
             run_path = '../Data/Real/runs'
-        elif (file >= '2021-12-06_06-44-07.bag' and file <= '2021-12-10_23-44-07.bag'):
+        elif (file >= '2021-12-06_06-44-07.bag' and file <= '2021-12-16_23-44-07.bag'):
             run_path = '../Data/RealMyhal/runs'
         elif (file == '2021-12-05_18-04-51.bag'):
             run_path = '../Data/RealAlbany/runs'

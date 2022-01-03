@@ -62,6 +62,14 @@ public:
 
 	// Should we save subsampled and aligned frames for loop closure
 	bool saving_for_loop_closure;
+
+	// Should we force flat ground
+	bool force_flat_ground;
+
+	// Are we using a barycenter pointmap (first-in pointmap otherwise)
+	bool barycenter_map;
+
+	// Are we updating the given initial map
 	bool update_init_map;
 
 	// Verbose option (time in sec between each verbose negative for no verbose)
@@ -95,6 +103,8 @@ public:
 		motion_distortion = false;
 		filtering = false;
 		saving_for_loop_closure = false;
+		force_flat_ground = false;
+		barycenter_map = false;
 		update_init_map = true;
 		verbose_time = -1;
 		H_velo_base = Eigen::Matrix4d::Identity(4, 4);
@@ -145,16 +155,30 @@ public:
 		// Init paramters
 		params = slam_params0;
 
-		//// Init map from previous session
+		// Init map from previous session
 		map.dl = params.map_voxel_size;
 		map0.dl = params.map_voxel_size;
 		if (init_points.size() > 0)
 		{
 			map0.update_idx = -1;
 			map0.update(init_points, init_normals, init_scores, -1);
-			map.update_idx = -1;
-			map.update(init_points, init_normals, init_scores, -1);
 		}
+
+		if (params.barycenter_map)
+		{
+			// We do not initialize the map to get a fresh new one
+			map.set_barycenter();
+		}
+		else
+		{
+			// Init map from previous session
+			if (init_points.size() > 0)
+			{
+				map.update_idx = -1;
+				map.update(init_points, init_normals, init_scores, -1);
+			}
+		}
+
 
 		// Dummy first last_H
 		last_H = Eigen::Matrix4d::Identity(4, 4);
@@ -199,7 +223,8 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<size_t> &sub_inds,
 					  Plane3D &frame_ground,
 					  vector<float> &heights,
-					  SLAM_params &params);
+					  SLAM_params &params,
+					  vector<clock_t> &t);
 
 void ceres_hello();
 

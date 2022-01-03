@@ -302,13 +302,15 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	if (verbose > 2)
 		cout << clock_str[t.size() - 1] << endl;
 
+
+
 	////////////////
 	// Parameters //
 	////////////////
 
 	float inv_theta_dl = 1.0 / theta_dl;
 	float inv_phi_dl = 1.0 / phi_dl;
-	float inv_dl = 1.0 / dl;
+	inv_dl = 1.0 / dl;
 	//float max_angle = 5 * M_PI / 12;
 	//float min_vert_cos = cos(M_PI / 3);
 	bool motion_distortion = n_slices > 1;

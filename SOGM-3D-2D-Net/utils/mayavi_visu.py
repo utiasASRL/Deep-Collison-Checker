@@ -1123,7 +1123,9 @@ def fast_save_future_anim(gif_name, future_imgs, zoom=1, correction=False):
     # Apply colorization
     if correction:
         colored_img = colorize_collisions(future_imgs)
-    
+    else:
+        colored_img = future_imgs
+
     # Apply zoom
     colored_img = zoom_collisions(colored_img, zoom)
 

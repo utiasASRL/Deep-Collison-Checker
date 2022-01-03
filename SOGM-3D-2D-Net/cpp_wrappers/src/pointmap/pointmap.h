@@ -361,7 +361,11 @@ public:
 	// ********
 
 	// Voxel size
-	float dl;
+	float dl, inv_dl;
+
+	// Use barycenter or not
+	bool bary;
+	float bary_r2;
 
 	// Count the number of frames used tu update this map
 	int update_idx;
@@ -372,6 +376,9 @@ public:
 	vector<float> scores;
 	vector<int> oldest;
 	vector<int> latest;
+
+	// Container only for barycenter maps
+	vector<bool> valid;
 
 	// Container only used when ray tracing
 	vector<VoxKey> cloud_keys;
@@ -389,12 +396,16 @@ public:
 	PointMap() : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
 		dl = 1.0f;
+		inv_dl = 1.0 / dl;
 		update_idx = 0;
+		bary = false;
 	}
 	PointMap(const float dl0) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
 		dl = dl0;
+		inv_dl = 1.0 / dl;
 		update_idx = 0;
+		bary = false;
 	}
 	PointMap(const float dl0,
 			 vector<PointXYZ> &init_points,
@@ -402,13 +413,17 @@ public:
 			 vector<float> &init_scores) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
 		dl = dl0;
+		inv_dl = 1.0 / dl;
 		update_idx = -1;
+		bary = false;
 		update(init_points, init_normals, init_scores, -1);
 	}
 
 	PointMap(const PointMap &map0) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
+		bary = false;
 		dl = map0.dl;
+		inv_dl = 1.0 / dl;
 		update_idx = map0.update_idx;
 		cloud = map0.cloud;
 		normals = map0.normals;
@@ -422,14 +437,18 @@ public:
 	PointMap(const PointMap &map0,
 			 const size_t max_ind) : tree(3, cloud, KDTree_Params(10 /* max leaf */))
 	{
+		bary = false;
 		dl = map0.dl;
+		inv_dl = 1.0 / dl;
 		update_idx = max_ind;
 		copy_until(map0, max_ind);
 	}
 
 	PointMap& operator=(const PointMap &map0)
 	{
+		bary = false;
 		dl = map0.dl;
+		inv_dl = 1.0 / dl;
 		update_idx = map0.update_idx;
 		cloud = map0.cloud;
 		normals = map0.normals;
@@ -444,24 +463,35 @@ public:
 	// Size of the map (number of point/voxel in the map)
 	size_t size() { return cloud.pts.size(); }
 
+	// Setting barycenter, can only happen if map is empty
+	void set_barycenter() 
+	{ 
+		if (cloud.pts.size() < 1)
+		{
+			bary = true;
+			bary_r2 = 1.5 * 1.5; // in grid metric
+		}
+		else
+			throw std::invalid_argument(string("Cannot convert a map to barycenter mode if it is not empty"));
+	}
 	
 	// Handle init/reinit/update function all in one
-	void handle_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0, size_t &num_added)
+	void handle_sample(const VoxKey &k0, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0, size_t &num_added)
 	{
 		// Update the point count
-		if (samples.count(k) < 1)
+		if (samples.count(k0) < 1)
 		{
-			init_sample(k, p0, n0, s0, c0);
+			init_sample(k0, p0, n0, s0, c0);
 			num_added++;
 		}
 		else
 		{
 			// Case of previously deleted points
-			size_t idx = samples[k];
+			size_t idx = samples[k0];
 			if (tree.isRemoved(idx))
 			{
 				// We want to add previously deleted points, we have to recreate it from scratch
-				reinit_sample(k, p0, n0, s0, c0);
+				reinit_sample(k0, p0, n0, s0, c0);
 				num_added++;
 			}
 			else
@@ -469,6 +499,84 @@ public:
 		}
 
 	}
+	
+	// Handle init/reinit/update function all in one
+	void handle_bary_sample(const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0, size_t &num_added)
+	{
+		// Init variable
+		VoxKey k, k0;
+
+		// Position of point in sample map
+		PointXYZ p_pos = p0 * inv_dl;
+
+		// Corresponding key
+		k0.x = (int)floor(p_pos.x);
+		k0.y = (int)floor(p_pos.y);
+		k0.z = (int)floor(p_pos.z);
+		
+		// Update the adjacent cells
+		for (k.x = k0.x - 1; k.x < k0.x + 2; k.x++)
+		{
+			for (k.y = k0.y - 1; k.y < k0.y + 2; k.y++)
+			{
+				for (k.z = k0.z - 1; k.z < k0.z + 2; k.z++)
+				{
+					// Center of updated cell in grid coordinates
+					PointXYZ cellCenter(0.5 + k.x, 0.5 + k.y, 0.5 + k.z);
+
+					// Update barycenter if in range
+					float d2 = (cellCenter - p_pos).sq_norm();
+					if (d2 < bary_r2)
+					{
+						if (samples.count(k) < 1)
+						{
+							// We place a new key in the hashmap
+							samples.emplace(k, cloud.pts.size());
+
+							// We add new voxel data
+							cloud.pts.push_back(p0);
+							normals.push_back(n0);
+							scores.push_back(s0);
+
+							// We use latest as the count for barycenter average
+							oldest.push_back(c0);
+							latest.push_back(1);
+							if (k == k0)
+								valid.push_back(true);
+							else
+								valid.push_back(false);
+							num_added++;
+						}
+						else
+						{
+							// get point index
+							size_t idx = samples[k];
+
+							// Update count
+							latest[idx] += 1;
+
+							// Update validity
+							if (k == k0)
+								valid[idx] = true;
+
+							// Update normal if we have a clear view of it and closer distance (see computation of score)
+							if (s0 > scores[idx])
+							{
+								scores[idx] = s0;
+								normals[idx] = n0;
+							}
+
+							// Update point
+							cloud.pts[idx] += (p0 - cloud.pts[idx]) * (1 / latest[idx]);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	
+	
 
 	// Init of voxel centroid
 	void init_sample(const VoxKey &k, const PointXYZ &p0, const PointXYZ &n0, const float &s0, const int &c0)
@@ -530,6 +638,8 @@ public:
 			latest.reserve(latest.capacity() + points0.size());
 			normals.reserve(normals.capacity() + points0.size());
 			scores.reserve(scores.capacity() + points0.size());
+			if (bary)
+				valid.reserve(valid.capacity() + points0.size());
 		}
 
 		//std::cout << std::endl << "--------------------------------------" << std::endl;
@@ -540,29 +650,35 @@ public:
 		//std::cout << "--------------------------------------" << std::endl << std::endl;
 
 		// Initialize variables
-		float inv_dl = 1 / dl;
+		inv_dl = 1 / dl;
 		size_t i = 0;
 		VoxKey k0;
 		size_t num_added = 0;
 
 		for (auto &p : points0)
 		{
-			// Position of point in sample map
-			PointXYZ p_pos = p * inv_dl;
-
-			// Corresponding key
-			k0.x = (int)floor(p_pos.x);
-			k0.y = (int)floor(p_pos.y);
-			k0.z = (int)floor(p_pos.z);
-			
 			// Handle init/reinit/update function all in one
-			handle_sample(k0, p, normals0[i], scores0[i], ind0, num_added);
+			if (bary)
+				handle_bary_sample(p, normals0[i], scores0[i], ind0, num_added);
+			else
+			{
+				// Position of point in sample map
+				PointXYZ p_pos = p * inv_dl;
+
+				// Corresponding key
+				k0.x = (int)floor(p_pos.x);
+				k0.y = (int)floor(p_pos.y);
+				k0.z = (int)floor(p_pos.z);
+
+				handle_sample(k0, p, normals0[i], scores0[i], ind0, num_added);
+			}
 
 			i++;
 		}
 
 		// Update tree
-		tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
+		if (!bary)
+			tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
 
 		// Update frame count
 		update_idx++;
@@ -582,6 +698,8 @@ public:
 			latest.reserve(latest.capacity() + points0.size());
 			normals.reserve(normals.capacity() + points0.size());
 			scores.reserve(scores.capacity() + points0.size());
+			if (bary)
+				valid.reserve(valid.capacity() + points0.size());
 		}
 
 		//std::cout << std::endl << "--------------------------------------" << std::endl;
@@ -592,7 +710,7 @@ public:
 		//std::cout << "--------------------------------------" << std::endl << std::endl;
 
 		// Initialize variables
-		float inv_dl = 1 / dl;
+		inv_dl = 1 / dl;
 		size_t i = 0;
 		VoxKey k0;
 		size_t num_added = 0;
@@ -600,42 +718,74 @@ public:
 
 		for (auto &p : points0)
 		{
-			// Position of point in sample map
-			PointXYZ p_pos = p * inv_dl;
-
-			// Corresponding key
-			k0.x = (int)floor(p_pos.x);
-			k0.y = (int)floor(p_pos.y);
-			k0.z = (int)floor(p_pos.z);
-
-			// Update the point count
-			if (samples.count(k0) < 1)
+			if (bary)
 			{
-				init_sample(k0, p, normals0[i], scores0[i], ind0);
-				num_added++;
+				// Handle barycenter first
+				handle_bary_sample(p, normals0[i], scores0[i], ind0, num_added);
+
+				// We perform some operation twice here...
+				PointXYZ p_pos = p * inv_dl;
+				k0.x = (int)floor(p_pos.x);
+				k0.y = (int)floor(p_pos.y);
+				k0.z = (int)floor(p_pos.z);
+				size_t idx = samples[k0];
+
+				// In case of barycenter, there are more oldest from last frame so the map0 ill be updated faster
+				// Good thing is we wont update adjacent cells of original map
+				if (oldest[idx] > 1 && oldest[idx] < ind0)
+					map0.handle_sample(k0, p, normals0[i], scores0[i], ind0, map0_added);
+
 			}
 			else
 			{
-				// Case of previously deleted points
-				size_t idx = samples[k0];
-				if (tree.isRemoved(idx))
+				// Position of point in sample map
+				PointXYZ p_pos = p * inv_dl;
+
+				// Corresponding key
+				k0.x = (int)floor(p_pos.x);
+				k0.y = (int)floor(p_pos.y);
+				k0.z = (int)floor(p_pos.z);
+
+				// Update the point count
+				if (samples.count(k0) < 1)
 				{
-					// We want to add previously deleted points, we have to recreate it from scratch
-					reinit_sample(k0, p, normals0[i], scores0[i], ind0);
+					init_sample(k0, p, normals0[i], scores0[i], ind0);
 					num_added++;
 				}
 				else
 				{
-					update_sample(idx, p, normals0[i], scores0[i], ind0);
-					if (oldest[idx] > 1 && oldest[idx] < ind0)
-						map0.handle_sample(k0, p, normals0[i], scores0[i], ind0, map0_added);
+					// Case of previously deleted points
+					size_t idx = samples[k0];
+					if (tree.isRemoved(idx))
+					{
+						// We want to add previously deleted points, we have to recreate it from scratch
+						reinit_sample(k0, p, normals0[i], scores0[i], ind0);
+						num_added++;
+					}
+					else
+					{
+						update_sample(idx, p, normals0[i], scores0[i], ind0);
+						if (oldest[idx] > 1 && oldest[idx] < ind0)
+							map0.handle_sample(k0, p, normals0[i], scores0[i], ind0, map0_added);
+					}
 				}
+
 			}
+
+
+
+
+
+
+
+
+
+			
 			i++;
 		}
 
 		// Update tree
-		if (num_added > 0)
+		if (!bary && num_added > 0)
 			tree.addPoints(cloud.pts.size() - num_added, cloud.pts.size() - 1);
 
 		if (map0_added > 0)
@@ -658,10 +808,12 @@ public:
 			latest.reserve(latest.capacity() + map0.cloud.pts.size());
 			normals.reserve(normals.capacity() + map0.cloud.pts.size());
 			scores.reserve(scores.capacity() + map0.cloud.pts.size());
+			if (bary)
+				valid.reserve(valid.capacity() + map0.cloud.pts.size());
 		}
 
 		// Initialize variables
-		float inv_dl = 1 / dl;
+		inv_dl = 1 / dl;
 		size_t i = 0;
 		VoxKey k0;
 		size_t num_added = 0;

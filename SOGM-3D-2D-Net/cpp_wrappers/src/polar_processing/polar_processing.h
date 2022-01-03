@@ -23,7 +23,7 @@ inline PointXYZ cart2pol(const PointXYZ p)
 {
 	float tmp1 = p.x * p.x + p.y * p.y;
 	float tmp2 = tmp1 + p.z * p.z;
-	return PointXYZ(sqrt(tmp2), atan2(sqrt(tmp1), p.z), atan2(p.y, p.x) + M_PI / 2);
+	return PointXYZ(sqrt(tmp2), atan2(p.z, sqrt(tmp1)), atan2(p.y, p.x) + M_PI / 2);
 }
 
 void get_min_max_times(vector<float> &f_ts, float &t_min, float &t_max, float loop_ratio);

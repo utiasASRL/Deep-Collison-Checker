@@ -11,7 +11,7 @@ void cart2pol_(vector<PointXYZ> &xyz)
 		tmp1 = p.x * p.x + p.y * p.y;
 		tmp2 = tmp1 + p.z * p.z;
 		phi = atan2(p.y, p.x); // azimuth angle
-		p.y = atan2(sqrt(tmp1), p.z);
+		p.y = atan2(p.z, sqrt(tmp1));
 		p.z = phi + pi_s_2;
 		p.x = sqrt(tmp2);
 	}

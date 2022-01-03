@@ -24,26 +24,18 @@
 # Common libs
 import sys
 import time
-import signal
 import os
 os.environ.update(OMP_NUM_THREADS='1',
                   OPENBLAS_NUM_THREADS='1',
                   NUMEXPR_NUM_THREADS='1',
                   MKL_NUM_THREADS='1',)
 import numpy as np
-import torch
-
 
 # Dataset
-from slam.PointMapSLAM import pointmap_slam, detect_short_term_movables, annotation_process
-from slam.dev_slam import bundle_slam, pointmap_for_AMCL
-from torch.utils.data import DataLoader
-from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSlam, MyhalCollisionSampler, \
-    MyhalCollisionCollate
+from slam.PointMapSLAM import  annotation_process
+from datasets.MyhalCollision import MyhalCollisionSlam
 
-from utils.config import Config
-from utils.trainer import ModelTrainer
-from models.architectures import KPCollider
+from gt_annotation_video import get_videos
 
 from os.path import exists, join
 from os import makedirs
@@ -100,7 +92,6 @@ def main(dataset_path, map_day, refine_days, train_days, force_redo=True):
         # Annotation of preprocessed 2D+T point clouds for SOGM generation
         slam_dataset.collision_annotation()
 
-        print('annotation finished')
 
     return
 
@@ -143,8 +134,6 @@ if __name__ == '__main__':
     #
     # Notes for myself
     #   > 1: New runs with aniket further away
-    #   > 2: TODO We perform the loop closure manually by chossing which frames to align
-    #   > 3: TODO We implemented the map refinement to remove doors
 
     # map_day = '2021-11-30_12-05-32'
     # # train_days = ['2021-11-30_12-22-23',
@@ -182,20 +171,26 @@ if __name__ == '__main__':
                   '2021-12-10_13-26-07',    # -  \
                   '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
                   '2021-12-10_13-06-09',    # -  /
-                  '2021-12-10_12-53-37']    # - /
+                  '2021-12-10_12-53-37',    # - /
+                  '2021-12-13_18-16-27',    # - \
+                  '2021-12-13_18-22-11',    # -  \
+                  '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
+                  '2021-12-15_19-13-03']    # -  /
     map_i = 3
     refine_i = np.array([0, 6, 7, 8])
-    train_i = np.array([5, 6, 7, 8, 9])
+    train_i = np.arange(len(train_days))[5:]
     val_inds = [0]
          
     map_day = train_days[map_i]
     refine_days = np.array(train_days)[refine_i]
-    train_days = np.array(train_days)[train_i]
+    train_days = np.sort(np.array(train_days)[train_i])
 
     ################################################################################################################################################
 
 
     main(dataset_path, map_day, refine_days, train_days)
+
+    # get_videos(dataset_path, train_days, map_day=map_day)
 
 
 

@@ -209,10 +209,10 @@ class MyhalCollisionConfig(Config):
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
-    epoch_steps = 100
+    epoch_steps = 200
 
     # Number of validation examples per epoch
-    validation_size = 10
+    validation_size = 15
 
     # Number of epoch between each checkpoint
     checkpoint_gap = 20
@@ -275,66 +275,9 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = GPU_ID
     chosen_gpu = int(GPU_ID)
 
-    print(chosen_gpu)
-
     ###################
     # Training sessions
     ###################
-
-    # Exp 0 First tries
-    # Day used as map
-    # map_day = '2021-11-04_09-56-16'
-    # train_days = ['2021-11-04_10-03-09',
-    #               '2021-11-04_10-06-45']
-
-    ################################################################################################################################################
-    # Exp 2
-    #
-    # # Notes for myself
-    # #   > 1: We deleted a lot of frames in the map 2021-11-16_19-42-45 because they were all in the same place
-    # #   > 2: We perform the loop closure manually by chossing which frames to align
-    #
-    # map_day = '2021-11-16_19-42-45'
-    # train_days = ['2021-11-04_10-03-09',
-    #               '2021-11-04_10-06-45',
-    #               '2021-11-16_20-08-59',
-    #               '2021-11-17_10-21-56',
-    #               '2021-11-17_10-45-12']
-    ################################################################################################################################################
-          
-    ################################################################################################################################################
-    # Exp 3
-    #
-    # Notes for myself
-    #   > 1: New runs with aniket further away
-    #   > 2: TODO We perform the loop closure manually by chossing which frames to align
-    #   > 3: TODO We implemented the map refinement to remove doors
-
-    # map_day = '2021-11-30_12-05-32'
-    # # train_days = ['2021-11-30_12-22-23',
-    # #               '2021-11-30_12-33-09',
-    # #               '2021-12-04_13-27-32',
-    # #               '2021-12-04_13-44-05',
-    # #               '2021-12-04_13-59-29']
-    # dataset_path = '../Data/Real'
-
-    ################################################################################################################################################
-    
-          
-    ################################################################################################################################################
-    # TMP Just my house
-
-    # map_day = '2021-12-05_18-04-51'
-    # train_days = ['2021-12-05_18-04-51']
-    # dataset_path = '../Data/RealAlbany'
-    ################################################################################################################################################
-          
-    ################################################################################################################################################
-    # Exp 4
-    #
-    # In Myhal
-    # Notes for myself
-    #   > 1:
 
     dataset_path = '../Data/RealMyhal'
     train_days = ['2021-12-06_08-12-39',    # - \
@@ -346,17 +289,31 @@ if __name__ == '__main__':
                   '2021-12-10_13-26-07',    # -  \
                   '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
                   '2021-12-10_13-06-09',    # -  /
-                  '2021-12-10_12-53-37']    # - /
+                  '2021-12-10_12-53-37',    # - /
+                  '2021-12-13_18-16-27',    # - \
+                  '2021-12-13_18-22-11',    # -  \
+                  '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
+                  '2021-12-15_19-13-03']    # -  /
     map_i = 3
     refine_i = np.array([0, 6, 7, 8])
-    train_i = np.array([5, 6, 7, 8, 9])
-    val_inds = [0]
-         
+    train_i = np.arange(len(train_days))[5:]
+    
+    # Notes for myself: number of dynamic people emcoutered in each run
+    #
+    # '2021-12-10_12-53-37',    1 driver / 3 people
+    # '2021-12-10_13-06-09',    1 person
+    # '2021-12-10_13-17-29',    Nobody
+    # '2021-12-10_13-26-07',    1 follower / 9 people or more
+    # '2021-12-10_13-32-10',    9 people or more (groups)
+    # '2021-12-13_18-16-27',    1 blocker
+    # '2021-12-13_18-22-11',    1 blocker / 3 people
+    # '2021-12-15_19-09-57',    4 people
+    # '2021-12-15_19-13-03']    3 people
+
     map_day = train_days[map_i]
     refine_days = np.array(train_days)[refine_i]
-    train_days = np.array(train_days)[train_i]
-
-    ################################################################################################################################################
+    train_days = np.sort(np.array(train_days)[train_i])
+    val_inds = np.array([0, 2, 8])
 
     ######################
     # Automatic Annotation
@@ -373,28 +330,28 @@ if __name__ == '__main__':
             redo_annot = True
             break
 
-    redo_annot = True
-    if redo_annot:
+    # To perform annnotation use the annotate_MyhalCollisions.py script
+    redo_annot = False
 
-        # Initiate dataset
-        slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day, dataset_path=dataset_path)
-
-        # Create a refined map from the map_day.
-        # UNCOMMENT THIS LINE if you are using your own data for the first time
-        # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud
-        # like this one: Data/Simulation/slam_offline/2020-10-02-13-39-05/map_update_0001.ply
-
-        slam_dataset.refine_map()
-
-        # Groundtruth annotation
-        annotation_process(slam_dataset, on_gt=False)
-
-        # TODO: Loop closure for aligning days together when not simulation
-
-        # Annotation of preprocessed 2D+T point clouds for SOGM generation
-        slam_dataset.collision_annotation()
-
-        print('annotation finished')
+    # if redo_annot:
+    # 
+    #     # Initiate dataset
+    #     slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day, dataset_path=dataset_path)
+    # 
+    #     # Create a refined map from the map_day.
+    #     # UNCOMMENT THIS LINE if you are using your own data for the first time
+    #     # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud
+    #     # like this one: Data/Simulation/slam_offline/2020-10-02-13-39-05/map_update_0001.ply
+    # 
+    #     slam_dataset.refine_map()
+    # 
+    #     # Groundtruth annotation
+    #     annotation_process(slam_dataset, on_gt=False)
+    # 
+    #     # Annotation of preprocessed 2D+T point clouds for SOGM generation
+    #     slam_dataset.collision_annotation()
+    # 
+    #     print('annotation finished')
 
     ##############
     # Prepare Data
@@ -489,8 +446,16 @@ if __name__ == '__main__':
     #####################
 
     # Initialize datasets (dummy validation)
-    training_dataset = MyhalCollisionDataset(config, train_days[train_inds], chosen_set='training', balance_classes=True)
-    test_dataset = MyhalCollisionDataset(config, train_days[val_inds], chosen_set='validation', balance_classes=False)
+    training_dataset = MyhalCollisionDataset(config,
+                                             train_days[train_inds],
+                                             chosen_set='training',
+                                             dataset_path=dataset_path,
+                                             balance_classes=True)
+    test_dataset = MyhalCollisionDataset(config,
+                                         train_days[val_inds],
+                                         chosen_set='validation',
+                                         dataset_path=dataset_path,
+                                         balance_classes=False)
 
     # Initialize samplers
     training_sampler = MyhalCollisionSampler(training_dataset)

@@ -134,6 +134,27 @@ def RANSAC(points, NB_RANDOM_DRAWS=100, threshold_in=0.1):
     return best_ref_pt, best_normal, best_mask
 
 
+def extract_flat_ground(points,
+                        dist_thresh=0.15,
+                        remove_dist=0.15):
+
+    # Get the ground plane with RANSAC
+    plane_P = points[0] * 0
+    plane_N = points[0] * 0
+    plane_N[-1] = 1.0
+
+    # Get mask on all the points
+    plane_mask = in_plane(points, plane_P, plane_N, dist_thresh)
+
+    # Get better ground/objects boundary
+    candidates = points[plane_mask]
+    others = points[np.logical_not(plane_mask)]
+    dists, inds = KDTree(others).query(candidates, 1)
+    plane_mask[plane_mask] = np.squeeze(dists) > remove_dist
+
+    return plane_mask
+
+
 def extract_ground(points, normals, out_folder,
                    vertical_thresh=10.0,
                    dist_thresh=0.15,

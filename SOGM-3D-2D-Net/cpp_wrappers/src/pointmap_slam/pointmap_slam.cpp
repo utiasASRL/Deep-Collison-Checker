@@ -55,7 +55,8 @@ void complete_map(string &frame_names,
 		vector<size_t> sub_inds;
 		Plane3D frame_ground;
 		vector<float> heights;
-		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params);
+		vector<clock_t> t;
+		preprocess_frame(f_pts, timestamps, rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params, t);
 		
 		// Get current pose (pose of the last timestamp of the current frame in case of motion distortion)
 		Eigen::Matrix4d H1 = slam_H.block(frame_ind * 4, 0, 4, 4);
@@ -116,7 +117,8 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 					  vector<size_t> &sub_inds,
 					  Plane3D &frame_ground,
 					  vector<float> &heights,
-					  SLAM_params &params)
+					  SLAM_params &params,
+					  vector<clock_t> &t)
 {
 	//////////////////////////////////////////
 	// Preprocess frame and compute normals //
@@ -127,6 +129,8 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// Create a copy of points in polar coordinates
 	vector<PointXYZ> polar_pts(f_pts);
 	cart2pol_(polar_pts);
+	
+	t.push_back(std::clock());
 
 	// Get angle for each lidar point, and the corresponding polar_r2
 	if (params.polar_r2s.size() < 1)
@@ -166,6 +170,9 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// Apply log scale to radius coordinate (in place)
 	lidar_log_radius(polar_pts, polar_r, params.r_scale);
 
+	// Apply horizontal scaling (to have smaller neighborhoods in horizontal direction)
+	lidar_horizontal_scale(polar_pts, params.h_scale);
+
 	// // Remove outliers (only for real frames)
 	// if (params.motion_distortion)
 	// {
@@ -177,6 +184,8 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// 	filter_pointcloud(f_pts, scores, 0);
 	// 	filter_pointcloud(polar_pts, scores, 0);
 	// }
+	
+	t.push_back(std::clock());
 
 	// Get subsampling of the frame in carthesian coordinates (New points are barycenters or not?)
 	grid_subsampling_centers(f_pts, sub_pts, sub_inds, params.frame_voxel_size);
@@ -189,23 +198,26 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	lidar_log_radius(polar_queries, polar_r, params.r_scale);
 	lidar_horizontal_scale(polar_queries, params.h_scale);
 
-
-	/////////////////////
-	// Compute normals //
-	/////////////////////
-
-	// Apply horizontal scaling (to have smaller neighborhoods in horizontal direction)
-	lidar_horizontal_scale(polar_pts, params.h_scale);
-
 	// Get sub_rings
 	vector<int> sub_rings;
 	sub_rings.reserve(sub_inds.size());
 	for (int j = 0; j < (int)sub_inds.size(); j++)
 		sub_rings.push_back(f_rings[sub_inds[j]]);
 	
+	
+	t.push_back(std::clock());
+
+
+	/////////////////////
+	// Compute normals //
+	/////////////////////
+	
 	// Call polar processing function
 	extract_lidar_frame_normals(f_pts, polar_pts, sub_pts, polar_queries, sub_rings, normals, norm_scores, params.polar_r2s);
 	
+	
+	
+	t.push_back(std::clock());
 
 	/////////////////////////
 	// Get ground in frame //
@@ -231,6 +243,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	// Get height above ground
 	frame_ground.point_distances_signed(sub_pts, heights);
 
+	t.push_back(std::clock());
 
 	////////////////
 	// Get scores //
@@ -251,6 +264,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	filter_anyvector(icp_scores, norm_scores, min_score);
 	filter_anyvector(heights, norm_scores, min_score);
 	filter_floatvector(norm_scores, min_score);
+	
 }
 
 void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
@@ -269,12 +283,13 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	vector<clock_t> t;
 	clock_str.reserve(20);
 	clock_str.push_back("Frame to polar .... ");
-	clock_str.push_back("Lidar angle res ... ");
-	clock_str.push_back("Outlier reject .... ");
-	clock_str.push_back("Grid subsampling .. ");
-	clock_str.push_back("Sub to polar ...... ");
-	clock_str.push_back("Frame normals ..... ");
+	clock_str.push_back("Scale polar ....... ");
+	clock_str.push_back("Subsampleing  ..... ");
+	clock_str.push_back("Normals ........... ");
+	clock_str.push_back("Ground ............ ");
+	clock_str.push_back("Filter ............ ");
 	clock_str.push_back("ICP localization .. ");
+	clock_str.push_back("Alignment ......... ");
 	clock_str.push_back("Map update ........ ");
 	t.reserve(20);
 	t.push_back(std::clock());
@@ -309,7 +324,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	vector<size_t> sub_inds;
 	Plane3D frame_ground;
 	vector<float> heights;
-	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params);
+	preprocess_frame(f_pts, f_ts, f_rings, sub_pts, normals, norm_scores, icp_scores, sub_inds, frame_ground, heights, params, t);
 
 	// Check icp scores in case too many outliers
 	int count_inliers = 0;
@@ -371,7 +386,7 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	}
 	else
 	{
-		if (map.size() < 1)
+		if (map.size() < 1 && map0.size() < 1)
 		{ // Case where we do not have a map yet. Override the first cloud position so that ground is at z=0
 			
 			// Get transformation that make the ground plane horizontal
@@ -396,9 +411,12 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 			Eigen::Map<Eigen::Matrix<float, 3, 1>> ground_P_mat((float*)&ground_P, 3, 1);
 			ground_P_mat = ground_R.cast<float>() * ground_P_mat;
 
-			// // Update icp parameters to trigger flat ground
-			params.icp_params.ground_w = 9.0;
-			params.icp_params.ground_z = 0.0;
+			// Update icp parameters to trigger flat ground
+			if (params.force_flat_ground)
+			{
+				params.icp_params.ground_w = 9.0;
+				params.icp_params.ground_z = 0.0;
+			}
 
 			// Update result transform
 			icp_results.transform = Eigen::Matrix4d::Identity();
@@ -415,7 +433,12 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 
 				// 1. Initial RANSAC alignment
 
-
+				// Forcing ground at z = 0
+				if (params.force_flat_ground)
+				{
+					params.icp_params.ground_w = 9.0;
+					params.icp_params.ground_z = 0.0;
+				}
 
 				// 2. ICP refine
 				params.icp_params.init_transform = H_scannerToMap_init;
@@ -464,10 +487,13 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 					oldest.insert(oldest.end(), map.latest.begin(),  map.latest.end());
 					save_cloud(filepath00, map.cloud.pts, map.normals, oldest);
 
-					vector<float> oldest0(map0.oldest.begin(), map0.oldest.end());
-					oldest0.insert(oldest0.end(), map0.scores.begin(),  map0.scores.end());
-					oldest0.insert(oldest0.end(), map0.latest.begin(),  map0.latest.end());
-					save_cloud(filepath02, map0.cloud.pts, map0.normals, oldest0);
+					if (map0.size() > 0)
+					{
+						vector<float> oldest0(map0.oldest.begin(), map0.oldest.end());
+						oldest0.insert(oldest0.end(), map0.scores.begin(),  map0.scores.end());
+						oldest0.insert(oldest0.end(), map0.latest.begin(),  map0.latest.end());
+						save_cloud(filepath02, map0.cloud.pts, map0.normals, oldest0);
+					}
 
 					vector<PointXYZ> copy_pts(sub_pts);
 					if (params.motion_distortion)
@@ -505,7 +531,6 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 		}
 	}
 	
-
 	// Save RMS for debug
 	bool saving_rms = true;
 	if (saving_rms)
@@ -568,7 +593,9 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 		char buffer02[100];
 		sprintf(buffer02, "f_%05d_%03d-iter_last.ply", int(frame_i), (int)icp_results.all_plane_rms.size());
 		string filepath02 = path000 + string(buffer02);
-		save_cloud(filepath02, sub_pts, normals);
+		vector<float> f12(icp_scores.begin(), icp_scores.end());
+		f12.insert(f12.end(), norm_scores.begin(),  norm_scores.end());
+		save_cloud(filepath02, sub_pts, normals, f12);
 	}
 	else
 	{
@@ -593,16 +620,13 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 	}
 	// ----------------------------------------------------------------
 
-
+	t.push_back(std::clock());
 	
 	// The update function is called only on subsampled points as the others have no normal
-	params.update_init_map = true;
-
-	if (params.update_init_map)
+	if (map0.size() > 0 && params.update_init_map)
 		map.update_double(sub_pts, normals, norm_scores, frame_i, map0);
 	else
 		map.update(sub_pts, normals, norm_scores, frame_i);
-	
 
 	// Update the last pose for future frames
 	Eigen::Matrix4d H0 = params.icp_params.last_transform0;
@@ -1014,10 +1038,6 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 	}
 
-	
-
-
-
 	////////////////////////
 	// Initiate variables //
 	////////////////////////
@@ -1041,6 +1061,13 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 
 	// Initial timestamp for motion distorsiob
 	double timestamp_0 = frame_times[0];
+
+	// Some safe checks
+	if (slam_params.barycenter_map && mapper.map0.size() < 0)
+		throw std::invalid_argument(string("\nERROR: cannot create a barycenter map if no initial map is given\n"));
+
+	// if (slam_params.barycenter_map && slam_params.update_init_map)
+	// 	throw std::invalid_argument(string("\nERROR: cannot create a barycenter map AND update the initial map\n"));
 
 	////////////////
 	// Start SLAM //
@@ -1197,7 +1224,7 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 			vector<float> alphas;
 
 			//
-			// TODO: HERE initial transform for ICP 
+			// TODO: initial transform for ICP 
 			//
 
 			mapper.params.icp_params.motion_distortion = false;
@@ -1273,15 +1300,72 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		// 	break;
 	}
 
+	// Saving map depending on the use of barycenters
+	
+	// Eliminate barycenter not in their cell
+	// **************************************
 
-	// Save map in a ply file init containers with results
 	size_t ns1 = 19;
 	size_t ns0 = save_path.size() - ns1;
 	string day_str = save_path.substr(ns0, ns1);
-	vector<float> oldest(mapper.map.oldest.begin(), mapper.map.oldest.end());
-	oldest.insert(oldest.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
-	oldest.insert(oldest.end(), mapper.map.latest.begin(),  mapper.map.latest.end());
-	save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, oldest);
+	VoxKey k0;
+	vector<PointXYZ> clean_points;
+	vector<PointXYZ> clean_normals;
+	vector<float> clean_oldest;
+	vector<float> clean_scores;
+	vector<float> clean_counts;
+	clean_points.reserve(mapper.map.size());
+	clean_normals.reserve(mapper.map.size());
+	clean_oldest.reserve(mapper.map.size());
+	clean_scores.reserve(mapper.map.size());
+	clean_counts.reserve(mapper.map.size());
+
+
+	if (slam_params.barycenter_map)
+	{
+		for (auto& v : mapper.map.samples)
+		{
+			size_t i = v.second;
+
+			// Position of barycenter in sample map
+			PointXYZ centroid = mapper.map.cloud.pts[i];
+			PointXYZ p_pos = centroid * mapper.map.inv_dl;
+
+			// Corresponding key
+			k0.x = (int)floor(p_pos.x);
+			k0.y = (int)floor(p_pos.y);
+			k0.z = (int)floor(p_pos.z);
+			
+			// if (k0 == v.first)
+			if (mapper.map.valid[i])
+			{
+				clean_points.push_back(centroid);
+				clean_normals.push_back(mapper.map.normals[i]);
+				clean_oldest.push_back((float)mapper.map.oldest[i]);
+				clean_scores.push_back(mapper.map.scores[i]);
+				clean_counts.push_back((float)mapper.map.latest[i]);
+			}
+			
+		}
+
+		// Save map in a ply file init containers with results
+		clean_oldest.insert(clean_oldest.end(), clean_scores.begin(),  clean_scores.end());
+		clean_oldest.insert(clean_oldest.end(), clean_counts.begin(),  clean_counts.end());
+		save_cloud(save_path + "/barymap_" + day_str + ".ply", clean_points, clean_normals, clean_oldest);
+
+	}
+	else
+	{
+		// Save map in a ply file init containers with results
+		vector<float> oldest(mapper.map.oldest.begin(), mapper.map.oldest.end());
+		oldest.insert(oldest.end(), mapper.map.scores.begin(),  mapper.map.scores.end());
+		oldest.insert(oldest.end(), mapper.map.latest.begin(),  mapper.map.latest.end());
+		save_cloud(save_path + "/map_" + day_str + ".ply", mapper.map.cloud.pts, mapper.map.normals, oldest);
+	}
+	
+
+
+
 
 	return all_H;
 }
