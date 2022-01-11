@@ -25,6 +25,7 @@
 # Basic libs
 import torch
 import os
+import pickle
 os.environ.update(OMP_NUM_THREADS='1',
                   OPENBLAS_NUM_THREADS='1',
                   NUMEXPR_NUM_THREADS='1',
@@ -36,7 +37,8 @@ from os.path import exists, join
 import time
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Circle
+from matplotlib.widgets import Slider
 import imageio
 from PIL import Image
 
@@ -1656,10 +1658,6 @@ def show_risk_diffusion(collision_risk, dl=0.12, diff_range=1.5, p=5, show=True)
     imageio.mimsave('results/norm_risk.gif', (zoom_collisions(cm(static_normalized_visu), 5) * 255).astype(np.uint8), fps=20)
 
     return fig, anim
-
-
-
-
 
 
 

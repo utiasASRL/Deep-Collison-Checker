@@ -617,7 +617,7 @@ def compare_convergences_collision2D(list_of_paths, list_of_names=None, smooth_n
     return
 
 
-def evolution_gifs(chosen_log):
+def evolution_gifs(chosen_log, dataset_path='RealMyhal'):
 
     ############
     # Parameters
@@ -662,7 +662,7 @@ def evolution_gifs(chosen_log):
     ##########################################
 
     # Dataset
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
+    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', dataset_path=dataset_path, balance_classes=False)
 
     wanted_inds = [700, 100, 150, 800]
     wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
@@ -975,7 +975,7 @@ def evolution_gifs(chosen_log):
     return
 
 
-def comparison_gifs(list_of_paths, wanted_inds=[]):
+def comparison_gifs(list_of_paths, wanted_inds=[], dataset_path='RealMyhal', redo=False):
 
     ############
     # Parameters
@@ -1031,7 +1031,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
         saved_pred_inds = [int(f[:-4].split('_')[-1]) for f in saved_preds]
 
         # Load if available
-        if np.all([ind in saved_pred_inds for ind in wanted_inds]):
+        if not redo and np.all([ind in saved_pred_inds for ind in wanted_inds]):
 
             print('\nFound previous predictions, loading them')
 
@@ -1101,7 +1101,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
             ##########################################
 
             # Dataset
-            test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
+            test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', dataset_path=dataset_path, balance_classes=False)
 
             wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
             wanted_f_inds = [test_dataset.all_inds[ind][1] for ind in wanted_inds]
@@ -1130,7 +1130,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
             # Init model
             net = KPCollider(config, test_dataset.label_values, test_dataset.ignored_labels)
 
-            # Choose to train on CPU or GPU
+            # Choose to test on CPU or GPU
             if torch.cuda.is_available():
                 device = torch.device("cuda:{:d}".format(chosen_gpu))
                 net.to(device)
@@ -1278,16 +1278,23 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
     ################
     # Visualizations
     ################
-
     
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
+    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', dataset_path=dataset_path, balance_classes=False)
     wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
     wanted_f_inds = [test_dataset.all_inds[ind][1] for ind in wanted_inds]
-
-    for frame_i, w_i in enumerate(wanted_inds):
    
-        if True:  # Plot gifs
+    if True:  # Plot gifs
 
+        global frame_i
+        
+        all_merged_imgs = []
+        # Advanced display
+        N = len(wanted_inds)
+        progress_n = 30
+        fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+        print('\nPreparing gifs')
+        for frame_i, w_i in enumerate(wanted_inds):
+        
             # Colorize and zoom both preds and gts
             showed_preds = zoom_collisions(comparison_preds[:, frame_i], 5)
             showed_gts = zoom_collisions(comparison_gts[frame_i], 5)
@@ -1308,43 +1315,87 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
             # showed_preds[..., 2] *= 0.6
             # merged_imgs = superpose_gt(showed_preds, showed_gts * 0, showed_ingts, ingts_fade=(100, -5))
 
-            c_showed = np.arange(showed_preds.shape[0])
-            n_showed = len(c_showed)
+            all_merged_imgs.append(merged_imgs)
 
-            fig, axes = plt.subplots(1, n_showed)
-            if n_showed == 1:
-                axes = [axes]
+            print('', end='\r')
+            print(fmt_str.format('#' * (((frame_i + 1) * progress_n) // N), 100 * (frame_i + 1) / N), end='', flush=True)
 
-            images = []
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+        c_showed = np.arange(all_merged_imgs[0].shape[0])
+        n_showed = len(c_showed)
+        frame_i = 0
+
+        fig, axes = plt.subplots(1, n_showed)
+        if n_showed == 1:
+            axes = [axes]
+
+        images = []
+        for ax_i, log_i in enumerate(c_showed):
+
+            # Init plt
+            all_merged_imgs[frame_i][log_i, 0]
+            images.append(axes[ax_i].imshow(all_merged_imgs[frame_i][log_i, 0]))
+
+            # # Save gif for the videos
+            # seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+            # frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+
+            # sogm_folder = join(test_dataset.path, 'sogm_preds/Log_{:s}'.format(seq_name))
+            # if not exists(sogm_folder):
+            #     makedirs(sogm_folder)
+            # im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, ax_i))
+            # imageio.mimsave(im_name, all_merged_imgs[frame_i][log_i], fps=20)
+    
+        plt.axis('off')
+                
+        seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+        frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+        title = [fig.suptitle('Example {:d}/{:d} > {:s} {:s}'.format(frame_i + 1, len(all_merged_imgs), seq_name, frame_name))]
+
+        def animate(i):
+            global frame_i
             for ax_i, log_i in enumerate(c_showed):
+                images[ax_i].set_array(all_merged_imgs[frame_i][log_i, i])
+            return images
+            
+        # Register event
+        def onkey(event):
+            global frame_i
+            seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+            frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+            if event.key == 'right':
+                frame_i = (frame_i + 1) % len(all_merged_imgs)
+                title[0].set_text('Example {:d}/{:d} > {:s} {:s}'.format(frame_i + 1, len(all_merged_imgs), seq_name, frame_name))
+                plt.draw()
 
-                # Init plt
-                images.append(axes[ax_i].imshow(merged_imgs[log_i, 0]))
+            elif event.key == 'left':
+                frame_i = (frame_i - 1) % len(all_merged_imgs)
+                title[0].set_text('Example {:d}/{:d} > {:s} at {:s}'.format(frame_i + 1, len(all_merged_imgs), seq_name, frame_name))
+                plt.draw()
+            return title
 
-                # Save gif for the videos
-                seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-                frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+        anim = FuncAnimation(fig, animate,
+                             frames=np.arange(all_merged_imgs[frame_i].shape[1]),
+                             interval=50,
+                             blit=True)
 
-                sogm_folder = join(test_dataset.path, 'sogm_preds/Log_{:s}'.format(seq_name))
-                if not exists(sogm_folder):
-                    makedirs(sogm_folder)
-                im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, ax_i))
-                imageio.mimsave(im_name, merged_imgs[log_i], fps=20)
+        cid = fig.canvas.mpl_connect('key_press_event', onkey)
+        print('\n---------------------------------------\n')
+        print('Instructions:\n')
+        print('> Use right and left arrows to navigate among examples.')
+        print('\n---------------------------------------\n')
 
-            def animate(i):
-                for ax_i, log_i in enumerate(c_showed):
-                    images[ax_i].set_array(merged_imgs[log_i, i])
-                return images
+        plt.show()
 
-            anim = FuncAnimation(fig, animate,
-                                 frames=np.arange(merged_imgs.shape[1]),
-                                 interval=50,
-                                 blit=True)
 
-            plt.show()
+    if False:  # Save gifs for the paper video
+        
 
-   
-        if False:  # Save gifs for the paper video
+        for frame_i, w_i in enumerate(wanted_inds):
 
             # Colorize and zoom both preds and gts
             showed_preds = zoom_collisions(comparison_preds[:, frame_i], 5)
@@ -1404,8 +1455,9 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
             #plt.show()
 
 
-        if False:  # Debug
+    if False:  # Debug
 
+        for frame_i, w_i in enumerate(wanted_inds):
             # Colorize and zoom both preds and gts
             showed_preds = zoom_collisions(comparison_preds[:, frame_i], 5)
             showed_gts = zoom_collisions(comparison_gts[frame_i], 5)
@@ -1460,7 +1512,7 @@ def comparison_gifs(list_of_paths, wanted_inds=[]):
     return
 
 
-def comparison_metrics(list_of_paths, list_of_names=None):
+def comparison_metrics(list_of_paths, list_of_names=None, dataset_path='RealMyhal'):
 
     ############
     # Parameters
@@ -1600,7 +1652,7 @@ def comparison_metrics(list_of_paths, list_of_names=None):
             ##########################################
 
             # Dataset
-            test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
+            test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', dataset_path=dataset_path, balance_classes=False)
 
             ###########################
             # Initialize model and data
@@ -2061,6 +2113,268 @@ def comparison_metrics(list_of_paths, list_of_names=None):
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
+#           Choice of visualized gif
+#       \******************************/
+#
+
+
+def wanted_gifs(chosen_log, dataset_path, adding_extra=False, gui=False):
+
+    # Get training and validation days
+    config = Config()
+    config.load(chosen_log)
+    val_path = join(chosen_log, 'val_preds')
+    val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
+
+    test_dataset = MyhalCollisionDataset(config,
+                                         val_days,
+                                         chosen_set='validation',
+                                         dataset_path=dataset_path,
+                                         balance_classes=False)
+    seq_inds = test_dataset.all_inds[:, 0]
+    frame_inds = test_dataset.all_inds[:, 1]
+
+    im_lim = config.in_radius / np.sqrt(2)
+
+    # Result variables
+    all_wanted_f = []
+    all_wanted_s = []
+
+    if gui:
+
+        # convertion from labels to colors
+        colormap = np.array([[209, 209, 209],
+                            [122, 122, 122],
+                            [255, 255, 0],
+                            [0, 98, 255],
+                            [255, 0, 0]], dtype=np.float32) / 255
+
+        all_pts = [[] for frames in test_dataset.frames]
+        all_colors = [[] for frames in test_dataset.frames]
+        all_labels = [[] for frames in test_dataset.frames]
+        for s_ind, s_frames in enumerate(test_dataset.frames):
+
+            # Advanced display
+            N = len(s_frames)
+            progress_n = 30
+            fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+            print('\nGetting gt for ' + test_dataset.sequences[s_ind])
+
+            for f_ind, frame in enumerate(s_frames):
+
+                # Get groundtruth in 2D points format
+                gt_file = join(test_dataset.colli_path[s_ind], frame + '_2D.ply')
+
+                # Read points
+                data = read_ply(gt_file)
+                pts_2D = np.vstack((data['x'], data['y'])).T
+                labels_2D = data['classif']
+
+                # Recenter
+                p0 = test_dataset.poses[s_ind][f_ind][:2, 3]
+                centered_2D = (pts_2D - p0).astype(np.float32)
+
+                # Remove outside boundaries of images
+                img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
+                img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
+                centered_2D = centered_2D[img_mask]
+                labels_2D = labels_2D[img_mask]
+
+                # Get the number of points per label (only present in image)
+                label_v, label_n = np.unique(labels_2D, return_counts=True)
+                label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
+                label_count[label_v] = label_n
+                
+                all_pts[s_ind].append(centered_2D)
+                all_colors[s_ind].append(colormap[labels_2D])
+                all_labels[s_ind].append(label_count)
+
+                print('', end='\r')
+                print(fmt_str.format('#' * (((f_ind + 1) * progress_n) // N), 100 * (f_ind + 1) / N), end='', flush=True)
+
+            # Show a nice 100% progress bar
+            print('', end='\r')
+            print(fmt_str.format('#' * progress_n, 100), flush=True)
+            print('\n')
+
+        # Figure
+        global f_i
+        f_i = 0
+        for s_ind, seq in enumerate(test_dataset.sequences):
+
+            figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+            plt.subplots_adjust(bottom=0.25)
+
+            # Plot first frame of seq
+            plotsA = [axA.scatter(all_pts[s_ind][0][:, 0],
+                                  all_pts[s_ind][0][:, 1],
+                                  s=2.0,
+                                  c=all_colors[s_ind][0])]
+
+            # Show a circle of the loop closure area
+            axA.add_patch(patches.Circle((0, 0), radius=0.2,
+                                         edgecolor=[0.2, 0.2, 0.2],
+                                         facecolor=[1.0, 0.79, 0],
+                                         fill=True,
+                                         lw=1))
+
+            plt.subplots_adjust(left=0.1, bottom=0.15)
+
+            # # Customize the graph
+            # axA.grid(linestyle='-.', which='both')
+            axA.set_xlim(-im_lim, im_lim)
+            axA.set_ylim(-im_lim, im_lim)
+            axA.set_aspect('equal', adjustable='box')
+            
+            # Make a horizontal slider to control the frequency.
+            axcolor = 'lightgoldenrodyellow'
+            axtime = plt.axes([0.1, 0.04, 0.8, 0.02], facecolor=axcolor)
+            time_slider = Slider(ax=axtime,
+                                 label='ind',
+                                 valmin=0,
+                                 valmax=len(all_pts[s_ind]) - 1,
+                                 valinit=0,
+                                 valstep=1)
+
+            # The function to be called anytime a slider's value changes
+            def update_PR(val):
+                global f_i
+                f_i = (int)(val)
+                for plot_i, plot_obj in enumerate(plotsA):
+                    plot_obj.set_offsets(all_pts[s_ind][f_i])
+                    plot_obj.set_color(all_colors[s_ind][f_i])
+
+            # register the update function with each slider
+            time_slider.on_changed(update_PR)
+            
+            dyn_img = np.vstack(all_labels[s_ind]).T
+            dyn_img = dyn_img[-1:]
+            dyn_img[dyn_img > 10] = 10
+            dyn_img[dyn_img > 0] += 10
+            axdyn = plt.axes([0.1, 0.02, 0.8, 0.015])
+            axdyn.imshow(dyn_img, cmap='OrRd', aspect='auto')
+            axdyn.set_axis_off()
+            
+            wanted_f = []
+
+            # Register event
+            def onkey(event):
+                if event.key == 'enter':
+                    wanted_f.append(f_i)
+                    print('Added current frame to the wanted indices. Now containing:', wanted_f)
+
+                elif event.key == 'backspace':
+                    if wanted_f:
+                        wanted_f.pop()
+                    print('removed last frame from the wanted indices. Now containing:', wanted_f)
+
+                elif event.key == 'x':
+                    if wanted_f:
+                        remove_i = np.argmin([abs(i - f_i) for i in wanted_f])
+                        wanted_f.pop(remove_i)
+                    print('removed closest frame from the wanted indices. Now containing:', wanted_f)
+
+            cid = figA.canvas.mpl_connect('key_press_event', onkey)
+            print('\n---------------------------------------\n')
+            print('Instructions:\n')
+            print('> Press Enter to add current frame to the wanted indices.')
+            print('> Press Backspace to remove last frame added to the wanted indices.')
+            print('> Press x to to remove the closest frame to current one from the wanted indices.')
+            print('\n---------------------------------------\n')
+
+            plt.show()
+
+            all_wanted_f += wanted_f
+            all_wanted_s += [seq for _ in wanted_f]
+
+    else:
+
+        #######################################################################
+        # Here choose which frame from which sequence you want to show and save
+        # These are the one that we show in the paper
+        all_wanted_s = ['2021-12-10_13-06-09',
+                        '2021-12-10_13-06-09',
+                        '2021-12-10_13-06-09',
+                        '2021-12-10_13-06-09',
+                        '2021-12-10_13-06-09',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-13_18-16-27',
+                        '2021-12-15_19-09-57',
+                        '2021-12-15_19-09-57',
+                        '2021-12-15_19-09-57',
+                        '2021-12-15_19-09-57']
+        all_wanted_f = [1664,
+                        1694,
+                        1705,
+                        1729,
+                        1746,
+                        560,
+                        697,
+                        716,
+                        736,
+                        751,
+                        762,
+                        777,
+                        799,
+                        825,
+                        904,
+                        936,
+                        1034,
+                        1082,
+                        1126,
+                        1193,
+                        547,
+                        591,
+                        853,
+                        927]
+        #######################################################################
+
+    s_str = 'all_wanted_s = ['
+    n_indent = len(s_str)
+    for w_s in all_wanted_s:
+        s_str += "'{:s}',\n".format(w_s) + ' ' * n_indent
+    s_str = s_str[:-2 - n_indent] + ']'
+    print(s_str)
+
+    f_str = 'all_wanted_f = ['
+    n_indent = len(f_str)
+    for w_f in all_wanted_f:
+        f_str += "{:d},\n".format(w_f) + ' ' * n_indent
+    f_str = f_str[:-2 - n_indent] + ']'
+    print(f_str)
+
+    wanted_inds = []
+    for seq, f_i in zip(all_wanted_s, all_wanted_f):
+
+        if (f_i + 4 >= frame_inds.shape[0]):
+            raise ValueError('Error: Asking frame number {:d} for sequence {:s}, with only {:d} frames'.format(f_i, seq, frame_inds.shape[0]))
+
+        s_i = np.argwhere(val_days == seq)[0][0]
+        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
+        w_i = np.argwhere(mask)[0][0]
+        if (adding_extra):
+            wanted_inds += [w_i - 4, w_i, w_i + 4]
+        else:
+            wanted_inds += [w_i]
+
+    return wanted_inds
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#
 #           Choice of log to show
 #       \***************************/
 #
@@ -2071,8 +2385,8 @@ def your_logs():
     """
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
-    start = 'Log_2021-05-24_13-59-19'
-    end = 'Log_3021-05-24_13-59-20'
+    start = 'Log_2022-01-04_01-16-23'
+    end = 'Log_2022-01-10_18-04-07'
 
     # Path to the results logs
     res_path = 'results'
@@ -2080,14 +2394,15 @@ def your_logs():
     # Gathering names
     logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
 
-    # Optinally add some specific folder that is not between start and end 
+    # Optinally add some specific folder that is not between start and end
     #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
     logs = logs.astype('<U50')
 
     # Give names to the logs (for legends)
-    logs_names = ['Name-your-log-1',
-                  'Name-your-log-2',
-                  'Name-your-log-3',
+    logs_names = ['e200-rot',
+                  'e500-no_rot',
+                  'e500-rot-npr=0.5',
+                  'etc',
                   'etc']
 
     # logs_names = ['No Mask',
@@ -2099,57 +2414,39 @@ def your_logs():
     return logs, logs_names
 
 
-# ----------------------------------------------------------------------------------------------------------------------
-#
-#           Choice of visualized gif
-#       \******************************/
-#
+def Myhal_logs():
+    """
+    From this point, we modified the annotation process to remove noise
+    We also changed the training/validation set
+    """
 
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-01-10_18-04-08'
+    end = 'Log_3021-05-24_13-59-20'
 
-def wanted_Bouncers(chosen_log):
+    # Path to the results logs
+    res_path = 'results'
 
-    # Get training and validation days
-    config = Config()
-    config.load(chosen_log)
-    val_path = join(chosen_log, 'val_preds')
-    val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
 
-    print([f for f in listdir(val_path) if f.endswith('pots.ply')])
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
 
-    print(val_days)
+    # Give names to the logs (for legends)
+    logs_names = ['e500-rot',
+                  'e200-rot',
+                  'e200-norot',
+                  'etc']
 
-    test_dataset = MyhalCollisionDataset(config, val_days, chosen_set='validation', balance_classes=False)
-    seq_inds = test_dataset.all_inds[:, 0]
-    frame_inds = test_dataset.all_inds[:, 1]
+    # logs_names = ['No Mask',
+    #               'GT-Mask',
+    #               'Active-Mask']
 
+    logs_names = np.array(logs_names[:len(logs)])
 
-    #######################################################################
-    # Here choose which frame from which sequence you want to show and save
-    # These are the one that we show in the paper
-    wanted_s = ['2021-11-04_10-03-09',
-                '2021-11-04_10-03-09',
-                '2021-11-04_10-03-09',
-                '2021-11-04_10-03-09',
-                '2021-11-04_10-03-09']
-    wanted_f = [100,
-                200,
-                300,
-                400,
-                500]
-    #######################################################################
-
-    wanted_inds = []
-    for seq, f_i in zip(wanted_s, wanted_f):
-
-        if (f_i + 4 >= frame_inds.shape[0]):
-            raise ValueError('Error: Asking frame number {:d} for sequence {:s}, with only {:d} frames'.format(f_i, seq, frame_inds.shape[0]))
-
-        s_i = np.argwhere(val_days == seq)[0][0]
-        mask = np.logical_and(seq_inds == s_i, frame_inds == f_i)
-        w_i = np.argwhere(mask)[0][0]
-        wanted_inds += [w_i - 4, w_i, w_i + 4]
-
-    return wanted_inds
+    return logs, logs_names
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2166,6 +2463,9 @@ if __name__ == '__main__':
     ######################################
 
     plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    plotting = plotting + '-redo'
+    gui = False
+    # TODO: Save a file for each checkpoint so that we dont have to use the 'redo' and also only compute gifs with last checkpoint 
 
     # plotting = 'PR'  # Comparison of the performances with good metrics
 
@@ -2177,27 +2477,48 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names = your_logs()
-
-
-    # Function returning the a few specific frames to show as gif
-    if plotting == 'gifs':
-        wanted_inds = wanted_Bouncers(logs[0])
+    logs, logs_names = Myhal_logs()
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None
     config = None
+    all_val_days = None
+    val_days = None
     for log in logs:
         config = Config()
         config.load(log)
         this_dataset = config.dataset
+        val_path = join(log, 'val_preds')
+        this_val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
         if plot_dataset:
-            if plot_dataset == this_dataset:
-                continue
-            else:
+            if plot_dataset != this_dataset:
                 raise ValueError('All logs must share the same dataset to be compared')
+            if len(this_val_days) != len(val_days) or np.any(this_val_days != val_days):
+                print('Warning: logs do not share the same validation folders. Comparison is not valid.')
+                all_val_days = np.unique(np.hstack((all_val_days, this_val_days)))
         else:
             plot_dataset = this_dataset
+            val_days = this_val_days
+            all_val_days = this_val_days
+
+    
+
+    # Get dataset path
+    dataset_candidates = [join('../Data', path) for path in listdir('../Data')
+                          if exists(join('../Data', path, 'runs', all_val_days[0]))]
+    if len(dataset_candidates) > 1:
+        raise ValueError('Error: Run ' + all_val_days[0] + ' was found in multiple datasets')
+    if len(dataset_candidates) < 1:
+        raise ValueError('Error: Run ' + all_val_days[0] + ' was not found in any dataset')
+    dataset_path = dataset_candidates[0]
+
+    if not np.all([exists(join(dataset_path, 'runs', val_day)) for val_day in all_val_days]):
+        raise ValueError('Error: Not all validation folders were found in the dataset path ' + dataset_path)
+
+        
+    # Function returning the a few specific frames to show as gif
+    if 'gifs' in plotting:
+        wanted_inds = wanted_gifs(logs[0], dataset_path, gui=gui)
 
 
     ################
@@ -2206,12 +2527,17 @@ if __name__ == '__main__':
         
     if plotting == 'gifs':
         # Comparison of last checkpoints of each logs
-        comparison_gifs(logs, wanted_inds=wanted_inds)
+        comparison_gifs(logs, wanted_inds=wanted_inds, dataset_path=dataset_path)
+        #comparison_gifs(logs[[2]])
+
+    elif plotting == 'gifs-redo':
+        # Comparison of last checkpoints of each logs
+        comparison_gifs(logs, wanted_inds=wanted_inds, dataset_path=dataset_path, redo=True)
         #comparison_gifs(logs[[2]])
 
     elif plotting == 'PR':
         # Comparison of the performances with good metrics
-        comparison_metrics(logs, logs_names)
+        comparison_metrics(logs, logs_names, dataset_path=dataset_path)
         #comparison_metrics(logs[[1, 8]], logs_names[[1, 8]])
 
     else:

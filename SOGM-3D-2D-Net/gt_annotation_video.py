@@ -34,11 +34,12 @@ from os.path import join, exists
 
 import open3d as o3d
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
+from matplotlib.patches import Circle
 #from datasets.MyhalCollision import *
 from scipy.spatial.transform import Rotation as scipyR
 from slam.dev_slam import filter_frame_timestamps
 from slam.PointMapSLAM import motion_rectified
-
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -149,6 +150,10 @@ def pcd_update_from_data(points, annots, pcd, colormap, normals=None):
     if normals is not None:
         pcd.normals = o3d.utility.Vector3dVector(normals)
 
+
+def show_2D_SOGMS():
+
+    return
 
 
 def get_videos(dataset_path, my_days, map_day=None, use_annotated=True):
@@ -460,73 +465,226 @@ def get_videos(dataset_path, my_days, map_day=None, use_annotated=True):
 #
 
 
+def show_seq_slider(data_path, all_seqs, in_radius=8.0):
+
+    colli_path = join(data_path, 'noisy_collisions')
+    annot_path = join(data_path, 'annotation')
+    
+    # convertion from labels to colors
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+
+    # Parameters
+    im_lim = in_radius / np.sqrt(2)
+    
+    # Variables
+    global f_i
+    f_i = 0
+
+    all_pts = [[] for seq in all_seqs]
+    all_colors = [[] for seq in all_seqs]
+    all_labels = [[] for seq in all_seqs]
+    for s_ind, seq in enumerate(all_seqs):
+
+        #########
+        # Loading
+        #########
+
+        # Get annotated lidar frames
+        points_day_path = join(data_path, 'runs', seq, 'velodyne_frames')
+
+        # Frame names
+        f_names = [f for f in listdir(points_day_path) if f[-4:] == '.ply']
+        f_times = np.array([float(f[:-4]) for f in f_names], dtype=np.float64)
+        f_names = np.array([join(points_day_path, f) for f in f_names])
+        ordering = np.argsort(f_times)
+        f_names = f_names[ordering]
+        map_t = f_times[ordering]
+
+        # Filter timestamps
+        map_t, frames_pathes = filter_frame_timestamps(map_t, f_names)
+
+        s_frames = [f.split('/')[-1][:-4] for f in frames_pathes]
+
+        # Advanced display
+        N = len(s_frames)
+        progress_n = 30
+        fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+        print('\nGetting gt for ' + seq)
+
+        # Previously computed files
+        # cpp_map_name = join(out_folder, 'map_{:s}.ply'.format(day))
+        cpp_traj_name = join(annot_path, seq, 'correct_traj_{:s}.pkl'.format(seq))
+
+        # Load traj
+        if exists(cpp_traj_name):
+            with open(cpp_traj_name, 'rb') as f:
+                day_map_H = pickle.load(f)
+        else:
+            raise ValueError('Trajectory not computed')
+
+        for f_ind, frame in enumerate(s_frames):
+
+            # Get groundtruth in 2D points format
+            gt_file = join(colli_path, seq, frame + '_2D.ply')
+
+            # Read points
+            data = read_ply(gt_file)
+            pts_2D = np.vstack((data['x'], data['y'])).T
+            labels_2D = data['classif']
+
+            # Recenter
+            p0 = day_map_H[f_ind][:2, 3]
+            centered_2D = (pts_2D - p0).astype(np.float32)
+
+            # Remove outside boundaries of images
+            img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
+            img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
+            centered_2D = centered_2D[img_mask]
+            labels_2D = labels_2D[img_mask]
+
+            # Get the number of points per label (only present in image)
+            label_v, label_n = np.unique(labels_2D, return_counts=True)
+            label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
+            label_count[label_v] = label_n
+            
+            all_pts[s_ind].append(centered_2D)
+            all_colors[s_ind].append(colormap[labels_2D])
+            all_labels[s_ind].append(label_count)
+
+            print('', end='\r')
+            print(fmt_str.format('#' * (((f_ind + 1) * progress_n) // N), 100 * (f_ind + 1) / N), end='', flush=True)
+
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+        ##########
+        # Plotting
+        ##########
+
+        # Figure
+        figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+        plt.subplots_adjust(bottom=0.25)
+
+        # Plot first frame of seq
+        plotsA = [axA.scatter(all_pts[s_ind][0][:, 0],
+                              all_pts[s_ind][0][:, 1],
+                              s=2.0,
+                              c=all_colors[s_ind][0])]
+
+        # Show a circle of the loop closure area
+        axA.add_patch(Circle((0, 0), radius=0.2,
+                             edgecolor=[0.2, 0.2, 0.2],
+                             facecolor=[1.0, 0.79, 0],
+                             fill=True,
+                             lw=1))
+
+        plt.subplots_adjust(left=0.1, bottom=0.15)
+
+        # # Customize the graph
+        # axA.grid(linestyle='-.', which='both')
+        axA.set_xlim(-im_lim, im_lim)
+        axA.set_ylim(-im_lim, im_lim)
+        axA.set_aspect('equal', adjustable='box')
+
+        # Make a horizontal slider to control the frequency.
+        axcolor = 'lightgoldenrodyellow'
+        axtime = plt.axes([0.1, 0.04, 0.8, 0.02], facecolor=axcolor)
+        time_slider = Slider(ax=axtime,
+                             label='ind',
+                             valmin=0,
+                             valmax=len(all_pts[s_ind]) - 1,
+                             valinit=0,
+                             valstep=1)
+
+        # The function to be called anytime a slider's value changes
+        def update_PR(val):
+            global f_i
+            f_i = (int)(val)
+            for plot_i, plot_obj in enumerate(plotsA):
+                plot_obj.set_offsets(all_pts[s_ind][f_i])
+                plot_obj.set_color(all_colors[s_ind][f_i])
+
+        # register the update function with each slider
+        time_slider.on_changed(update_PR)
+
+        # Add an ax with the presence of dynamic points
+        dyn_img = np.vstack(all_labels[s_ind]).T
+        dyn_img = dyn_img[-1:]
+        dyn_img[dyn_img > 10] = 10
+        dyn_img[dyn_img > 0] += 10
+        axdyn = plt.axes([0.1, 0.02, 0.8, 0.015])
+        axdyn.imshow(dyn_img, cmap='OrRd', aspect='auto')
+        axdyn.set_axis_off()
+
+        # wanted_f = []
+
+        # # Register event
+        # def onkey(event):
+        #     if event.key == 'enter':
+        #         wanted_f.append(f_i)
+        #         print('Added current frame to the wanted indices. Now containing:', wanted_f)
+
+        #     elif event.key == 'backspace':
+        #         if wanted_f:
+        #             wanted_f.pop()
+        #         print('removed last frame from the wanted indices. Now containing:', wanted_f)
+
+        #     elif event.key == 'x':
+        #         if wanted_f:
+        #             remove_i = np.argmin([abs(i - f_i) for i in wanted_f])
+        #             wanted_f.pop(remove_i)
+        #         print('removed closest frame from the wanted indices. Now containing:', wanted_f)
+
+        # cid = figA.canvas.mpl_connect('key_press_event', onkey)
+        # print('\n---------------------------------------\n')
+        # print('Instructions:\n')
+        # print('> Press Enter to add current frame to the wanted indices.')
+        # print('> Press Backspace to remove last frame added to the wanted indices.')
+        # print('> Press x to to remove the closest frame to current one from the wanted indices.')
+        # print('\n---------------------------------------\n')
+
+        plt.show()
+
+
+    return
+
+
 if __name__ == '__main__':
 
-    train_days_RandBounce = ['2021-05-15-23-15-09',
-                             '2021-05-15-23-33-25',
-                             '2021-05-15-23-54-50',
-                             '2021-05-16-00-44-53',
-                             '2021-05-16-01-09-43',
-                             '2021-05-16-20-37-47',
-                             '2021-05-16-20-59-49',
-                             '2021-05-16-21-22-30',
-                             '2021-05-16-22-26-45',
-                             '2021-05-16-22-51-06',
-                             '2021-05-16-23-34-15',
-                             '2021-05-17-01-21-44',
-                             '2021-05-17-01-37-09',
-                             '2021-05-17-01-58-57',
-                             '2021-05-17-02-34-27',
-                             '2021-05-17-02-56-02',
-                             '2021-05-17-03-54-39',
-                             '2021-05-17-05-26-10',
-                             '2021-05-17-05-41-45']
-                             
-    train_days_RandWand = ['2021-05-17-14-04-52',
-                           '2021-05-17-14-21-56',
-                           '2021-05-17-14-44-46',
-                           '2021-05-17-15-26-04',
-                           '2021-05-17-15-50-45',
-                           '2021-05-17-16-14-26',
-                           '2021-05-17-17-02-17',
-                           '2021-05-17-17-27-02',
-                           '2021-05-17-17-53-42',
-                           '2021-05-17-18-46-44',
-                           '2021-05-17-19-02-37',
-                           '2021-05-17-19-39-19',
-                           '2021-05-17-20-14-57',
-                           '2021-05-17-20-48-53',
-                           '2021-05-17-21-36-22',
-                           '2021-05-17-22-16-13',
-                           '2021-05-17-22-40-46',
-                           '2021-05-17-23-08-01',
-                           '2021-05-17-23-48-22',
-                           '2021-05-18-00-07-26',
-                           '2021-05-18-00-23-15',
-                           '2021-05-18-00-44-33',
-                           '2021-05-18-01-24-07']
+    dataset_path = '../Data/RealMyhal'
+    train_days = ['2021-12-06_08-12-39',    # - \
+                  '2021-12-06_08-38-16',    # -  \
+                  '2021-12-06_08-44-07',    # -   > First runs with controller for mapping of the environment
+                  '2021-12-06_08-51-29',    # -  /
+                  '2021-12-06_08-54-58',    # - /
+                  '2021-12-10_13-32-10',    # - \
+                  '2021-12-10_13-26-07',    # -  \
+                  '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
+                  '2021-12-10_13-06-09',    # -  /
+                  '2021-12-10_12-53-37',    # - /
+                  '2021-12-13_18-16-27',    # - \
+                  '2021-12-13_18-22-11',    # -  \
+                  '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
+                  '2021-12-15_19-13-03']    # -  /
+    map_i = 3
+    refine_i = np.array([0, 6, 7, 8])
+    train_i = np.arange(len(train_days))[5:]
+    val_inds = [0]
+         
+    map_day = train_days[map_i]
+    refine_days = np.array(train_days)[refine_i]
+    train_days = np.sort(np.array(train_days)[train_i])
 
-    train_days_RandFlow = ['2021-06-02-19-55-16',
-                           '2021-06-02-20-33-09',
-                           '2021-06-02-21-09-48',
-                           '2021-06-02-22-05-23',
-                           '2021-06-02-22-31-49',
-                           '2021-06-03-03-51-03',
-                           '2021-06-03-14-30-25',
-                           '2021-06-03-14-59-20',
-                           '2021-06-03-15-43-06',
-                           '2021-06-03-16-48-18',
-                           '2021-06-03-18-00-33',
-                           '2021-06-03-19-07-19',
-                           '2021-06-03-19-52-45',
-                           '2021-06-03-20-28-22',
-                           '2021-06-03-21-32-44',
-                           '2021-06-03-21-57-08']
+    show_seq_slider(dataset_path, train_days)
 
+    # # List of days we want to create video from
+    # my_days = train_days_RandBounce
 
-
-    # List of days we want to create video from
-    my_days = train_days_RandBounce
-
-    get_videos(my_days)
+    # get_videos(my_days)
 

@@ -32,10 +32,10 @@ os.environ.update(OMP_NUM_THREADS='1',
 import numpy as np
 
 # Dataset
-from slam.PointMapSLAM import  annotation_process
+from slam.PointMapSLAM import annotation_process
 from datasets.MyhalCollision import MyhalCollisionSlam
 
-from gt_annotation_video import get_videos
+from gt_annotation_video import get_videos, show_2D_SOGMS
 
 from os.path import exists, join
 from os import makedirs
@@ -57,7 +57,7 @@ def main(dataset_path, map_day, refine_days, train_days, force_redo=True):
             redo_annot = True
             break
 
-    # Forced redo        
+    # Forced redo
     redo_annot = redo_annot or force_redo
 
     if redo_annot:
@@ -190,7 +190,8 @@ if __name__ == '__main__':
 
     main(dataset_path, map_day, refine_days, train_days)
 
-    # get_videos(dataset_path, train_days, map_day=map_day)
+    # show_2D_SOGMS(dataset_path, train_days, map_day=map_day)
 
+    # get_videos(dataset_path, train_days, map_day=map_day)
 
 

@@ -184,8 +184,6 @@ class ModelTrainer:
 
         # Loop variables
         t0 = time.time()
-        t = [time.time()]
-        last_display = time.time()
         mean_dt = np.zeros(1)
 
         # Start training loop
@@ -196,6 +194,8 @@ class ModelTrainer:
                 remove(PID_file)
 
             self.step = 0
+            t = [time.time()]
+            last_display = time.time()
             for batch in training_loader:
 
                 # Check kill signal (running_PID.txt deleted)

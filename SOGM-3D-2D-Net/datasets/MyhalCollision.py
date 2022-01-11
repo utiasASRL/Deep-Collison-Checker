@@ -51,6 +51,7 @@ from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, slam
 from slam.dev_slam import frame_H_to_points, interp_pose, rot_trans_diffs, normals_orientation, save_trajectory, RANSAC, filter_frame_timestamps, extract_flat_ground, in_plane
 from utils.ply import read_ply, write_ply
 from utils.mayavi_visu import save_future_anim, fast_save_future_anim, Box
+from utils.sparse_morpho import sparse_point_opening, pepper_noise_removal
 from simple_loop_closure import loop_closure
 
 # OS functions
@@ -2533,7 +2534,7 @@ class MyhalCollisionSlam:
 
         return
 
-    def collision_annotation(self, dl_2D=0.03, start_T=-1.0, future_T=5.0):
+    def collision_annotation(self, dl_2D=0.03, start_T=-1.0, future_T=5.0, noise_margin=0.3, pepper_margin=0.06, debug_noise=True):
 
         ###############
         # STEP 0 - Init
@@ -2606,6 +2607,10 @@ class MyhalCollisionSlam:
             out_folder = join(self.data_path, 'collisions', day)
             if not exists(out_folder):
                 makedirs(out_folder)
+            noisy_folder = join(self.data_path, 'noisy_collisions', day)
+            if debug_noise and not exists(noisy_folder):
+                makedirs(noisy_folder)
+
 
             # Load poses
             f_names = self.day_f_names[d]
@@ -2677,6 +2682,25 @@ class MyhalCollisionSlam:
             if not exists(debug_folder):
                 makedirs(debug_folder)
 
+            # First convert the full annotation map to 2D for noise removal
+            flat_day_pts = day_points[categories > 1.5, :]
+            flat_day_pts[:, 2] *= 0
+            flat_day_annots = categories[categories > 1.5]
+
+            # Subsampling to a 2D PointCloud
+            day_pts_2D, day_annots_2D = grid_subsampling(flat_day_pts,
+                                                         labels=flat_day_annots,
+                                                         sampleDl=dl_2D)
+
+            # Here save as 2D slices
+            annot_2D_name = join(annot_folder, 'flat_annot_{:s}.ply'.format(day))
+            write_ply(annot_2D_name,
+                      [day_pts_2D[:, :2], day_annots_2D],
+                      ['x', 'y', 'classif'])
+            
+            # Prepare data for the noise removal
+            day_static_pts = day_pts_2D[day_annots_2D.squeeze() < 3.5]
+            day_static_tree = KDTree(day_static_pts)
 
             pts_FIFO = []
             annot_FIFO = []
@@ -2727,11 +2751,71 @@ class MyhalCollisionSlam:
                 pts_2D, annots_2D = grid_subsampling(flat_pts,
                                                      labels=flat_annot,
                                                      sampleDl=dl_2D)
+                                                     
+                # mask of movables and dynamic
+                static_mask = np.squeeze(np.logical_or(annots_2D == 3, annots_2D == 2))
+                dynamic_mask = np.squeeze(annots_2D == 4)
+
+                # Apply first noise removal with whole day static points
+                
+                # Like image binary opening but on sparse point positions in 3D
+                # 1. negatives "eat" positives
+                # 2. Remaining positives "eat back"
+                opened_dyn_mask = sparse_point_opening(pts_2D,
+                                                       dynamic_mask,
+                                                       negative_tree=day_static_tree,
+                                                       erode_d=noise_margin,
+                                                       dilate_d=noise_margin - dl_2D)
+
+                
+
+                # Remove noise (dynamic points among static points)
+                invalid_mask = np.logical_and(dynamic_mask, np.logical_not(opened_dyn_mask))
+                valid_mask = np.logical_not(invalid_mask)
+                pts_2D = pts_2D[valid_mask]
+                annots_2D = annots_2D[valid_mask]
+                dynamic_mask = dynamic_mask[valid_mask]
+
+                # Second noise removal via erosion.
+                # 1. Convert to image
+                # 2. Perform image opening
+                if np.any(dynamic_mask):
+                    clean_mask = pepper_noise_removal(pts_2D,
+                                                      sampleDl=dl_2D,
+                                                      pepper_margin=pepper_margin,
+                                                      positive_mask=dynamic_mask)
+
+                    # Remove noise (dynamic points among static points)
+                    invalid_mask = np.logical_and(dynamic_mask, np.logical_not(clean_mask))
+                    valid_mask = np.logical_not(invalid_mask)
+                    clean_pts_2D = pts_2D[valid_mask]
+                    clean_annots_2D = annots_2D[valid_mask]
+
+                # TODO: DO the closing / opening on 3 layers:
+                #       1) This will eliminate large areas that diaspear right after
+                #       2) This should help to better keep people because the blob is continuous in the 3 layers
+                #
+                #   OR, maybe using tracking of blob for this????? OR maybe the tracking should be after this noise removal???
+                #
+                # TODO: When choosing training examples, create a mask of valid training inds, (similar to balance_class)
+                #       The valid frames are the one with more than 10 dynamic points and not isolated (the prev / next X (X=4?) frames 
+                #       also have more than 10 dynamic points)
+                #
+
+
+                # Here save as 2D slices
+                if debug_noise:
+                    ply_debug_name = join(noisy_folder, f_name[:-4].split('/')[-1] + '_2D.ply')
+                    annot_noise = np.copy(annots_2D)
+                    annot_noise[invalid_mask] = 1
+                    write_ply(ply_debug_name,
+                              [pts_2D, annot_noise],
+                              ['x', 'y', 't', 'classif'])
 
                 # Here save as 2D slices
                 ply_2D_name = join(out_folder, f_name[:-4].split('/')[-1] + '_2D.ply')
                 write_ply(ply_2D_name,
-                          [pts_2D, annots_2D],
+                          [clean_pts_2D, clean_annots_2D],
                           ['x', 'y', 't', 'classif'])
 
                 # # Get visibility
@@ -2897,10 +2981,7 @@ class MyhalCollisionDataset(PointCloudDataset):
                 self.learning_map_inv[k] = v
 
         # Dict from labels to names
-        self.label_to_names = {
-            k: all_labels[v]
-            for k, v in learning_map_inv.items()
-        }
+        self.label_to_names = {k: all_labels[v] for k, v in learning_map_inv.items()}
 
         # Initiate a bunch of variables concerning class labels
         self.init_labels()
@@ -2939,8 +3020,6 @@ class MyhalCollisionDataset(PointCloudDataset):
         ############################
         # Batch selection parameters
         ############################
-
-        # test
 
         # Initialize value for batch limit (max number of points per batch).
         self.batch_limit = torch.tensor([1], dtype=torch.float32)
@@ -3509,16 +3588,8 @@ class MyhalCollisionDataset(PointCloudDataset):
                     future_3 = np.reshape(future_3, (L_2D, L_2D))
                     future_4 = np.reshape(future_4, (L_2D, L_2D))
 
-                    # Remove noise (dynamic points close to static points)
-                    dyn_mask = future_4 > 0.01
-                    static_mask = future_3 + future_2 > 0.01
-                    static_dilated = ndimage.binary_dilation(static_mask, iterations=3)
-                    remain_dyn = np.logical_and(dyn_mask, np.logical_not(static_dilated))
-                    remain_dilated = ndimage.binary_dilation(remain_dyn, iterations=3)
-                    valid_dyn = np.logical_and(dyn_mask, remain_dilated)
-
                     # Append
-                    future_imgs.append(np.stack((future_2, future_3, future_4 * valid_dyn.astype(np.float32)), axis=2))
+                    future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
 
             except RuntimeError:
                 # Temporary bug fix when no neighbors at all we just skip this one
@@ -3674,15 +3745,12 @@ class MyhalCollisionDataset(PointCloudDataset):
         if self.set in ['training', 'validation']:
 
             class_frames_bool = np.zeros((0, self.num_classes), dtype=np.bool)
-            self.class_proportions = np.zeros((self.num_classes, ),
-                                              dtype=np.int32)
+            self.class_proportions = np.zeros((self.num_classes, ), dtype=np.int32)
 
-            for s_ind, (seq, seq_frames) in enumerate(
-                    zip(self.sequences, self.frames)):
+            for s_ind, (seq, seq_frames) in enumerate(zip(self.sequences, self.frames)):
 
                 frame_mode = 'movable'
-                seq_stat_file = join(self.path, seq,
-                                     'stats_{:s}.pkl'.format(frame_mode))
+                seq_stat_file = join(self.path, seq, 'stats_{:s}.pkl'.format(frame_mode))
 
                 # Check if inputs have already been computed
                 if False and exists(seq_stat_file):
@@ -3693,40 +3761,29 @@ class MyhalCollisionDataset(PointCloudDataset):
                 else:
 
                     # Initiate dict
-                    print(
-                        'Preparing seq {:s} class frames. (Long but one time only)'
-                        .format(seq))
+                    print('Preparing seq {:s} class frames. (Long but one time only)'.format(seq))
 
                     # Class frames as a boolean mask
-                    seq_class_frames = np.zeros(
-                        (len(seq_frames), self.num_classes), dtype=np.bool)
+                    seq_class_frames = np.zeros((len(seq_frames), self.num_classes), dtype=np.bool)
 
                     # Proportion of each class
-                    seq_proportions = np.zeros((self.num_classes, ),
-                                               dtype=np.int32)
-
-                    # Sequence path
-                    seq_path = join(self.original_path, 'annotated_frames',
-                                    seq)
+                    seq_proportions = np.zeros((self.num_classes, ), dtype=np.int64)
 
                     # Read all frames
                     for f_ind, frame_name in enumerate(seq_frames):
 
                         # Path of points and labels
-                        velo_file = join(seq_path, frame_name + '.ply')
+                        velo_file = join(self.colli_path[s_ind], frame_name + '_2D.ply')
 
                         # Read labels
                         data = read_ply(velo_file)
                         sem_labels = data['classif']
 
-                        # Get present labels and there frequency
-                        unique, counts = np.unique(sem_labels,
-                                                   return_counts=True)
+                        # Get present labels and their frequency
+                        unique, counts = np.unique(sem_labels, return_counts=True)
 
                         # Add this frame to the frame lists of all class present
-                        frame_labels = np.array(
-                            [self.label_to_idx[l] for l in unique],
-                            dtype=np.int32)
+                        frame_labels = np.array([self.label_to_idx[ll] for ll in unique], dtype=np.int32)
                         seq_class_frames[f_ind, frame_labels] = True
 
                         # Add proportions
@@ -3736,20 +3793,17 @@ class MyhalCollisionDataset(PointCloudDataset):
                     with open(seq_stat_file, 'wb') as f:
                         pickle.dump([seq_class_frames, seq_proportions], f)
 
-                class_frames_bool = np.vstack(
-                    (class_frames_bool, seq_class_frames))
+                class_frames_bool = np.vstack((class_frames_bool, seq_class_frames))
                 self.class_proportions += seq_proportions
 
             # Transform boolean indexing to int indices.
             self.class_frames = []
             for i, c in enumerate(self.label_values):
                 if c in self.ignored_labels:
-                    self.class_frames.append(
-                        torch.zeros((0, ), dtype=torch.int64))
+                    self.class_frames.append(torch.zeros((0, ), dtype=torch.int64))
                 else:
                     integer_inds = np.where(class_frames_bool[:, i])[0]
-                    self.class_frames.append(
-                        torch.from_numpy(integer_inds.astype(np.int64)))
+                    self.class_frames.append(torch.from_numpy(integer_inds.astype(np.int64)))
 
         # Add variables for validation
         if self.set in ['validation', 'test']:
@@ -3778,7 +3832,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 class MyhalCollisionSampler(Sampler):
     """Sampler for MyhalCollision"""
 
-    def __init__(self, dataset: MyhalCollisionDataset):
+    def __init__(self, dataset: MyhalCollisionDataset, manual_training_frames=False):
         Sampler.__init__(self, dataset)
 
         # Dataset used by the sampler (no copy is made in memory)
@@ -3789,6 +3843,25 @@ class MyhalCollisionSampler(Sampler):
             self.N = dataset.config.epoch_steps
         else:
             self.N = dataset.config.validation_size
+
+        # Choose training frames with specific manual rules
+        if (manual_training_frames):
+
+            for i_l, ll in enumerate(self.dataset.label_values):
+                if ll not in self.dataset.ignored_labels:
+                    print(self.dataset.class_frames[i_l].shape)
+                    print(self.dataset.class_frames[i_l].dtype)
+
+                    
+
+
+        a = 1/0
+
+
+
+
+
+
 
         return
 
@@ -3811,35 +3884,39 @@ class MyhalCollisionSampler(Sampler):
             # Generate a list of indices balancing classes and respecting potentials
             gen_indices = []
             gen_classes = []
-            for i, c in enumerate(self.dataset.label_values):
-                if c not in self.dataset.ignored_labels:
+            for i_l, ll in enumerate(self.dataset.label_values):
+                if ll not in self.dataset.ignored_labels:
+
+                    # Get the proportion of points picked in each class
+                    proportions = self.dataset.config.balance_proportions
+                    if (proportions):
+                        class_n = int(np.floor(num_centers * proportions[i_l] / np.sum(proportions))) + 1
+                    else:
+                        used_classes = self.dataset.num_classes - len(self.dataset.ignored_labels)
+                        class_n = num_centers // used_classes + 1
+
+                    if (class_n < 2):
+                        continue
 
                     # Get the potentials of the frames containing this class
-                    class_potentials = self.dataset.potentials[
-                        self.dataset.class_frames[i]]
+                    class_potentials = self.dataset.potentials[self.dataset.class_frames[i_l]]
 
                     # Get the indices to generate thanks to potentials
-                    used_classes = self.dataset.num_classes - \
-                        len(self.dataset.ignored_labels)
-                    class_n = num_centers // used_classes + 1
                     if class_n < class_potentials.shape[0]:
                         _, class_indices = torch.topk(class_potentials,
                                                       class_n,
                                                       largest=False)
                     else:
-                        class_indices = torch.randperm(
-                            class_potentials.shape[0])
-                    class_indices = self.dataset.class_frames[i][class_indices]
+                        class_indices = torch.randperm(class_potentials.shape[0])
+                    class_indices = self.dataset.class_frames[i_l][class_indices]
 
                     # Add the indices to the generated ones
                     gen_indices.append(class_indices)
-                    gen_classes.append(class_indices * 0 + c)
+                    gen_classes.append(class_indices * 0 + ll)
 
-                    # Update potentials
-                    self.dataset.potentials[class_indices] = np.ceil(
-                        self.dataset.potentials[class_indices])
-                    self.dataset.potentials[class_indices] += np.random.rand(
-                        class_indices.shape[0]) * 0.1 + 0.1
+                    # # Update potentials
+                    # self.dataset.potentials[class_indices] = np.ceil(self.dataset.potentials[class_indices])
+                    # self.dataset.potentials[class_indices] += np.random.rand(class_indices.shape[0]) * 0.1 + 0.1
 
             # Stack the chosen indices of all classes
             gen_indices = torch.cat(gen_indices, dim=0)
@@ -3851,10 +3928,8 @@ class MyhalCollisionSampler(Sampler):
             gen_classes = gen_classes[rand_order]
 
             # Update potentials (Change the order for the next epoch)
-            self.dataset.potentials[gen_indices] = torch.ceil(
-                self.dataset.potentials[gen_indices])
-            self.dataset.potentials[gen_indices] += torch.from_numpy(
-                np.random.rand(gen_indices.shape[0]) * 0.1 + 0.1)
+            self.dataset.potentials[gen_indices] = torch.ceil(self.dataset.potentials[gen_indices])
+            self.dataset.potentials[gen_indices] += torch.from_numpy(np.random.rand(gen_indices.shape[0]) * 0.1 + 0.1)
 
             # Update epoch inds
             self.dataset.epoch_inds += gen_indices
@@ -3914,9 +3989,7 @@ class MyhalCollisionSampler(Sampler):
         # Previously saved calibration
         ##############################
 
-        print(
-            '\nStarting Calibration of max_in_points value (use verbose=True for more details)'
-        )
+        print('\nStarting Calibration of max_in_points value (use verbose=True for more details)')
         t0 = time.time()
 
         redo = force_redo
@@ -4187,14 +4260,8 @@ class MyhalCollisionSampler(Sampler):
                     all_n += int(batch.lengths[0].shape[0])
 
                     # Update neighborhood histogram
-                    counts = [
-                        np.sum(neighb_mat.numpy() < neighb_mat.shape[0],
-                               axis=1) for neighb_mat in batch.neighbors
-                    ]
-                    hists = [
-                        np.bincount(c, minlength=hist_n)[:hist_n]
-                        for c in counts
-                    ]
+                    counts = [np.sum(neighb_mat.numpy() < neighb_mat.shape[0], axis=1) for neighb_mat in batch.neighbors]
+                    hists = [np.bincount(c, minlength=hist_n)[:hist_n] for c in counts]
                     neighb_hists += np.vstack(hists)
 
                     # batch length
@@ -4232,9 +4299,7 @@ class MyhalCollisionSampler(Sampler):
                     if verbose and (t - last_display) > 1.0:
                         last_display = t
                         message = 'Step {:5d}  estim_b ={:5.2f} batch_limit ={:7d}'
-                        print(
-                            message.format(i, estim_b,
-                                           int(self.dataset.batch_limit[0])))
+                        print(message.format(i, estim_b, int(self.dataset.batch_limit[0])))
 
                 if breaking:
                     break
@@ -4281,13 +4346,10 @@ class MyhalCollisionSampler(Sampler):
                 color = bcolors.FAIL
             else:
                 color = bcolors.OKGREEN
-            print('Current value of max_in_points {:d}'.format(
-                self.dataset.max_in_p))
-            print('  > {:}{:.1f}% inputs are cropped{:}'.format(
-                color, 100 * cropped_n / all_n, bcolors.ENDC))
+            print('Current value of max_in_points {:d}'.format(self.dataset.max_in_p))
+            print('  > {:}{:.1f}% inputs are cropped{:}'.format(color, 100 * cropped_n / all_n, bcolors.ENDC))
             if cropped_n > 0.3 * all_n:
-                print('\nTry a higher max_in_points value\n'.format(
-                    100 * cropped_n / all_n))
+                print('\nTry a higher max_in_points value\n')
                 #raise ValueError('Value of max_in_points too low')
             print('\n**************************************************\n')
 

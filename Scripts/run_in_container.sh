@@ -71,16 +71,18 @@ else
 
     # python command started in the docker
     if [ ! "$command" ] ; then
-        if [ "$detach" = true ] ; then
-            py_command="python3 train_MyhalCollision.py results/Log_$now"
-        else
-            py_command="python3 train_MyhalCollision.py"
-        fi
-    else
-        py_command="$command"
+        command="python3 train_MyhalCollision.py"
     fi
 
-    echo -e "Running command $py_command\n"
+    # Adding detached folder if needed
+    if [ "$detach" = true ] ; then
+        if [[ $command == *"python3 train_"* ]]; then
+            command="$command results/Log_$now"
+        fi
+            
+    fi
+
+    echo -e "Running command $command\n"
 
     # Execute the command in docker (Example of command: ./master.sh -ve -m 2 -p Sc1_params -t A_tour)
     docker run $docker_args \
@@ -88,7 +90,7 @@ else
     $other_args \
     --name "$USER-SOGM-$now" \
     noetic_pytorch_$USER \
-    $py_command
+    $command
 
     # Attach a log parameters and log the detached docker
     if [ "$detach" = true ] ; then

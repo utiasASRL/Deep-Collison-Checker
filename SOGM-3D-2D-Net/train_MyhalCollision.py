@@ -115,8 +115,11 @@ class MyhalCollisionConfig(Config):
     # Power of the loss for the 2d predictions (use smaller prop loss when shared weights)
     power_2D_init_loss = 1.0
     power_2D_prop_loss = 50.0
-    neg_pos_ratio = 1.0
+    neg_pos_ratio = 0.5
     loss2D_version = 2
+    
+    # Balance class in sampler, using custom proportions
+    balance_proportions = [0, 0, 1, 1, 10]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -220,7 +223,7 @@ class MyhalCollisionConfig(Config):
     # Augmentations
     augment_scale_anisotropic = False
     augment_symmetries = [False, False, False]
-    augment_rotation = 'vertical'
+    augment_rotation = 'none'
     augment_scale_min = 0.99
     augment_scale_max = 1.01
     augment_noise = 0.001
@@ -313,7 +316,7 @@ if __name__ == '__main__':
     map_day = train_days[map_i]
     refine_days = np.array(train_days)[refine_i]
     train_days = np.sort(np.array(train_days)[train_i])
-    val_inds = np.array([0, 2, 8])
+    val_inds = np.array([1, 2, 5, 7])
 
     ######################
     # Automatic Annotation
@@ -334,23 +337,23 @@ if __name__ == '__main__':
     redo_annot = False
 
     # if redo_annot:
-    # 
+    #
     #     # Initiate dataset
     #     slam_dataset = MyhalCollisionSlam(day_list=train_days, map_day=map_day, dataset_path=dataset_path)
-    # 
+    #
     #     # Create a refined map from the map_day.
     #     # UNCOMMENT THIS LINE if you are using your own data for the first time
     #     # COMMENT THIS LINE if you already have a nice clean map of the environment as a point cloud
     #     # like this one: Data/Simulation/slam_offline/2020-10-02-13-39-05/map_update_0001.ply
-    # 
+    #
     #     slam_dataset.refine_map()
-    # 
+    #
     #     # Groundtruth annotation
     #     annotation_process(slam_dataset, on_gt=False)
-    # 
+    #
     #     # Annotation of preprocessed 2D+T point clouds for SOGM generation
     #     slam_dataset.collision_annotation()
-    # 
+    #
     #     print('annotation finished')
 
     ##############
@@ -410,10 +413,13 @@ if __name__ == '__main__':
             if attr_name not in kept_params:
                 setattr(config, attr_name, getattr(prev_config, attr_name))
 
+    print('SAVING_PATH = ', config.saving_path)
 
     # Get path from argument if given
     if len(sys.argv) > 1:
         config.saving_path = sys.argv[1]
+        
+    print('SAVING_PATH = ', config.saving_path)
 
     ###############
     # Previous chkp
@@ -458,7 +464,7 @@ if __name__ == '__main__':
                                          balance_classes=False)
 
     # Initialize samplers
-    training_sampler = MyhalCollisionSampler(training_dataset)
+    training_sampler = MyhalCollisionSampler(training_dataset, manual_training_frames=True)
     test_sampler = MyhalCollisionSampler(test_dataset)
 
     # Initialize the dataloader
