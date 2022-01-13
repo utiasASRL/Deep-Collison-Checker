@@ -3597,50 +3597,53 @@ class MyhalCollisionDataset(PointCloudDataset):
                 pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
                 pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
 
-            # For each time get the closest annotation
-            timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
-            future_imgs = []
-            try:
-                for future_t in timestamps:
+                # For each time get the closest annotation
+                timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
+                future_imgs = []
+                try:
+                    for future_t in timestamps:
 
-                    # Valid points for this timestamps are in the time range dt/2
-                    # TODO: Here different valid times for different classes
-                    valid_mask = np.abs(times_2D - future_t) < future_dt / 2
-                    extension = 1
-                    while np.sum(valid_mask) < 1 and extension < 5:
-                        extension += 1
-                        valid_mask = np.abs(times_2D - future_t) < future_dt * extension / 2
+                        # Valid points for this timestamps are in the time range dt/2
+                        # TODO: Here different valid times for different classes
+                        valid_mask = np.abs(times_2D - future_t) < future_dt / 2
+                        extension = 1
+                        while np.sum(valid_mask) < 1 and extension < 5:
+                            extension += 1
+                            valid_mask = np.abs(times_2D - future_t) < future_dt * extension / 2
 
-                    valid_pts = pts_2D[valid_mask, :]
-                    valid_labels = labels_2D[valid_mask]
-                    # valid_times = times_2D[valid_mask]
+                        valid_pts = pts_2D[valid_mask, :]
+                        valid_labels = labels_2D[valid_mask]
+                        # valid_times = times_2D[valid_mask]
 
-                    # Get pooling indices to image
-                    pool2D_inds = batch_neighbors(pool_points,
-                                                  valid_pts,
-                                                  [pool_points.shape[0]],
-                                                  [valid_pts.shape[0]],
-                                                  self.config.dl_2D / np.sqrt(2))
+                        # Get pooling indices to image
+                        pool2D_inds = batch_neighbors(pool_points,
+                                                    valid_pts,
+                                                    [pool_points.shape[0]],
+                                                    [valid_pts.shape[0]],
+                                                    self.config.dl_2D / np.sqrt(2))
 
-                    # Pool labels (shape = [L_2D*L_2D, max_neighb])
-                    valid_labels = np.hstack((valid_labels, np.ones_like(valid_labels[:1] * -1)))
-                    future_labels = valid_labels[pool2D_inds]
-                    future_2 = np.sum((future_labels == self.name_to_label['still']).astype(np.float32), axis=1)
-                    future_3 = np.sum((future_labels == self.name_to_label['longT']).astype(np.float32), axis=1)
-                    future_4 = np.sum((future_labels == self.name_to_label['shortT']).astype(np.float32), axis=1)
+                        # Pool labels (shape = [L_2D*L_2D, max_neighb])
+                        valid_labels = np.hstack((valid_labels, np.ones_like(valid_labels[:1] * -1)))
+                        future_labels = valid_labels[pool2D_inds]
+                        future_2 = np.sum((future_labels == self.name_to_label['still']).astype(np.float32), axis=1)
+                        future_3 = np.sum((future_labels == self.name_to_label['longT']).astype(np.float32), axis=1)
+                        future_4 = np.sum((future_labels == self.name_to_label['shortT']).astype(np.float32), axis=1)
 
-                    # Reshape into 2D grid
-                    future_2 = np.reshape(future_2, (L_2D, L_2D))
-                    future_3 = np.reshape(future_3, (L_2D, L_2D))
-                    future_4 = np.reshape(future_4, (L_2D, L_2D))
+                        # Reshape into 2D grid
+                        future_2 = np.reshape(future_2, (L_2D, L_2D))
+                        future_3 = np.reshape(future_3, (L_2D, L_2D))
+                        future_4 = np.reshape(future_4, (L_2D, L_2D))
 
-                    # Append
-                    future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
+                        # Append
+                        future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
 
-            except RuntimeError:
-                # Temporary bug fix when no neighbors at all we just skip this one
-                print('ERROR')
-                return None, None
+                except RuntimeError:
+                    # Temporary bug fix when no neighbors at all we just skip this one
+                    print('ERROR')
+                    return None, None
+
+
+                    
 
             # Stack future images
             future_imgs = np.stack(future_imgs, 0)
