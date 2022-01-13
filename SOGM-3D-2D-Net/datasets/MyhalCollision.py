@@ -2973,7 +2973,7 @@ class MyhalCollisionDataset(PointCloudDataset):
             self.sim_sequences = [False for _ in self.sequences]
 
             # Add simulation sequences
-            self.sequences += add_sim_days
+            self.sequences = np.hstack((self.sequences, add_sim_days)) 
             self.sim_sequences += [True for _ in add_sim_days]
 
             # Add sim files
@@ -3561,9 +3561,14 @@ class MyhalCollisionDataset(PointCloudDataset):
             # In case of simulation, the whole data is already stacked
             if self.sim_sequences[s_ind]:
 
-                pass
-                nvjifsn =jnvdsnig
+                # Get groundtruth in 2D points format
+                gt_file = join(self.colli_path[s_ind], self.frames[s_ind][f_ind] + '_2D.ply')
 
+                # Read points
+                data = read_ply(gt_file)
+                pts_2D = np.vstack((data['x'], data['y'])).T
+                times_2D = data['t']
+                labels_2D = data['classif']
 
             else:
 
@@ -3592,58 +3597,55 @@ class MyhalCollisionDataset(PointCloudDataset):
                 times_2D = np.hstack(times_2D)
                 labels_2D = np.hstack(labels_2D)
 
-                # Center on p0 and apply same augmentation
-                pts_2D = (pts_2D - p0[:2]).astype(np.float32)
-                pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
-                pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
+            # Center on p0 and apply same augmentation
+            pts_2D = (pts_2D - p0[:2]).astype(np.float32)
+            pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
+            pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
 
-                # For each time get the closest annotation
-                timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
-                future_imgs = []
-                try:
-                    for future_t in timestamps:
+            # For each time get the closest annotation
+            timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
+            future_imgs = []
+            try:
+                for future_t in timestamps:
 
-                        # Valid points for this timestamps are in the time range dt/2
-                        # TODO: Here different valid times for different classes
-                        valid_mask = np.abs(times_2D - future_t) < future_dt / 2
-                        extension = 1
-                        while np.sum(valid_mask) < 1 and extension < 5:
-                            extension += 1
-                            valid_mask = np.abs(times_2D - future_t) < future_dt * extension / 2
+                    # Valid points for this timestamps are in the time range dt/2
+                    # TODO: Here different valid times for different classes
+                    valid_mask = np.abs(times_2D - future_t) < future_dt / 2
+                    extension = 1
+                    while np.sum(valid_mask) < 1 and extension < 5:
+                        extension += 1
+                        valid_mask = np.abs(times_2D - future_t) < future_dt * extension / 2
 
-                        valid_pts = pts_2D[valid_mask, :]
-                        valid_labels = labels_2D[valid_mask]
-                        # valid_times = times_2D[valid_mask]
+                    valid_pts = pts_2D[valid_mask, :]
+                    valid_labels = labels_2D[valid_mask]
+                    # valid_times = times_2D[valid_mask]
 
-                        # Get pooling indices to image
-                        pool2D_inds = batch_neighbors(pool_points,
-                                                    valid_pts,
-                                                    [pool_points.shape[0]],
-                                                    [valid_pts.shape[0]],
-                                                    self.config.dl_2D / np.sqrt(2))
+                    # Get pooling indices to image
+                    pool2D_inds = batch_neighbors(pool_points,
+                                                  valid_pts,
+                                                  [pool_points.shape[0]],
+                                                  [valid_pts.shape[0]],
+                                                  self.config.dl_2D / np.sqrt(2))
 
-                        # Pool labels (shape = [L_2D*L_2D, max_neighb])
-                        valid_labels = np.hstack((valid_labels, np.ones_like(valid_labels[:1] * -1)))
-                        future_labels = valid_labels[pool2D_inds]
-                        future_2 = np.sum((future_labels == self.name_to_label['still']).astype(np.float32), axis=1)
-                        future_3 = np.sum((future_labels == self.name_to_label['longT']).astype(np.float32), axis=1)
-                        future_4 = np.sum((future_labels == self.name_to_label['shortT']).astype(np.float32), axis=1)
+                    # Pool labels (shape = [L_2D*L_2D, max_neighb])
+                    valid_labels = np.hstack((valid_labels, np.ones_like(valid_labels[:1] * -1)))
+                    future_labels = valid_labels[pool2D_inds]
+                    future_2 = np.sum((future_labels == self.name_to_label['still']).astype(np.float32), axis=1)
+                    future_3 = np.sum((future_labels == self.name_to_label['longT']).astype(np.float32), axis=1)
+                    future_4 = np.sum((future_labels == self.name_to_label['shortT']).astype(np.float32), axis=1)
 
-                        # Reshape into 2D grid
-                        future_2 = np.reshape(future_2, (L_2D, L_2D))
-                        future_3 = np.reshape(future_3, (L_2D, L_2D))
-                        future_4 = np.reshape(future_4, (L_2D, L_2D))
+                    # Reshape into 2D grid
+                    future_2 = np.reshape(future_2, (L_2D, L_2D))
+                    future_3 = np.reshape(future_3, (L_2D, L_2D))
+                    future_4 = np.reshape(future_4, (L_2D, L_2D))
 
-                        # Append
-                        future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
+                    # Append
+                    future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
 
-                except RuntimeError:
-                    # Temporary bug fix when no neighbors at all we just skip this one
-                    print('ERROR')
-                    return None, None
-
-
-                    
+            except RuntimeError:
+                # Temporary bug fix when no neighbors at all we just skip this one
+                print('ERROR')
+                return None, None
 
             # Stack future images
             future_imgs = np.stack(future_imgs, 0)
@@ -3759,16 +3761,17 @@ class MyhalCollisionDataset(PointCloudDataset):
                     makedirs(join(self.path, seq))
 
                 if self.sim_sequences[s_ind]:
-                    in_folder = join(self.original_path, 'annotation', seq)
+                    data_path = self.sim_path
                 else:
-                    in_folder = join(self.sim_path, 'annotation', seq)
+                    data_path = self.original_path
 
+                in_folder = join(data_path, 'annotation', seq)
                 in_file = join(in_folder, 'correct_traj_{:s}.pkl'.format(seq))
                 with open(in_file, 'rb') as f:
                     transform_list = pickle.load(f)
 
                 # Remove poses of ignored frames
-                annot_path = join(self.original_path, 'annotated_frames', seq)
+                annot_path = join(data_path, 'annotated_frames', seq)
                 annot_frames = np.array([vf[:-4] for vf in listdir(annot_path) if vf.endswith('.ply')])
                 order = np.argsort([float(a_f) for a_f in annot_frames])
                 annot_frames = annot_frames[order]
@@ -3890,7 +3893,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 class MyhalCollisionSampler(Sampler):
     """Sampler for MyhalCollision"""
 
-    def __init__(self, dataset: MyhalCollisionDataset, manual_training_frames=False):
+    def __init__(self, dataset: MyhalCollisionDataset, manual_training_frames=False, debug_custom_inds=True):
         Sampler.__init__(self, dataset)
 
         # Dataset used by the sampler (no copy is made in memory)
@@ -3939,6 +3942,13 @@ class MyhalCollisionSampler(Sampler):
                             data = read_ply(gt_file)
                             pts_2D = np.vstack((data['x'], data['y'])).T
                             labels_2D = data['classif']
+                                
+                            # Special treatment to old simulation annotations
+                            if self.sim_sequences[s_ind]:
+                                times_2D = data['t']
+                                time_mask = np.logical_and(times_2D > -0.001, times_2D < 0.001)
+                                pts_2D = pts_2D[time_mask]
+                                labels_2D = labels_2D[time_mask]
 
                             # Recenter
                             p0 = self.dataset.poses[s_ind][f_ind][:2, 3]
@@ -3956,8 +3966,9 @@ class MyhalCollisionSampler(Sampler):
                             label_count[label_v] = label_n
 
                             # Do not count dynamic points if we are not in interesting area
-                            if p0[1] < 6 and p0[0] < 4:
-                                label_count[-1] = 0
+                            if not self.sim_sequences[s_ind]:
+                                if p0[1] < 6 and p0[0] < 4:
+                                    label_count[-1] = 0
 
                             all_pts[s_ind].append(centered_2D)
                             all_colors[s_ind].append(colormap[labels_2D])
@@ -3984,7 +3995,6 @@ class MyhalCollisionSampler(Sampler):
                         seq_mask = self.dataset.all_inds[:, 0] == s_ind
                         selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
 
-                        debug_custom_inds = False
                         if debug_custom_inds:
                             
                             # Figure
