@@ -43,6 +43,7 @@ from datasets.common import grid_subsampling
 from scipy import ndimage
 
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 from matplotlib.patches import Circle
 from scipy.spatial.transform import Rotation as scipyR
 from sklearn.neighbors import KDTree
@@ -2911,6 +2912,8 @@ class MyhalCollisionDataset(PointCloudDataset):
                  chosen_set='training',
                  dataset_path='../Data/Real',
                  balance_classes=True,
+                 add_sim_path='',
+                 add_sim_days=None,
                  load_data=True):
         PointCloudDataset.__init__(self, 'MyhalCollision')
 
@@ -2955,6 +2958,41 @@ class MyhalCollisionDataset(PointCloudDataset):
             order = np.argsort([float(ff) for ff in frames])
             frames = frames[order]
             self.frames.append(frames)
+
+
+        ############################
+        # Additional simulation data
+        ############################
+        
+        if add_sim_path and add_sim_days is not None:
+
+            # Simulation folder
+            self.sim_path = add_sim_path
+
+            # Specify which seq is simulation
+            self.sim_sequences = [False for _ in self.sequences]
+
+            # Add simulation sequences
+            self.sequences += add_sim_days
+            self.sim_sequences += [True for _ in add_sim_days]
+
+            # Add sim files
+            for seq in add_sim_days:
+
+                self.seq_path.append(join(self.sim_path, 'simulated_runs', seq, 'sim_frames'))
+                self.colli_path.append(join(self.sim_path, 'collisions', seq))
+                self.annot_path.append(join(self.sim_path, 'annotated_frames', seq))
+
+                frames = np.array([vf[:-4] for vf in listdir(self.seq_path[-1]) if vf.endswith('.ply')])
+                order = np.argsort([float(ff) for ff in frames])
+                frames = frames[order]
+                self.frames.append(frames)
+
+        else:
+            
+            self.sim_path = ''
+            self.sim_sequences = [False for _ in self.sequences]
+
 
 
         ###########################
@@ -3140,7 +3178,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 
                 # Current frame pose
                 merge_ind = f_ind - num_merged
-                if (merge_ind < 1):
+                if self.sim_sequences[s_ind] or (merge_ind < 1):
                     H0 = self.poses[s_ind][merge_ind]
                     H1 = self.poses[s_ind][merge_ind]
                 else:
@@ -3151,7 +3189,10 @@ class MyhalCollisionDataset(PointCloudDataset):
                 # Load points
                 data = read_ply(join(self.seq_path[s_ind], self.frames[s_ind][merge_ind] + '.ply'))
                 f_points = np.vstack((data['x'], data['y'], data['z'])).T
-                f_ts = data['time']
+                if self.sim_sequences[s_ind]:
+                    f_ts = np.zeros_like(data['x'])
+                else:
+                    f_ts = data['time']
 
                 # Apply transform with motion distorsion
                 world_points = motion_rectified(f_points, f_ts, H0, H1)
@@ -3229,9 +3270,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 
             # Randomly drop some points (augmentation process and safety for GPU memory consumption)
             if n > self.max_in_p:
-                input_inds = np.random.choice(n,
-                                              size=self.max_in_p,
-                                              replace=False)
+                input_inds = np.random.choice(n, size=self.max_in_p, replace=False)
                 in_pts = in_pts[input_inds, :]
                 in_fts = in_fts[input_inds, :]
                 in_lbls = in_lbls[input_inds]
@@ -3350,9 +3389,7 @@ class MyhalCollisionDataset(PointCloudDataset):
             stacked_features = np.hstack((stacked_features, features[:, :3]))
 
         else:
-            raise ValueError(
-                'Only accepted input dimensions are 1, 2 and 4 (without and with XYZ)'
-            )
+            raise ValueError('Only accepted input dimensions are 1, 2 and 4 (without and with XYZ)')
 
         t += [time.time()]
 
@@ -3521,35 +3558,44 @@ class MyhalCollisionDataset(PointCloudDataset):
             future_dt = self.config.T_2D / self.config.n_2D_layers
             assert(abs(future_dt - (float(self.frames[s_ind][f_ind]) - float(self.frames[s_ind][f_ind - 1]))) < 0.01)
 
-            # We load one more before and after to be sure to have all data
-            i0_2D = - self.config.n_frames
-            i1_2D = self.config.n_2D_layers + 2
-            pts_2D = []
-            times_2D = []
-            labels_2D = []
-            orig_t = float(self.frames[s_ind][f_ind])
-            for i_2D in range(i0_2D, i1_2D):
+            # In case of simulation, the whole data is already stacked
+            if self.sim_sequences[s_ind]:
 
-                # Get groundtruth in 2D points format
-                future_name = self.frames[s_ind][f_ind + i_2D]
-                gt_file = join(self.colli_path[s_ind], future_name + '_2D.ply')
+                pass
+                nvjifsn =jnvdsnig
 
-                # Read points
-                data = read_ply(gt_file)
-                pts_2D.append(np.vstack((data['x'], data['y'])).T)
-                labels_2D.append(data['classif'])
 
-                # Handle time
-                times_2D.append(data['t'] + (float(future_name) - orig_t))
+            else:
 
-            pts_2D = np.vstack(pts_2D)
-            times_2D = np.hstack(times_2D)
-            labels_2D = np.hstack(labels_2D)
+                # We load one more before and after to be sure to have all data
+                i0_2D = - self.config.n_frames
+                i1_2D = self.config.n_2D_layers + 2
+                pts_2D = []
+                times_2D = []
+                labels_2D = []
+                orig_t = float(self.frames[s_ind][f_ind])
+                for i_2D in range(i0_2D, i1_2D):
 
-            # Center on p0 and apply same augmentation
-            pts_2D = (pts_2D - p0[:2]).astype(np.float32)
-            pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
-            pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
+                    # Get groundtruth in 2D points format
+                    future_name = self.frames[s_ind][f_ind + i_2D]
+                    gt_file = join(self.colli_path[s_ind], future_name + '_2D.ply')
+
+                    # Read points
+                    data = read_ply(gt_file)
+                    pts_2D.append(np.vstack((data['x'], data['y'])).T)
+                    labels_2D.append(data['classif'])
+
+                    # Handle time
+                    times_2D.append(data['t'] + (float(future_name) - orig_t))
+
+                pts_2D = np.vstack(pts_2D)
+                times_2D = np.hstack(times_2D)
+                labels_2D = np.hstack(labels_2D)
+
+                # Center on p0 and apply same augmentation
+                pts_2D = (pts_2D - p0[:2]).astype(np.float32)
+                pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
+                pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
 
             # For each time get the closest annotation
             timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
@@ -3709,7 +3755,11 @@ class MyhalCollisionDataset(PointCloudDataset):
                 if not exists(join(self.path, seq)):
                     makedirs(join(self.path, seq))
 
-                in_folder = join(self.original_path, 'annotation', seq)
+                if self.sim_sequences[s_ind]:
+                    in_folder = join(self.original_path, 'annotation', seq)
+                else:
+                    in_folder = join(self.sim_path, 'annotation', seq)
+
                 in_file = join(in_folder, 'correct_traj_{:s}.pkl'.format(seq))
                 with open(in_file, 'rb') as f:
                     transform_list = pickle.load(f)
@@ -3724,8 +3774,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 
         else:
 
-            for s_ind, (seq, seq_frames) in enumerate(
-                    zip(self.sequences, self.frames)):
+            for s_ind, (seq, seq_frames) in enumerate(zip(self.sequences, self.frames)):
                 dummy_poses = np.expand_dims(np.eye(4), 0)
                 dummy_poses = np.tile(dummy_poses, (len(seq_frames), 1, 1))
                 self.poses.append(dummy_poses)
@@ -3779,6 +3828,12 @@ class MyhalCollisionDataset(PointCloudDataset):
                         data = read_ply(velo_file)
                         sem_labels = data['classif']
 
+                        # Special treatment to old simulation annotations
+                        if self.sim_sequences[s_ind]:
+                            sem_times = data['t']
+                            sem_mask = np.logical_and(sem_times > -0.001, sem_times < 0.001)
+                            sem_labels = sem_labels[sem_mask]
+                            
                         # Get present labels and their frequency
                         unique, counts = np.unique(sem_labels, return_counts=True)
 
@@ -3847,21 +3902,173 @@ class MyhalCollisionSampler(Sampler):
         # Choose training frames with specific manual rules
         if (manual_training_frames):
 
+            # convertion from labels to colors
+            im_lim = self.dataset.config.in_radius / np.sqrt(2)
+            colormap = np.array([[209, 209, 209],
+                                [122, 122, 122],
+                                [255, 255, 0],
+                                [0, 98, 255],
+                                [255, 0, 0]], dtype=np.float32) / 255
+
             for i_l, ll in enumerate(self.dataset.label_values):
-                if ll not in self.dataset.ignored_labels:
-                    print(self.dataset.class_frames[i_l].shape)
-                    print(self.dataset.class_frames[i_l].dtype)
+                if ll == 4:
 
-                    
+                    # Variable containg the selected inds for this class (will replace self.dataset.class_frames[i_l])
+                    selected_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
 
+                    # Advanced display
+                    N = self.dataset.all_inds.shape[0]
+                    progress_n = 50
+                    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+                    print('\nGetting custom training inds')
 
-        a = 1/0
+                    all_pts = [[] for frames in self.dataset.frames]
+                    all_colors = [[] for frames in self.dataset.frames]
+                    all_labels = [[] for frames in self.dataset.frames]
+                    tot_i = 0
+                    for s_ind, seq in enumerate(self.dataset.sequences):
+                        for f_ind, frame in enumerate(self.dataset.frames[s_ind]):
 
+                            # Get groundtruth in 2D points format
+                            gt_file = join(self.dataset.colli_path[s_ind], frame + '_2D.ply')
 
+                            # Read points
+                            data = read_ply(gt_file)
+                            pts_2D = np.vstack((data['x'], data['y'])).T
+                            labels_2D = data['classif']
 
+                            # Recenter
+                            p0 = self.dataset.poses[s_ind][f_ind][:2, 3]
+                            centered_2D = (pts_2D - p0).astype(np.float32)
 
+                            # Remove outside boundaries of images
+                            img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
+                            img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
+                            centered_2D = centered_2D[img_mask]
+                            labels_2D = labels_2D[img_mask]
 
+                            # Get the number of points per label (only present in image)
+                            label_v, label_n = np.unique(labels_2D, return_counts=True)
+                            label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
+                            label_count[label_v] = label_n
 
+                            # Do not count dynamic points if we are not in interesting area
+                            if p0[1] < 6 and p0[0] < 4:
+                                label_count[-1] = 0
+
+                            all_pts[s_ind].append(centered_2D)
+                            all_colors[s_ind].append(colormap[labels_2D])
+                            all_labels[s_ind].append(label_count)
+
+                            print('', end='\r')
+                            print(fmt_str.format('#' * (((tot_i + 1) * progress_n) // N), 100 * (tot_i + 1) / N), end='', flush=True)
+                            tot_i += 1
+
+                        # Get the wanted indices
+                        class_mask = np.vstack(all_labels[s_ind]).T
+                        class_mask = class_mask[i_l:i_l + 1] > 10
+
+                        # Remove isolated inds with opening
+                        open_struct = np.ones((1, 31))
+                        class_mask_opened = ndimage.binary_opening(class_mask, structure=open_struct)
+                        
+                        # Remove the one where the person is disappearing or reappearing
+                        erode_struct = np.ones((1, 31))
+                        erode_struct[:, :13] = 0
+                        class_mask_eroded = ndimage.binary_erosion(class_mask_opened, structure=erode_struct)
+
+                        # Update selected inds for all sequences
+                        seq_mask = self.dataset.all_inds[:, 0] == s_ind
+                        selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
+
+                        debug_custom_inds = False
+                        if debug_custom_inds:
+                            
+                            # Figure
+                            figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+                            plt.subplots_adjust(left=0.1, bottom=0.2)
+
+                            # Plot first frame of seq
+                            plotsA = [axA.scatter(all_pts[s_ind][0][:, 0],
+                                                  all_pts[s_ind][0][:, 1],
+                                                  s=2.0,
+                                                  c=all_colors[s_ind][0])]
+
+                            # Show a circle of the loop closure area
+                            axA.add_patch(Circle((0, 0), radius=0.2,
+                                                 edgecolor=[0.2, 0.2, 0.2],
+                                                 facecolor=[1.0, 0.79, 0],
+                                                 fill=True,
+                                                 lw=1))
+
+                            # # Customize the graph
+                            # axA.grid(linestyle='-.', which='both')
+                            axA.set_xlim(-im_lim, im_lim)
+                            axA.set_ylim(-im_lim, im_lim)
+                            axA.set_aspect('equal', adjustable='box')
+
+                            # Make a horizontal slider to control the frequency.
+                            axcolor = 'lightgoldenrodyellow'
+                            axtime = plt.axes([0.1, 0.1, 0.8, 0.015], facecolor=axcolor)
+                            time_slider = Slider(ax=axtime,
+                                                 label='ind',
+                                                 valmin=0,
+                                                 valmax=len(all_pts[s_ind]) - 1,
+                                                 valinit=0,
+                                                 valstep=1)
+
+                            # The function to be called anytime a slider's value changes
+                            def update_PR(val):
+                                global f_i
+                                f_i = (int)(val)
+                                for plot_i, plot_obj in enumerate(plotsA):
+                                    plot_obj.set_offsets(all_pts[s_ind][f_i])
+                                    plot_obj.set_color(all_colors[s_ind][f_i])
+
+                            # register the update function with each slider
+                            time_slider.on_changed(update_PR)
+
+                            # Ax with the presence of dynamic points
+                            class_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
+                            class_mask[self.dataset.class_frames[i_l]] = True
+                            seq_mask = self.dataset.all_inds[:, 0] == s_ind
+                            seq_class_frames = class_mask[seq_mask]
+                            seq_class_frames = np.expand_dims(seq_class_frames, 0)
+                            axdyn = plt.axes([0.1, 0.08, 0.8, 0.015])
+                            axdyn.imshow(seq_class_frames, cmap='GnBu', aspect='auto')
+                            axdyn.set_axis_off()
+
+                            # Ax with the presence of dynamic points at least 10
+                            dyn_img = np.vstack(all_labels[s_ind]).T
+                            dyn_img = dyn_img[-1:]
+                            dyn_img[dyn_img > 10] = 10
+                            dyn_img[dyn_img > 0] += 10
+                            axdyn = plt.axes([0.1, 0.06, 0.8, 0.015])
+                            axdyn.imshow(dyn_img, cmap='OrRd', aspect='auto')
+                            axdyn.set_axis_off()
+                            
+                            # Ax with opened
+                            axdyn = plt.axes([0.1, 0.04, 0.8, 0.015])
+                            axdyn.imshow(class_mask_opened, cmap='OrRd', aspect='auto')
+                            axdyn.set_axis_off()
+                            
+                            # Ax with eroded
+                            axdyn = plt.axes([0.1, 0.02, 0.8, 0.015])
+                            axdyn.imshow(class_mask_eroded, cmap='OrRd', aspect='auto')
+                            axdyn.set_axis_off()
+
+                            plt.show()
+
+                    selected_inds = np.where(selected_mask)[0]
+                    self.dataset.class_frames[i_l] = torch.from_numpy(selected_inds.astype(np.int64))
+
+                    # Show a nice 100% progress bar
+                    print('', end='\r')
+                    print(fmt_str.format('#' * progress_n, 100), flush=True)
+                    print('\n')
+
+                    if debug_custom_inds:
+                        a = 1/0
 
         return
 

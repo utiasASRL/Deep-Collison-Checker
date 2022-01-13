@@ -222,8 +222,8 @@ class MyhalCollisionConfig(Config):
 
     # Augmentations
     augment_scale_anisotropic = False
-    augment_symmetries = [False, False, False]
-    augment_rotation = 'none'
+    augment_symmetries = [True, False, False]
+    augment_rotation = 'vertical'
     augment_scale_min = 0.99
     augment_scale_max = 1.01
     augment_noise = 0.001
@@ -277,6 +277,80 @@ if __name__ == '__main__':
     # Set GPU visible device
     os.environ['CUDA_VISIBLE_DEVICES'] = GPU_ID
     chosen_gpu = int(GPU_ID)
+
+    #############################
+    # Additionnal Simulation data
+    #############################
+
+    sim_path = '../Data/Simulation'
+
+    # train_days_RandBounce = ['2021-05-15-23-15-09',
+    #                          '2021-05-15-23-33-25',
+    #                          '2021-05-15-23-54-50',
+    #                          '2021-05-16-00-44-53',
+    #                          '2021-05-16-01-09-43',
+    #                          '2021-05-16-20-37-47',
+    #                          '2021-05-16-20-59-49',
+    #                          '2021-05-16-21-22-30',
+    #                          '2021-05-16-22-26-45',
+    #                          '2021-05-16-22-51-06',
+    #                          '2021-05-16-23-34-15',
+    #                          '2021-05-17-01-21-44',
+    #                          '2021-05-17-01-37-09',
+    #                          '2021-05-17-01-58-57',
+    #                          '2021-05-17-02-34-27',
+    #                          '2021-05-17-02-56-02',
+    #                          '2021-05-17-03-54-39',
+    #                          '2021-05-17-05-26-10',
+    #                          '2021-05-17-05-41-45']
+
+    # train_days_RandWand = ['2021-05-17-14-04-52',
+    #                        '2021-05-17-14-21-56',
+    #                        '2021-05-17-14-44-46',
+    #                        '2021-05-17-15-26-04',
+    #                        '2021-05-17-15-50-45',
+    #                        '2021-05-17-16-14-26',
+    #                        '2021-05-17-17-02-17',
+    #                        '2021-05-17-17-27-02',
+    #                        '2021-05-17-17-53-42',
+    #                        '2021-05-17-18-46-44',
+    #                        '2021-05-17-19-02-37',
+    #                        '2021-05-17-19-39-19',
+    #                        '2021-05-17-20-14-57',
+    #                        '2021-05-17-20-48-53',
+    #                        '2021-05-17-21-36-22',
+    #                        '2021-05-17-22-16-13',
+    #                        '2021-05-17-22-40-46',
+    #                        '2021-05-17-23-08-01',
+    #                        '2021-05-17-23-48-22',
+    #                        '2021-05-18-00-07-26',
+    #                        '2021-05-18-00-23-15',
+    #                        '2021-05-18-00-44-33',
+    #                        '2021-05-18-01-24-07']
+
+    train_days_RandFlow = ['2021-06-02-19-55-16',
+                           '2021-06-02-20-33-09',
+                           '2021-06-02-21-09-48',
+                           '2021-06-02-22-05-23',
+                           '2021-06-02-22-31-49',
+                           '2021-06-03-03-51-03',
+                           '2021-06-03-14-30-25',
+                           '2021-06-03-14-59-20',
+                           '2021-06-03-15-43-06',
+                           '2021-06-03-16-48-18',
+                           '2021-06-03-18-00-33',
+                           '2021-06-03-19-07-19',
+                           '2021-06-03-19-52-45',
+                           '2021-06-03-20-28-22',
+                           '2021-06-03-21-32-44',
+                           '2021-06-03-21-57-08']
+
+    
+    # Additional train and validation  from simulation
+    sim_train_days = np.array(train_days_RandFlow)
+    sim_val_inds = [0, 1, 2]
+    sim_train_inds = [i for i in range(len(sim_train_days)) if i not in sim_val_inds]
+
 
     ###################
     # Training sessions
@@ -456,12 +530,16 @@ if __name__ == '__main__':
                                              train_days[train_inds],
                                              chosen_set='training',
                                              dataset_path=dataset_path,
-                                             balance_classes=True)
+                                             balance_classes=True,
+                                             add_sim_path=sim_path,
+                                             add_sim_days=sim_train_days[sim_train_inds])
     test_dataset = MyhalCollisionDataset(config,
                                          train_days[val_inds],
                                          chosen_set='validation',
                                          dataset_path=dataset_path,
-                                         balance_classes=False)
+                                         balance_classes=False,
+                                         add_sim_path=sim_path,
+                                         add_sim_days=sim_train_days[sim_val_inds])
 
     # Initialize samplers
     training_sampler = MyhalCollisionSampler(training_dataset, manual_training_frames=True)

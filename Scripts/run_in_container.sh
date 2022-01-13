@@ -44,7 +44,8 @@ if [ "$detach" = true ] ; then
 fi
 
 # Volumes (modify with your own path here)
-volumes="-v $PWD/..:/home/$USER/Deep-Collison-Checker"
+volumes="-v $PWD/..:/home/$USER/Deep-Collison-Checker \ 
+-v $PWD/../../2-Deep-Collision-Checker/Simulation_Data:/home/$USER/Deep-Collison-Checker/Data/Simulation"
 
 # Additional arguments to be able to open GUI
 XSOCK=/tmp/.X11-unix

@@ -2438,6 +2438,8 @@ def Myhal_logs():
     logs_names = ['e500-rot',
                   'e200-rot',
                   'e200-norot',
+                  'e200-norot-new_train_inds',
+                  'e200-rot-new_train_inds',
                   'etc']
 
     # logs_names = ['No Mask',
@@ -2463,7 +2465,7 @@ if __name__ == '__main__':
     ######################################
 
     plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
-    plotting = plotting + '-redo'
+    # plotting = plotting + '-redo'
     gui = False
     # TODO: Save a file for each checkpoint so that we dont have to use the 'redo' and also only compute gifs with last checkpoint 
 
@@ -2478,6 +2480,8 @@ if __name__ == '__main__':
 
     # Function returning the names of the log folders that we want to plot
     logs, logs_names = Myhal_logs()
+    logs = logs[-3:]
+    logs_names = logs_names[-3:]
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None
