@@ -10,8 +10,10 @@ SOGM-3D-2D-Net/cpp_wrappers/g2o
 SOGM-3D-2D-Net/cpp_wrappers/ceres-solver-2.0.0
 SOGM-3D-2D-Net/cpp_wrappers/ceres-bin
 
+Myhal_Simulator/simu_melodic_ws/.catkin*
 Myhal_Simulator/simu_melodic_ws/build
 Myhal_Simulator/simu_melodic_ws/devel
+Myhal_Simulator/simu_melodic_ws/logs
 
 
 
