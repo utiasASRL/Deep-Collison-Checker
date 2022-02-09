@@ -1301,7 +1301,7 @@ def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
         all_imgs = future_imgs
     else:
         all_imgs = np.concatenate((past_imgs, future_imgs), axis=-4)
-    
+
     # # Add ghost of the input
     # mask = np.sum(ingt_imgs[..., 2], axis=-3, keepdims=True) > 0.05
     # bin_struct = np.ones((1, 1, 3, 3))

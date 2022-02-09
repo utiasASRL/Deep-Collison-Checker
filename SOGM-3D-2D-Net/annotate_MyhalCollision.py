@@ -176,10 +176,21 @@ if __name__ == '__main__':
                   '2021-12-13_18-22-11',    # -  \
                   '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
                   '2021-12-15_19-13-03']    # -  /
+
+    train_days += ['2022-01-18_10-38-28',   # - \
+                   '2022-01-18_10-42-54',   # -  \
+                   '2022-01-18_10-47-07',   # -   \
+                   '2022-01-18_10-48-42',   # -    \
+                   '2022-01-18_10-53-28',   # -     > Sessions with normal TEB planner on loop_3
+                   '2022-01-18_10-58-05',   # -     > Simple scenarios for experiment
+                   '2022-01-18_11-02-28',   # -    /
+                   '2022-01-18_11-11-03',   # -   /
+                   '2022-01-18_11-15-40',   # -  /
+                   '2022-01-18_11-20-21']   # - /
+
     map_i = 3
     refine_i = np.array([0, 6, 7, 8])
     train_i = np.arange(len(train_days))[5:]
-    val_inds = [0]
          
     map_day = train_days[map_i]
     refine_days = np.array(train_days)[refine_i]

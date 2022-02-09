@@ -1818,11 +1818,23 @@ class MyhalCollisionSlam:
         #   > Step 4: With the corrected poses and the full point clouds, create a barycentre pointmap
         #   > Step 5: Remove the short-term movables from this good map.
 
+
         print('\n')
         print('Build Initial Map')
         print('*****************')
         print('\n')
         print('Using run', self.map_day)
+
+        # Folder where the incrementally updated map is stored
+        map_folder = join(self.data_path, 'slam_offline', self.map_day)
+        if not exists(map_folder):
+            makedirs(map_folder)
+
+        initial_map_file = join(map_folder, 'map_update_{:04}.ply'.format(0))
+        if exists(initial_map_file):
+            print('\n----- Recovering map from previous file')
+            print('\n    > Done')
+            return
 
         # Load hardcoded map limits
         map_lim_file = join(self.data_path, 'calibration/map_limits.txt')
@@ -1840,11 +1852,6 @@ class MyhalCollisionSlam:
         ##########################
 
         print('\n----- Initial odometry on the mapping session')
-        
-        # Folder where the incrementally updated map is stored
-        map_folder = join(self.data_path, 'slam_offline', self.map_day)
-        if not exists(map_folder):
-            makedirs(map_folder)
 
         # Get frame names and times
         map_t = np.array([np.float64(f.split('/')[-1][:-4]) for f in self.map_f_names], dtype=np.float64)
@@ -2958,6 +2965,7 @@ class MyhalCollisionDataset(PointCloudDataset):
             order = np.argsort([float(ff) for ff in frames])
             frames = frames[order]
             self.frames.append(frames)
+        
 
 
         ############################
@@ -2983,17 +2991,17 @@ class MyhalCollisionDataset(PointCloudDataset):
                 self.colli_path.append(join(self.sim_path, 'collisions', seq))
                 self.annot_path.append(join(self.sim_path, 'annotated_frames', seq))
 
-                frames = np.array([vf[:-4] for vf in listdir(self.seq_path[-1]) if vf.endswith('.ply')])
+                frames = np.array([vf[:-7] for vf in listdir(self.colli_path[-1]) if vf.endswith('2D.ply')])
                 order = np.argsort([float(ff) for ff in frames])
                 frames = frames[order]
                 self.frames.append(frames)
-
+               
         else:
             
             self.sim_path = ''
             self.sim_sequences = [False for _ in self.sequences]
 
-
+        self.sim_sequences = np.array(self.sim_sequences)
 
         ###########################
         # Object classes parameters
@@ -3190,12 +3198,13 @@ class MyhalCollisionDataset(PointCloudDataset):
                 data = read_ply(join(self.seq_path[s_ind], self.frames[s_ind][merge_ind] + '.ply'))
                 f_points = np.vstack((data['x'], data['y'], data['z'])).T
                 if self.sim_sequences[s_ind]:
-                    f_ts = np.zeros_like(data['x'])
+                    # Apply simple transform
+                    f_ts = np.arange(data['x'].shape[0], dtype=np.float32)
+                    world_points = motion_rectified(f_points, f_ts, H0, H1)
                 else:
+                    # Apply transform with motion distorsion
                     f_ts = data['time']
-
-                # Apply transform with motion distorsion
-                world_points = motion_rectified(f_points, f_ts, H0, H1)
+                    world_points = motion_rectified(f_points, f_ts, H0, H1)
 
                 # Load annot
                 if self.set == 'test':
@@ -3556,7 +3565,9 @@ class MyhalCollisionDataset(PointCloudDataset):
             
             # Verify time are synchronized between frames and predictions
             future_dt = self.config.T_2D / self.config.n_2D_layers
-            assert(abs(future_dt - (float(self.frames[s_ind][f_ind]) - float(self.frames[s_ind][f_ind - 1]))) < 0.01)
+
+            # Assertion not true for simulation => Do that assertion once on a mean in the beginining
+            # assert(abs(future_dt - (float(self.frames[s_ind][f_ind]) - float(self.frames[s_ind][f_ind - 1]))) < 0.03)
 
             # In case of simulation, the whole data is already stacked
             if self.sim_sequences[s_ind]:
@@ -3808,7 +3819,8 @@ class MyhalCollisionDataset(PointCloudDataset):
                 seq_stat_file = join(self.path, seq, 'stats_{:s}.pkl'.format(frame_mode))
 
                 # Check if inputs have already been computed
-                if False and exists(seq_stat_file):
+                # if False and exists(seq_stat_file):
+                if exists(seq_stat_file):
                     # Read pkl
                     with open(seq_stat_file, 'rb') as f:
                         seq_class_frames, seq_proportions = pickle.load(f)
@@ -3893,7 +3905,7 @@ class MyhalCollisionDataset(PointCloudDataset):
 class MyhalCollisionSampler(Sampler):
     """Sampler for MyhalCollision"""
 
-    def __init__(self, dataset: MyhalCollisionDataset, manual_training_frames=False, debug_custom_inds=True):
+    def __init__(self, dataset: MyhalCollisionDataset, manual_training_frames=False, debug_custom_inds=False):
         Sampler.__init__(self, dataset)
 
         # Dataset used by the sampler (no copy is made in memory)
@@ -3944,7 +3956,7 @@ class MyhalCollisionSampler(Sampler):
                             labels_2D = data['classif']
                                 
                             # Special treatment to old simulation annotations
-                            if self.sim_sequences[s_ind]:
+                            if self.dataset.sim_sequences[s_ind]:
                                 times_2D = data['t']
                                 time_mask = np.logical_and(times_2D > -0.001, times_2D < 0.001)
                                 pts_2D = pts_2D[time_mask]
@@ -3966,7 +3978,7 @@ class MyhalCollisionSampler(Sampler):
                             label_count[label_v] = label_n
 
                             # Do not count dynamic points if we are not in interesting area
-                            if not self.sim_sequences[s_ind]:
+                            if not self.dataset.sim_sequences[s_ind]:
                                 if p0[1] < 6 and p0[0] < 4:
                                     label_count[-1] = 0
 
@@ -4109,34 +4121,59 @@ class MyhalCollisionSampler(Sampler):
 
                     # Get the proportion of points picked in each class
                     proportions = self.dataset.config.balance_proportions
-                    if (proportions):
+                    sim_class_n = 0
+                    sim_ratio = None
+                    if len(proportions) == len(self.dataset.label_values):
                         class_n = int(np.floor(num_centers * proportions[i_l] / np.sum(proportions))) + 1
+
+                    elif len(proportions) == len(self.dataset.label_values) + 1:
+                        sim_ratio = proportions[-1]
+                        if (sim_ratio > 1.0 or sim_ratio < 0.0):
+                            raise ValueError('Simulation example ratio must be between 0 and 1')
+                        if not self.dataset.sim_path:
+                            print('WARNING: No simualtion data found but a simulation ratio is defined in the balance proportions')
+                            sim_ratio = 0
+                        tot_n = int(np.floor(num_centers * proportions[i_l] / np.sum(proportions[:-1]))) + 1
+                        sim_class_n = int(np.floor(tot_n * sim_ratio))
+                        class_n = tot_n - sim_class_n
                     else:
                         used_classes = self.dataset.num_classes - len(self.dataset.ignored_labels)
                         class_n = num_centers // used_classes + 1
 
-                    if (class_n < 2):
+                    if (class_n + sim_class_n < 2):
                         continue
 
-                    # Get the potentials of the frames containing this class
-                    class_potentials = self.dataset.potentials[self.dataset.class_frames[i_l]]
-
-                    # Get the indices to generate thanks to potentials
-                    if class_n < class_potentials.shape[0]:
-                        _, class_indices = torch.topk(class_potentials,
-                                                      class_n,
-                                                      largest=False)
+                    if sim_ratio is not None:
+                        # Get the indices of simulation and normal frames separately
+                        class_inds = self.dataset.class_frames[i_l]
+                        seq_inds = self.dataset.all_inds[class_inds, 0]
+                        sim_mask = self.dataset.sim_sequences[seq_inds]
+                        sim_inds = class_inds[sim_mask]
+                        real_inds = class_inds[np.logical_not(sim_mask)]
                     else:
-                        class_indices = torch.randperm(class_potentials.shape[0])
-                    class_indices = self.dataset.class_frames[i_l][class_indices]
+                        sim_inds = None
+                        real_inds = self.dataset.class_frames[i_l]
 
-                    # Add the indices to the generated ones
-                    gen_indices.append(class_indices)
-                    gen_classes.append(class_indices * 0 + ll)
+                    for c_inds, c_n in [[real_inds, class_n], [sim_inds, sim_class_n]]:
 
-                    # # Update potentials
-                    # self.dataset.potentials[class_indices] = np.ceil(self.dataset.potentials[class_indices])
-                    # self.dataset.potentials[class_indices] += np.random.rand(class_indices.shape[0]) * 0.1 + 0.1
+                        if c_inds is not None:
+
+                            # Get the potentials of the frames containing this class
+                            class_potentials = self.dataset.potentials[c_inds]
+
+                            # Get the indices to generate thanks to potentials
+                            if c_n < class_potentials.shape[0]:
+                                _, class_indices = torch.topk(class_potentials,
+                                                              c_n,
+                                                              largest=False)
+                            else:
+                                class_indices = torch.randperm(class_potentials.shape[0])
+                            class_indices = c_inds[class_indices]
+
+                            # Add the indices to the generated ones
+                            gen_indices.append(class_indices)
+                            gen_classes.append(class_indices * 0 + ll)
+
 
             # Stack the chosen indices of all classes
             gen_indices = torch.cat(gen_indices, dim=0)
@@ -4626,6 +4663,11 @@ class MyhalCollisionSamplerTest(MyhalCollisionSampler):
 
         # Number of sphere centers taken per class in each cloud
         num_centers = self.dataset.epoch_inds.shape[0]
+
+        # Verification
+        if (num_centers <= self.frame_inds.shape[0]):
+            raise ValueError('Number of elements asked too high compared to the validation size. \
+                Increase config.validation_size to correct this')
 
         # Repeat the wanted inds enough times
         num_repeats = num_centers // self.frame_inds.shape[0] + 1

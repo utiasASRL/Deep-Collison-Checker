@@ -119,7 +119,8 @@ class MyhalCollisionConfig(Config):
     loss2D_version = 2
     
     # Balance class in sampler, using custom proportions
-    balance_proportions = [0, 0, 1, 1, 10]
+    # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
+    balance_proportions = [0, 0, 1, 1, 20, 0.7]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -166,7 +167,7 @@ class MyhalCollisionConfig(Config):
     num_kernel_points = 15
 
     # Size of the first subsampling grid in meter
-    first_subsampling_dl = 0.06
+    first_subsampling_dl = 0.12
 
     # Radius of convolution in "number grid cell". (2.5 is the standard value)
     conv_radius = 2.5
@@ -208,11 +209,11 @@ class MyhalCollisionConfig(Config):
     # Learning rate management
     learning_rate = 1e-2
     momentum = 0.98
-    lr_decays = {i: 0.1 ** (1 / 120) for i in range(1, max_epoch)}
+    lr_decays = {i: 0.1 ** (1 / 50) for i in range(1, max_epoch)}
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
-    epoch_steps = 200
+    epoch_steps = 500
 
     # Number of validation examples per epoch
     validation_size = 15
@@ -351,6 +352,9 @@ if __name__ == '__main__':
     sim_val_inds = [0, 1, 2]
     sim_train_inds = [i for i in range(len(sim_train_days)) if i not in sim_val_inds]
 
+    # Disable simulation HERE
+    # sim_path = ''
+    
 
     ###################
     # Training sessions
@@ -371,8 +375,18 @@ if __name__ == '__main__':
                   '2021-12-13_18-22-11',    # -  \
                   '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
                   '2021-12-15_19-13-03']    # -  /
+
+    train_days += ['2022-01-18_10-38-28',   # - \
+                   '2022-01-18_10-42-54',   # -  \
+                   '2022-01-18_10-47-07',   # -   \
+                   '2022-01-18_10-48-42',   # -    \
+                   '2022-01-18_10-53-28',   # -     > Sessions with normal TEB planner on loop_3
+                   '2022-01-18_10-58-05',   # -     > Simple scenarios for experiment
+                   '2022-01-18_11-02-28',   # -    /
+                   '2022-01-18_11-11-03',   # -   /
+                   '2022-01-18_11-15-40',   # -  /
+                   '2022-01-18_11-20-21']   # - /
     map_i = 3
-    refine_i = np.array([0, 6, 7, 8])
     train_i = np.arange(len(train_days))[5:]
     
     # Notes for myself: number of dynamic people emcoutered in each run
@@ -388,27 +402,25 @@ if __name__ == '__main__':
     # '2021-12-15_19-13-03']    3 people
 
     map_day = train_days[map_i]
-    refine_days = np.array(train_days)[refine_i]
     train_days = np.sort(np.array(train_days)[train_i])
-    val_inds = np.array([1, 2, 5, 7])
+    val_inds = np.array([1, 2, 5, 7, 11, 17, 18])
 
     ######################
     # Automatic Annotation
     ######################
 
-    # Choose the dataset between train_days_RandBounce, train_days_RandWand, or train_days_RandFlow
-    train_days = np.array(train_days)
+    # See annotate_MyhalCollision.py
 
-    # Check if we need to redo annotation (only if there is no collison folder)
-    redo_annot = False
-    for day in train_days:
-        annot_path = join(dataset_path, 'collisions', day)
-        if not exists(annot_path):
-            redo_annot = True
-            break
+    # # Check if we need to redo annotation (only if there is no collison folder)
+    # redo_annot = False
+    # for day in train_days:
+    #     annot_path = join(dataset_path, 'collisions', day)
+    #     if not exists(annot_path):
+    #         redo_annot = True
+    #         break
 
-    # To perform annnotation use the annotate_MyhalCollisions.py script
-    redo_annot = False
+    # # To perform annnotation use the annotate_MyhalCollisions.py script
+    # redo_annot = False
 
     # if redo_annot:
     #
@@ -487,13 +499,9 @@ if __name__ == '__main__':
             if attr_name not in kept_params:
                 setattr(config, attr_name, getattr(prev_config, attr_name))
 
-    print('SAVING_PATH = ', config.saving_path)
-
     # Get path from argument if given
     if len(sys.argv) > 1:
         config.saving_path = sys.argv[1]
-        
-    print('SAVING_PATH = ', config.saving_path)
 
     ###############
     # Previous chkp
