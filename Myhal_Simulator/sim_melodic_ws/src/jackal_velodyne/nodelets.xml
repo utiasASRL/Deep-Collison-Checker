@@ -1,0 +1,12 @@
+<library path="lib/libpcl_filter">
+
+  <class name="jackal_velodyne/PCLFilterNodelet"
+	 type="jackal_velodyne::PCLFilterNodelet"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+      Filtering and convering pointcloud to laserscan
+    </description>
+  </class>
+
+</library>
+

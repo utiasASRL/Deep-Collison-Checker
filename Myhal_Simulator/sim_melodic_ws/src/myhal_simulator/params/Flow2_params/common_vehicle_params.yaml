@@ -1,0 +1,19 @@
+common_vehicle_params:
+  mass: 0.1
+  max_force: 5
+  slowing_distance: 1
+  arrival_distance: 1
+  obstacle_margin: 0.25
+  actor_margin: 3.0
+  blocking: 1
+  start_mode: 0 #2 for random, 1 for walking, 0 for standing
+  parse_digits: 1 # boolean: 0=false, 1=true. Set to true to parse digits objectives in map.txt.
+  flow_obstacle_range: 0.8 # Range of the influence of obstacle on the flow (in meters)
+  flow_obstacle_strength: 0.2 # Strength of the influence of obstacle on the flow (1.0 is the standard travel so th cost near an obstacle is = 1.0 + flow_obstacle_strength)
+
+common_boid_params:
+  alignement: 0.1
+  cohesion: 0.01
+  separation: 2
+  FOV_angle: 4
+  FOV_radius: 3

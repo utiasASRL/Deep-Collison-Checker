@@ -1,0 +1,26 @@
+plugin_names:
+  - basic_wanderer
+  - basic_stander
+  - long_term_stander
+  - bouncer
+
+basic_wanderer:
+  vehicle_type: wanderer
+  max_speed: "1"
+
+basic_stander:
+  vehicle_type: stander
+  max_speed: "1"
+  standing_duration: "5"
+  walking_duration: "5"
+
+long_term_stander:
+  vehicle_type: stander
+  max_speed: "0.7"
+  standing_duration: "20"
+  walking_duration: "20"
+
+bouncer:
+  vehicle_type: bouncer
+  max_speed: "1"
+

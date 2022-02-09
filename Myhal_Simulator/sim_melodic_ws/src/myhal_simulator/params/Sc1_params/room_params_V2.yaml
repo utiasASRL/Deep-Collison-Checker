@@ -1,0 +1,268 @@
+# list the names of the rooms you want to include here:
+room_names:
+  - lounge_532
+  - study_space_546
+  - irm_lab_580
+  - admin_off_514
+  - pace_533
+  - study_space_545
+  - proj_rm_564
+  - inter_teaching_lab_570
+  - proj_rm_552
+  - proj_rm_556
+  - hallway1
+
+# currently available scenarios:
+# no_tables_wanderer_crowd
+# big_tables_random_walker_study
+# small_tables_stander_meeting
+# mixed_tables_no_people
+# big_tables_no_people
+# small_tables_no_people
+# small_tables_random_walker_study
+# mixed_tables_follower_tour
+# mixed_tables_wanderer_study
+# no_tables_boid_crowd
+# empty
+# dense_boids
+# dense_wanderers
+# long_term_standers
+# empty_film
+
+# specify the geometry, position of tables, whether or not the room is enclosed, and the room scenario here  
+# note: the gXXX and pXXX refer to variables below
+
+lounge_532:
+  geometry: g532
+  positions: p532
+  enclosed: "0"
+  scenario: Sc1_few_wanderers
+
+study_space_546:
+  geometry: g546
+  positions: p546
+  enclosed: "0"
+  scenario: Sc1_few_wanderers_some_tables
+
+irm_lab_580:
+  geometry: g580
+  positions: p580
+  enclosed: "0"
+  scenario: Sc1_few_wanderers_some_tables
+
+admin_off_514:
+  geometry: g514
+  positions: p514
+  enclosed: "0"
+  scenario: Sc1_few_wanderers_some_tables
+
+inter_teaching_lab_570:
+  geometry: g570
+  positions: p570
+  enclosed: "0"
+  scenario: Sc1_few_wanderers_some_tables
+
+study_space_545:
+  geometry: g545
+  positions: p545
+  enclosed: "0"
+  scenario: Sc1_few_wanderers_some_tables
+
+# Unused rooms
+
+pace_533:
+  geometry: g533
+  positions: p533
+  enclosed: "0"
+  scenario: empty
+
+proj_rm_564:
+  geometry: g564
+  positions: p564
+  enclosed: "0"
+  scenario: empty
+
+proj_rm_552:
+  geometry: g552
+  positions: p552
+  enclosed: "0"
+  scenario: empty
+
+proj_rm_556:
+  geometry: g556
+  positions: p556
+  enclosed: "0"
+  scenario: empty
+
+hallway1:
+  geometry: g1
+  positions: p1
+  enclosed: "0"
+  scenario: empty
+
+# Specify the contents of each geometry and position here 
+# note the geometries are specifying the square dimensions of the room, and the positions are a flattened list of (x,y) table points
+
+# lounge_532 (aka main atrium)
+
+g532:
+  x_min: -8
+  y_min: -7
+  x_max: 7
+  y_max: 2
+
+p532:
+  - -4 
+  - 0
+  - -4
+  - -3
+  - 3
+  - -3
+  - 3
+  - 0
+
+# study_space_546 (aka lower middle)
+
+g546:
+  x_min: -8
+  y_min: -19
+  x_max: 2
+  y_max: -9
+
+p546:
+  - -5
+  - -12
+  - 0
+  - -12
+  - -5
+  - -16
+  - 0
+  - -16
+
+# irm_lab_580 (aka upper middle)
+
+g580:
+  x_min: -8
+  y_min: 9.5
+  x_max: 8
+  y_max: 19.5
+
+p580:
+  - -5
+  - 17
+  - 0
+  - 17
+  - -5
+  - 12
+  - 5
+  - 17
+  - 0
+  - 12
+
+# admin_off_514 (aka long right)
+
+g514:
+  x_min: 14.5
+  y_min: -20
+  x_max: 20
+  y_max: 5
+
+p514:
+  - 19
+  - -2
+  - 19
+  - -6
+  - 19
+  - -10
+  - 19
+  - -14
+
+# pace_533 (aka mid right)
+
+g533:
+  x_min: 9.5
+  y_min: -5
+  x_max: 14
+  y_max: 2
+
+p533:
+  - 12
+  - -1
+
+# study_space_545
+
+g545:
+  x_min: -12.4
+  y_min: -5.6
+  x_max: -9
+  y_max: 5.6
+
+p545:
+  - -10.5
+  - -1.5
+  - -10.5
+  - 2.5
+
+# proj_rm_564
+
+g564:
+  x_min: -20
+  y_min: -2.79
+  x_max: -14.7
+  y_max: 2.6
+
+p564:
+  - -17.5
+  - 0.7
+
+# inter_teaching_lab_570
+
+g570:
+  x_min: -20
+  y_min: 6
+  x_max: -14.7
+  y_max: 20
+
+p570:
+  - -17.5
+  - 9
+  - -17.5
+  - 13
+  - -17.5
+  - 17
+
+# proj_rm_552:
+
+g552:
+  x_min: -12
+  y_min: -20
+  x_max: -9.5
+  y_max: -15
+
+p552:
+  - -11
+  - -18
+
+# proj_rm_556:
+
+g556:
+  x_min: -20
+  y_min: -20
+  x_max: -16.8
+  y_max: -13
+
+p556:
+  - -18.5
+  - -15 
+  - -18.5
+  - -18 
+
+g1:
+  x_min: -7
+  y_min: -9
+  x_max: 2.7
+  y_max: -5
+
+p1:
+  - 0
+  - 0

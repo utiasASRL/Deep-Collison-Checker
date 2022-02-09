@@ -1,0 +1,23 @@
+local_costmap:
+   global_frame: map
+   robot_base_frame: base_link
+   update_frequency: 5
+   publish_frequency: 5.0
+   width: 8
+   height: 8
+   resolution: 0.06
+   static_map: false
+   rolling_window: true
+
+   plugins:
+      - {name: local_obstacles_layer, type: "costmap_2d::ObstacleLayer"}
+      - {name: inflater_layer, type: "costmap_2d::InflationLayer"}
+
+   local_obstacles_layer:
+      observation_sources: laser_scan 
+      laser_scan : {sensor_frame: support_link3, data_type: LaserScan, topic: local_planner_points, marking: true, clearing: true, min_obstacle_height: -2.0, max_obstacle_height: 2.0, obstacle_range: 10, raytrace_range: 10}
+      
+   inflater_layer:
+      inflation_radius: 0.8
+      cost_scaling_factor: 5.0 
+            

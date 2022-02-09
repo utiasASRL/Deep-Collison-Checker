@@ -1,0 +1,17 @@
+animation_names:
+  - walking 
+  - talking 
+  - standing 
+  - sitting
+
+walking:
+  filename: model://actor/meshes/ANIMATION_walking.dae
+
+talking:
+  filename: model://actor/meshes/ANIMATION_talking_a.dae
+
+standing:
+  filename: model://actor/meshes/ANIMATION_talking_a.dae
+
+sitting:
+  filename: model://actor/meshes/ANIMATION_sitting.dae

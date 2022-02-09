@@ -1,0 +1,17 @@
+common_vehicle_params:
+  mass: 1
+  max_force: 10
+  max_speed_std: 0.2
+  slowing_distance: 2
+  arrival_distance: 0.5
+  obstacle_margin: 0.25
+  actor_margin: 3.0
+  blocking: 1
+  start_mode: 0 #2 for random, 1 for walking, 0 for standing
+
+common_boid_params:
+  alignement: 0.1
+  cohesion: 0.01
+  separation: 2
+  FOV_angle: 4
+  FOV_radius: 3

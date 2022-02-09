@@ -1,0 +1,408 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="in_topic" default="/velodyne_points"/>
+    <arg name="filter" default="false" />
+    <arg name="loc_method" default="0" />
+    <arg name="gt_classify" default="true" />
+
+    <group if="$(arg filter)">
+
+        <!-- if we are using gt classifications -->
+        <group if="$(arg gt_classify)">
+            <!-- if we are using gmapping -->
+            <group if="$(eval arg('loc_method')==0)">
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="gmapping_filter">
+                    <remap from="cloud_in" to="/velodyne_points"/>
+                    <remap from="scan" to="/gmapping_points" />
+                    <rosparam>
+                        target_frame: base_link
+                        transform_tolerance: 0.01
+                        min_height: 0.01
+                        max_height: 1
+                        
+                        angle_min: -3.1415
+                        angle_max: 3.1415
+                        angle_increment: 0.01
+                        scan_time: 0.01
+                        range_min: 0
+                        range_max: 30
+                        use_inf: true
+                        
+                        #concurrency_level affects number of pc queued for processing and the number of threadsused
+                        # 0: Detect number of cores
+                        # 1: Single threaded
+                        # 2: inf : Parallelism level
+                        concurrency_level: 0
+
+                        catagories:
+                            - 1
+                            - 3
+                            - 4
+                            - 5
+                            - 6
+                    </rosparam>
+                </node>
+            </group>
+
+            <group if="$(eval arg('loc_method')==1)">
+                <!-- only launch these filters if we are running amcl -->
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="amcl_filter">
+                    <remap from="cloud_in" to="/velodyne_points"/>
+                    <remap from="scan" to="/amcl_points" />
+                    <rosparam>
+                        target_frame: base_link
+                        transform_tolerance: 0.01
+                        min_height: 0.01
+                        max_height: 1
+                        
+                        angle_min: -3.1415
+                        angle_max: 3.1415
+                        angle_increment: 0.01
+                        scan_time: 0.01
+                        range_min: 0
+                        range_max: 30
+                        use_inf: true
+                        
+                        #concurrency_level affects number of pc queued for processing and the number of threadsused
+                        # 0: Detect number of cores
+                        # 1: Single threaded
+                        # 2: inf : Parallelism level
+                        concurrency_level: 0
+
+                        catagories:
+                            - 5
+                    </rosparam>
+                </node>
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="global_filter">
+                    <remap from="cloud_in" to="/velodyne_points"/>
+                    <remap from="scan" to="/global_planner_points" />
+                    <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+
+                    catagories:
+                        - 1
+                        - 3
+                        - 4
+                        - 5
+                        - 6
+                    </rosparam>
+                </node>
+            </group>
+
+
+            <!-- local filter without moving people -->
+            <node pkg="jackal_velodyne" type="pcl_filter_node" name="local_filter">
+                <remap from="cloud_in" to="/velodyne_points"/>
+                <remap from="scan" to="/local_planner_points" />
+                <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+
+                    # TO IGNORE ALL MOVING PEPOLE:
+                    catagories:
+                        - 1
+                        - 3
+                        - 4
+                        - 5
+                        - 6
+                
+                </rosparam>
+            </node>
+
+
+
+
+
+
+
+
+        </group>
+
+        <!-- if we are using online classification-->
+        <group unless="$(arg gt_classify)">
+            <!-- if we are using gmapping -->
+            <group if="$(eval arg('loc_method')==0)">
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="gmapping_filter">
+                    <remap from="cloud_in" to="/classified_points"/>
+                    <remap from="scan" to="/gmapping_points" />
+                    <rosparam>
+                        target_frame: base_link
+                        transform_tolerance: 0.01
+                        min_height: 0.01
+                        max_height: 1
+                        
+                        angle_min: -3.1415
+                        angle_max: 3.1415
+                        angle_increment: 0.01
+                        scan_time: 0.01
+                        range_min: 0
+                        range_max: 30
+                        use_inf: true
+                        
+                        #concurrency_level affects number of pc queued for processing and the number of threadsused
+                        # 0: Detect number of cores
+                        # 1: Single threaded
+                        # 2: inf : Parallelism level
+                        concurrency_level: 0
+
+                        catagories:
+                            - 0
+                            - 2
+                            - 3
+                    </rosparam>
+                </node>
+            </group>
+
+            <group if="$(eval arg('loc_method')==1)">
+                <!-- only launch these filters if we are running amcl -->
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="amcl_filter">
+                    <remap from="cloud_in" to="/classified_points"/>
+                    <remap from="scan" to="/amcl_points" />
+                    <rosparam>
+                        target_frame: base_link
+                        transform_tolerance: 0.01
+                        min_height: 0.01
+                        max_height: 1
+                        
+                        angle_min: -3.1415
+                        angle_max: 3.1415
+                        angle_increment: 0.01
+                        scan_time: 0.01
+                        range_min: 0
+                        range_max: 30
+                        use_inf: true
+                        
+                        #concurrency_level affects number of pc queued for processing and the number of threadsused
+                        # 0: Detect number of cores
+                        # 1: Single threaded
+                        # 2: inf : Parallelism level
+                        concurrency_level: 0
+
+                        catagories:
+                            - 2
+                    </rosparam>
+                </node>
+                <node pkg="jackal_velodyne" type="pcl_filter_node" name="global_filter">
+                    <remap from="cloud_in" to="/classified_points"/>
+                    <remap from="scan" to="/global_planner_points" />
+                    <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+
+                    catagories:
+                        - 0
+                        - 2
+                        - 3
+                    </rosparam>
+                </node>
+            </group>
+
+
+            <!-- local filter without moving people -->
+            <node pkg="jackal_velodyne" type="pcl_filter_node" name="local_filter">
+
+                <!-- <remap from="cloud_in" to="/classified_points"/> -->
+                <remap from="cloud_in" to="/velodyne_points"/>
+
+                <remap from="scan" to="/local_planner_points" />
+                
+                <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+
+                    # TO IGNORE ALL MOVING PEPOLE:
+                    catagories:
+                        - 0
+                        - 2
+                        - 3
+                
+                </rosparam>
+            </node>
+        </group>
+
+
+        <!-- if filter -->
+    </group>
+
+    <group unless="$(arg filter)">
+
+        <!-- if we are using gmapping -->
+        <group if="$(eval arg('loc_method')==0)">
+            <node pkg="jackal_velodyne" type="pcl_filter_node" name="gmapping_filter">
+                <remap from="cloud_in" to="/velodyne_points"/>
+                <remap from="scan" to="/gmapping_points" />
+                <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+                </rosparam>
+            </node>
+        </group>
+
+        <group if="$(eval arg('loc_method')==1)">
+            <!-- only launch these filters if we are running amcl -->
+            <node pkg="jackal_velodyne" type="pcl_filter_node" name="amcl_filter">
+                <remap from="cloud_in" to="/velodyne_points"/>
+                <remap from="scan" to="/amcl_points" />
+                <rosparam>
+                    target_frame: base_link
+                    transform_tolerance: 0.01
+                    min_height: 0.01
+                    max_height: 1
+                    
+                    angle_min: -3.1415
+                    angle_max: 3.1415
+                    angle_increment: 0.01
+                    scan_time: 0.01
+                    range_min: 0
+                    range_max: 30
+                    use_inf: true
+                    
+                    #concurrency_level affects number of pc queued for processing and the number of threadsused
+                    # 0: Detect number of cores
+                    # 1: Single threaded
+                    # 2: inf : Parallelism level
+                    concurrency_level: 0
+                </rosparam>
+            </node>
+            <node pkg="jackal_velodyne" type="pcl_filter_node" name="global_filter">
+                <remap from="cloud_in" to="/velodyne_points"/>
+                <remap from="scan" to="/global_planner_points" />
+                <rosparam>
+                target_frame: base_link
+                transform_tolerance: 0.01
+                min_height: 0.01
+                max_height: 1
+                
+                angle_min: -3.1415
+                angle_max: 3.1415
+                angle_increment: 0.01
+                scan_time: 0.01
+                range_min: 0
+                range_max: 30
+                use_inf: true
+                
+                #concurrency_level affects number of pc queued for processing and the number of threadsused
+                # 0: Detect number of cores
+                # 1: Single threaded
+                # 2: inf : Parallelism level
+                concurrency_level: 0
+                </rosparam>
+            </node>
+
+        </group>
+
+        <!-- regardless of mapping status always output local points for local costmap -->
+        <node pkg="jackal_velodyne" type="pcl_filter_node" name="local_filter">
+            <remap from="cloud_in" to="/velodyne_points"/>
+
+            <remap from="scan" to="/local_planner_points" />
+            <rosparam>
+            target_frame: base_link
+            transform_tolerance: 0.01
+            min_height: 0.01
+            max_height: 1
+            
+            angle_min: -3.1415
+            angle_max: 3.1415
+            angle_increment: 0.01
+            scan_time: 0.01
+            range_min: 0
+            range_max: 30
+            use_inf: true
+            
+            #concurrency_level affects number of pc queued for processing and the number of threadsused
+            # 0: Detect number of cores
+            # 1: Single threaded
+            # 2: inf : Parallelism level
+            concurrency_level: 0
+            </rosparam>
+        </node>
+
+
+
+        <!-- unless filter -->
+    </group>
+
+
+</launch>

@@ -1,0 +1,55 @@
+camera_names: [hoverer2]
+
+sentry1:
+    - 0  # Mode: (0 - sentry), (1 - hoverer), (2 - stalker)
+    - -8 # x (for modes 0 and 1) 
+    - 3 # y (for modes 0 and 1) 
+    - 10 # z (for all modes)
+    - -1 # orbiting period (for mode 1) (if < 0, no rotation)
+    - -1 # following distance (for mode 2) (if < 0, NA)
+
+sentry2:
+    - 0  # Mode: (0 - sentry), (1 - hoverer), (2 - stalker)
+    - -8 
+    - -15 # y (for modes 0 and 1) 
+    - 10 # z (for all modes)
+    - -1 # orbiting period (for mode 1) (if < 0, no rotation)
+    - -1 # following distance (for mode 2) (if < 0, NA)
+
+hoverer1:
+    - 1
+    - -2
+    - -5
+    - 15
+    - -1
+    - -1
+
+hoverer2:
+    - 1
+    - 0
+    - -10
+    - 15
+    - -1
+    - -1
+
+stalker1:
+    - 2
+    - 0
+    - 0
+    - 10
+    - -1 
+    - 5
+
+stalker2:
+    - 2 
+    - 0
+    - 0 
+    - 1
+    - -1 
+    - 2
+
+cam_frac: 0
+cam_rel_pos:
+    - -3
+    - -1
+    - 10

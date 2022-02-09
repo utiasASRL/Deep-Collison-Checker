@@ -1,0 +1,49 @@
+scenario_names:
+  - Rand_bouncers_rand_tables
+  - empty
+  
+
+# Scenario random:
+
+Rand_bouncers_rand_tables:
+  pop_rand_range: "0.01" # if specified and positive the pop density is random uniform in [pop_density - pop_rand_range, pop_density + pop_rand_range]
+  pop_density: "0.08"
+  table_rand_range: "0.45"
+  table_percentage: "0"
+  actor: actor_bouncer
+  table_group_list: all_group
+  
+empty:
+  pop_density: "0"
+  table_percentage: "0"
+  actor: actor_basic_wanderer
+  table_group_list: small_table_group
+
+
+# Table groups 
+
+big_table_group:
+  - table_group_1
+  - table_group_2
+  - table_group_3
+
+small_table_group:
+  - table_group_4
+  - table_group_5
+  - table_group_6
+  - table_group_8
+
+mixed_group:
+  - table_group_4
+  - table_group_5
+  - table_group_1
+  - table_group_2
+
+all_group:
+  - table_group_1
+  - table_group_2
+  - table_group_3
+  - table_group_4
+  - table_group_5
+  - table_group_6
+  - table_group_8

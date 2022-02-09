@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+
+<arg name="world" default="myhal_sim"/>
+<arg name="gui" default="true"/>
+
+
+<include file="$(find gazebo_ros)/launch/empty_world.launch">
+  <arg name="world_name" value="$(find myhal_simulator)/worlds/$(arg world).world"/>
+  <arg name="gui" value="$(arg gui)"/>
+  <arg name="paused" value="false"/>
+</include>
+
+
+</launch>

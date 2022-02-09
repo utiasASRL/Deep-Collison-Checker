@@ -1,0 +1,16 @@
+common_vehicle_params:
+  mass: 0.1
+  max_force: 10
+  slowing_distance: 1
+  arrival_distance: 1
+  obstacle_margin: 0.6
+  blocking: 1
+  start_mode: 0 #2 for random, 1 for walking, 0 for standing
+  parse_digits: 1 # boolean: 0=false, 1=true. Set to true to parse digits objectives in map.txt.
+
+common_boid_params:
+  alignement: 0.1
+  cohesion: 0.01
+  separation: 2
+  FOV_angle: 4
+  FOV_radius: 3

@@ -1,0 +1,9 @@
+free_thresh: 0.196
+image: myhal_map_V5.pgm
+negate: 0
+occupied_thresh: 0.65
+origin:
+- -22
+- -22
+- 0
+resolution: 0.05

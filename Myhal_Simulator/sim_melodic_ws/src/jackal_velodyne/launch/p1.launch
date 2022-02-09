@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="use_sim_time" default="true" />
+  <arg name="gui" default="false" /> 
+  <arg name="headless" default="true" />
+  <arg name="world_name" default="$(find myhal_simulator)/worlds/myhal_sim.world" />
+  <arg name="extra_gazebo_args" default=""/>
+
+  <group>
+    <param name="gazebo/enable_ros_network" value="true" />
+  </group>
+  <node name="gazebo" pkg="gazebo_ros" type="gzserver" respawn="false" output="screen"
+	args="--verbose -e ode $(arg extra_gazebo_args) $(arg world_name)"
+  required="false" />
+
+  <!-- start gazebo client -->
+  <group if="$(arg gui)">
+    <node name="gazebo_gui" pkg="gazebo_ros" type="gzclient" respawn="false" output="screen" args=""
+    required="false"/>
+  </group>
+
+  <group if="$(arg gui)">
+      <node pkg="rviz" type="rviz" name="rviz" args="-d $(find jackal_velodyne)/launch/include/run.rviz" />
+  </group>
+
+  
+</launch>
+
+

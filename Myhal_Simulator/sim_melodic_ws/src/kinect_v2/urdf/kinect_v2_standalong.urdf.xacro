@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<robot name="kinect_v2_standalong" xmlns:xacro="http://ros.org/wiki/xacro">
+     <xacro:include filename="$(find kinect_v2)/urdf/kinect_v2.urdf.xacro" />
+     <link name="k_root"/>
+    <xacro:kinect_v2  parent="k_root">
+        <origin xyz="0 0 0"
+                rpy="0 0 0" />
+    </xacro:kinect_v2>
+</robot>

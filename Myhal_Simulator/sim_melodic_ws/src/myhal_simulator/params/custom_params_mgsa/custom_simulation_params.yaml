@@ -1,0 +1,58 @@
+custom_scenario_params_list:
+  - custom_actor_spawn
+  - custom_robot_goal
+  - custom_actor_goal
+
+# world_factory.cpp: use_custom_spawn specify the room in which you want to use a custom actor spawn via coordinates. 
+# You can specify the desired actor type in room_params. If using custom actor spawn, num_actors will overwrite the scenario density 
+# to the value in custom_actor_spawn_coordinates/num_actors.
+#
+# Behavior: 
+# Since it will spawn the actors of the specified room to the absolute coordinate of the world, 
+# using custom coordinates to spawn actors of ROOM A to points (X, Y) when (X, Y) are not in ROOM A
+# will lead to ROOM A actually being empty.
+#
+# Leave empty string if don't want to use, or remove param file. 
+#
+#room_names:
+# - lounge_532
+# - study_space_546
+# - irm_lab_580
+# - admin_off_514
+# - pace_533
+# - study_space_545
+# - proj_rm_564
+# - inter_teaching_lab_570
+# - proj_rm_552
+# - proj_rm_556
+# - hallway1
+
+
+custom_actor_spawn:
+  use_custom_spawn_room: "study_space_546"
+
+custom_actor_spawn_coordinates: 
+  num_actors: 10
+  spawn_x_0: 19.5 # Specify spawn for each actor. First one: spawn_x_0, spawn_y_0. Second one: spawn_x_1, spawn_y_1 ...
+  spawn_y_0: 7.5
+  spawn_x_1: 18.5
+  spawn_y_1: 7.5
+  spawn_x_2: 17.5
+  spawn_y_2: 7.5
+  spawn_x_3: 19
+  spawn_y_3: 6.5
+  spawn_x_4: 18
+  spawn_y_4: 6.5
+  spawn_x_5: 17
+  spawn_y_5: 6.5
+  spawn_x_6: -17
+  spawn_y_6: 6
+
+custom_robot_goal: # robot spawn is parametrized in p2.launch
+  use_custom_goal_bool: 0 # boolean: 0 false, 1 true 
+  goal_x: 5
+  goal_y: 0
+
+custom_actor_goal: # for custom_wanderer actor type. The custom goal act as an offset from the spawning coordinates. Actor spawned in spawn_x=2 with goal_x=7 will try to go to x=9 in the sim. 
+  goal_x_0: -17
+  goal_y_0: 6

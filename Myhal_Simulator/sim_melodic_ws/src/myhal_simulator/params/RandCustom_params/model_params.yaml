@@ -1,0 +1,165 @@
+#basic model parameters 
+
+model_names:
+  - table1
+  - table2
+  - table3
+  - table_cafe
+  - table_coffee_1
+  - table_coffee_set_1
+  - table_coffee_set_2
+  - table
+  - chair1
+  - chair2
+  - chair3
+  - chair_kitchen
+  - chair_office
+
+table1:
+  filename: model://table_conference_1
+  width: "3.08"
+  length: "1.1"
+
+table2:
+  filename: model://table_conference_2
+  width: "2.7"
+  length: "1.2"
+
+table3:
+  filename: model://table_conference_3
+  width: "1.22"
+  length: "3.7"
+ 
+table_cafe:
+  filename: model://cafe_table
+  width: "0.92"
+  length: "0.92"
+  
+
+table_coffee_1:
+  filename: model://coffee_table_1
+  width: "1.07"
+  length: "1.07"
+ 
+
+table_coffee_set_1:
+  filename: model://coffee_table_set_1
+  width: "1"
+  length: "1"
+  
+
+table_coffee_set_2:
+  filename: model://coffee_table_set_2
+  width: "1.07"
+  length: "1.07"
+
+table:
+  filename: model://table
+  width: "1.5"
+  length: "0.8"
+
+chair1:
+  filename: model://chair_1
+  width: "0.53"
+  length: "0.47"
+  height: "0.65"
+
+chair2:
+  filename: model://chair_2
+  width: "0.38"
+  length: "0.52"
+  height: "0.65"
+
+chair3:
+  filename: model://chair_3
+  width: "0.57"
+  length: "0.57"
+  height: "0.65"
+
+
+chair_kitchen:
+  filename: model://kitchen_chair
+  width: "0.65"
+  length: "0.59"
+  height: "1"
+
+chair_office:
+  filename: model://office_chair
+  width: "0.59"
+  length: "0.64"
+  height: "0.7"
+
+#actors parameters 
+
+actor_names:
+  - actor_basic_wanderer
+  - actor_basic_stander
+  - actor_long_term_stander
+  - actor_bouncer
+
+actor_basic_wanderer: 
+  filename: model://actor/meshes/SKIN_man_blue_shirt.dae
+  plugin: basic_wanderer
+  obstacle_margin: "0.25"
+
+actor_basic_stander: 
+  filename: model://actor/meshes/SKIN_man_blue_shirt.dae
+  plugin: basic_stander
+  obstacle_margin: "0.25"
+
+actor_long_term_stander:
+  filename: model://actor/meshes/SKIN_man_blue_shirt.dae
+  plugin: long_term_stander
+  obstacle_margin: "0.25"
+  
+actor_bouncer: 
+  filename: model://actor/meshes/SKIN_man_blue_shirt.dae
+  plugin: bouncer
+  obstacle_margin: "0.4"
+
+
+# table group parameters 
+
+table_group_names:
+  - table_group_1
+  - table_group_2
+  - table_group_3
+  - table_group_4
+  - table_group_5
+  - table_group_6
+  - table_group_7
+  - table_group_8
+
+
+table_group_1:
+  table: table2
+  chair: chair1
+
+table_group_2:
+  table: table1
+  chair: chair2
+
+table_group_3:
+  table: table3
+  chair: chair3
+
+table_group_4:
+  table: table_cafe
+  chair: chair_kitchen
+
+table_group_5:
+  table: table_coffee_set_1
+  chair: chair1
+
+table_group_6:
+  table: table_coffee_set_2
+  chair: chair_kitchen
+
+table_group_7:
+  table: table
+  chair: chair2
+
+
+table_group_8:
+  table: table_cafe
+  chair: chair_kitchen
