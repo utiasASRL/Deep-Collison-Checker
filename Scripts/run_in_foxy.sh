@@ -63,8 +63,8 @@ if [ "$devdoc" = true ] ; then
     docker run $docker_args \
     $volumes \
     $other_args \
-    --name "dev-simu" \
-    melodic_simu_$USER \
+    --name "dev-foxy" \
+    foxy_sogm_$USER \
     $command
 
 else
@@ -80,13 +80,14 @@ else
     docker run $docker_args \
     $volumes \
     $other_args \
-    --name "$USER-simu-$now" \
-    melodic_simu_$USER \
+    --name "$USER-foxy-$now" \
+    foxy_sogm_$USER \
     $command
 
     # Attach a log parameters and log the detached docker
     if [ "$detach" = true ] ; then
-        docker logs -f "$USER-simu-$now" &> $RES_FOLDER/log_simu_"$now".txt &
+        docker logs -f "$USER-foxy-$now" &> $RES_FOLDER/log_sogm_"$now".txt &
     fi
+
 
 fi
