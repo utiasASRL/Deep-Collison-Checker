@@ -97,7 +97,7 @@ class Puppeteer: public gazebo::WorldPlugin{
 
         ignition::math::Pose3d sensor_pose;
 
-        std::string user_name, start_time, tour_name;
+        std::string start_time, tour_name;
 
         boost::shared_ptr<Costmap> costmap;
 

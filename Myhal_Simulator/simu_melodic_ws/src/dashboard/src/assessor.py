@@ -22,15 +22,13 @@ class Assessor(object):
     def __init__(self):
         ''' read ROS/system params and spin ros subscriber'''
 
-        self.username = os.environ['USER']
+        self.cwd = os.getcwd()
         self.start_time = rospy.get_param("/start_time", None)
         self.mapping_status = rospy.get_param("/gmapping_mapping", False)
         if self.start_time is None:
             print "Error setting start time"
         try:
-            self.log_file = open("/home/" + self.username +
-                                 "/Myhal_Simulation/simulated_runs/"
-                                 + self.start_time + "/logs-" + self.start_time + "/log.txt", "a")
+            self.log_file = open(self.cwd + "/../Data/Simulation_v2/simulated_runs/" + self.start_time + "/logs-" + self.start_time + "/log.txt", "a")
         except IOError:
             print "Could not find/open log file"
             exit()

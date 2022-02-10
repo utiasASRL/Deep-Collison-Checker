@@ -28,9 +28,7 @@ class TourParser{
 
         std::string tour_path;
         
-        bool parse_digits; 
-
-        std::string username;
+        bool parse_digits;
 
         std::string tour_name;
 

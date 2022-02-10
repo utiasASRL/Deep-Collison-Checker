@@ -1,11 +1,7 @@
 #include "world_factory.hh"
-#include <iterator>
-#include <algorithm>   
-#include <ctime>        
-#include <cstdlib> 
-#include <iostream>
-#include <fstream>
+
 #include "parse_tour.hh"
+
 
 int main(int argc, char ** argv){
 
@@ -71,7 +67,10 @@ void WorldHandler::AddCameras(){
         name += std::to_string(info->z);
 
         auto pose = ignition::math::Pose3d(info->x, info->y, info->z, 0,0,0,0);
-        auto path = "/home/" + this->user_name + "/Myhal_Simulation/simulated_runs/" + this->start_time + "/logs-" + this->start_time + "/videos/";
+
+        char temp[500];
+        std::string current_path(getcwd(temp, sizeof(temp)));
+        auto path = current_path + "/../Data/Simulation_v2/simulated_runs/" + this->start_time + "/logs-" + this->start_time + "/videos/";
 
         auto cam = myhal::Camera(name, pose, path);
         cam.AddToWorld(this->world_string);
@@ -116,11 +115,6 @@ void WorldHandler::LoadParams(){
 
     // READ BUILDING INFO
 
-    this->user_name = "default";
-    if (const char * user = std::getenv("USER")){
-        this->user_name = user;
-    } 
-
     if (!nh.getParam("start_time", this->start_time)){
         std::cout << "ERROR READING START TIME: ANY VIDEOS WILL BE SAVED TO /tmp/\n";
         this->start_time = "";
@@ -162,7 +156,13 @@ void WorldHandler::LoadParams(){
         
     this->costmap = std::make_shared<Costmap>(ignition::math::Box(ignition::math::Vector3d(-21.55,-21.4,0), ignition::math::Vector3d(21.55,21.4,0)), 0.2);
 
-    happly::PLYData plyIn("/home/" + this->user_name + "/catkin_ws/src/myhal_simulator/params/default_params/myhal_walls.ply");
+
+    char temp[500];
+
+    std::string current_path(getcwd(temp, sizeof(temp)));
+
+    happly::PLYData plyIn(current_path + "/simu_melodic_ws/src/myhal_simulator/params/default_params/myhal_walls.ply");
+
     auto static_objects = ReadObjects(plyIn);
 
     for (auto obj: static_objects){
@@ -180,7 +180,8 @@ void WorldHandler::LoadParams(){
 
     std::vector<ignition::math::Vector3d> paths;
 
-    for (int i =0; i< route.size(); i++){
+    for (int i =0; i< route.size(); i++)
+    {
         if ((cam_frac > 0) && (i % mod_cams == 0)){
             std::cout << utilities::color_text("Read Tour Camera", PURPLE) << std::endl; 
             auto cam = std::make_shared<CamInfo>(0, route[i].Pos().X() + cam_rel_pos[0], route[i].Pos().Y() + cam_rel_pos[1], route[i].Pos().Z() + cam_rel_pos[2], -1, -1);
@@ -213,7 +214,6 @@ void WorldHandler::LoadParams(){
             int open = ignition::math::Rand::IntUniform(0,1);
 
             auto door = std::make_shared<myhal::IncludeModel>("door", ignition::math::Pose3d(pos, ignition::math::Quaterniond(0,0,0,0)), "model://simple_door2", 0.9, 0.15);
-            
             door->pose.Pos().Z() = 1;
 
         
@@ -255,8 +255,6 @@ void WorldHandler::LoadParams(){
                         }
                     }
                 }
-
-                
             }
 
             //if (!intersected && near){
@@ -471,10 +469,12 @@ void WorldHandler::LoadParams(){
 
         std::cout << name << ": Tables = " << (int)(table_percentage* 100) << "%  |  Actors = " << (int)(pop_density* 100)<< "%" << std::endl;
         std::shared_ptr<Scenario> scenario = std::make_shared<Scenario>(pop_density, pop_num, table_percentage, info["actor"]);
+        
 
         // Save info in log file
         std::ofstream log_file;
-        std::string filepath = "/home/" + user_name + "/Myhal_Simulation/simulated_runs/" + start_time + "/";
+        std::string filepath = current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/";
+
         log_file.open(filepath + "/logs-" + start_time + "/log.txt", std::ios_base::app);
         log_file << "\nScenario: " << name << "\nTables: " << table_percentage << "\nActors: " << pop_density << std::endl;
         log_file.close();
@@ -716,10 +716,10 @@ void WorldHandler::FillRoom(std::shared_ptr<RoomInfo> room_info){
 
 void WorldHandler::WriteToFile(std::string out_name){
 
-    
-
-    std::string in_string = "/home/" + this->user_name + "/catkin_ws/src/myhal_simulator/worlds/myhal_template.txt";
-    std::string out_string = "/home/" + this->user_name + "/catkin_ws/src/myhal_simulator/worlds/" + out_name;
+    char temp[500];
+    std::string current_path(getcwd(temp, sizeof(temp)));
+    std::string in_string = current_path + "/simu_melodic_ws/src/myhal_simulator/worlds/myhal_template.txt";
+    std::string out_string = current_path + "/simu_melodic_ws/src/myhal_simulator/worlds/" + out_name;
 
     std::ifstream in = std::ifstream(in_string);
 

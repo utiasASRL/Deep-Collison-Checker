@@ -41,7 +41,7 @@ class Doctor{
 
         ros::Publisher failure_pub;
 
-        std::string username;
+        std::string current_path;
 
         std::string filepath;
 
@@ -85,8 +85,7 @@ Doctor::Doctor(){
 
     this->ReadParams();
 
-
-    this->filepath = "/home/" + this->username + "/Myhal_Simulation/simulated_runs/" + start_time + "/";
+    this->filepath = this->current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/";
 
     this->log_file.open(this->filepath + "/logs-"+start_time+"/log.txt", std::ios_base::app);
 
@@ -175,10 +174,8 @@ void Doctor::GroundTruthCallback(const nav_msgs::Odometry::ConstPtr& msg){
 
 void Doctor::ReadParams(){
 
-    this->username = "default";
-    if (const char * user = std::getenv("USER")){
-        this->username = user;
-    } 
+    char temp[500];
+    this->current_path = std::string(getcwd(temp, sizeof(temp)));
 
     if (!this->nh.getParam("start_time", this->start_time)){
         std::cout << "ERROR SETTING START TIME\n";

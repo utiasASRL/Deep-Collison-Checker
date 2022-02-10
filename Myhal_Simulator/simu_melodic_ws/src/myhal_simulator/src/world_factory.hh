@@ -8,6 +8,12 @@
 #include "frame.hh"
 #include "costmap.hh"
 #include "utilities.hh"
+#include <iterator>
+#include <algorithm>   
+#include <ctime>        
+#include <cstdlib> 
+#include <iostream>
+#include <fstream>
 
 class CamInfo{
     
@@ -132,8 +138,6 @@ class WorldHandler{
 
         std::vector<std::shared_ptr<RoomInfo>> rooms;
         //std::map<std::string , std::shared_ptr<myhal::Room>> rooms;
-
-        std::string user_name;
 
         std::vector<ignition::math::Box> walls;
 

@@ -471,8 +471,8 @@ class RunHandler:
     def __init__(self):
         '''Handles the storage, searching, and modification of runs in the run_data_2.json file'''
         # initialize variables 
-        self.username = os.environ['USER']
-        self.filepath = '/home/' + self.username +'/Myhal_Simulation/'
+        self.cwd = os.getcwd()
+        self.filepath = self.cwd + '/../Data/Simulation_v2/'
 
         try:
             self.json_f = open(self.filepath+'run_data_2.json', 'r+')
@@ -915,11 +915,10 @@ class Dashboard:
             return
 
         ls = os.listdir(self.handler.filepath + '/simulated_runs/' + name)
-        username = self.handler.username
         if ('raw_data.bag' in ls):
-            script = "/home/"+username+"/catkin_ws/scripts/visualize_bag.sh -l " + name + " -r " + str(rate)
+            script = self.handler.cwd + "/simu_melodic_ws/scripts/visualize_bag.sh -l " + name + " -r " + str(rate)
         else:
-            script = "/home/"+username+"/catkin_ws/scripts/visualize_bag.sh -l " + name + " -r " + str(rate) + " -n localization_test.bag"
+            script = self.handler.cwd + "/simu_melodic_ws/scripts/visualize_bag.sh -l " + name + " -r " + str(rate) + " -n localization_test.bag"
 
         subprocess.call(script, shell = True)
 

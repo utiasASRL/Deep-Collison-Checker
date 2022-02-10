@@ -38,16 +38,14 @@ void CameraController::Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
         this->min_step = 0.0001;
     }
 
-    std::string user_name = "default";
-    if (const char * user = std::getenv("USER")){
-        user_name = user;
-    } 
+    char temp[500];
+    std::string current_path(getcwd(temp, sizeof(temp)));
 
     std::string start_time;
     if (!this->nh.getParam("start_time", start_time)){
         this->filepath = "/tmp/";
     } else{
-        this->filepath = "/home/" + user_name + "/Myhal_Simulation/simulated_runs/" + start_time + "/logs-" + start_time +"/videos/" + this->parentSensor->Name() + "/";
+        this->filepath = current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/logs-" + start_time +"/videos/" + this->parentSensor->Name() + "/";
     }
 
     print_color("Min step size: " + std::to_string(this->min_step), EMPHGREEN);

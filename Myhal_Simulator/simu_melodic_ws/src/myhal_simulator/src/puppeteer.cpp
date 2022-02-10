@@ -15,13 +15,6 @@ void Puppeteer::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
     this->sdf = _sdf;
     this->update_connection = gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&Puppeteer::OnUpdate, this, std::placeholders::_1));
 
-    this->user_name = "default";
-
-    if (const char *user = std::getenv("USER"))
-    {
-        this->user_name = user;
-    }
-
     this->ReadSDF();
 
     int argc = 0;

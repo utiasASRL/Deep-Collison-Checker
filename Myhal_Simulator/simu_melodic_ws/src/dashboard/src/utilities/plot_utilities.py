@@ -98,14 +98,14 @@ def percent_path_difference(gt_traj, optimal_traj, results, waypoints):
 
 if __name__ == "__main__":
 
-	username = os.environ['USER']
+	cwd = os.getcwd()
 	if ((len(sys.argv)-1) == 0):
 		print "ERROR: must input filename"
 		exit()
 	filename = sys.argv[1] 
 	print "Processing data for file", filename
 
-	path = "/home/" + username + "/Myhal_Simulation/simulated_runs/" + filename + "/"
+	path = cwd + "/../Data/Simulation_v2/simulated_runs/" + filename + "/"
 	logs_path = path + "logs-" + filename + "/"
 
 	with open(logs_path + 'processed_data.pickle', 'rb') as handle:

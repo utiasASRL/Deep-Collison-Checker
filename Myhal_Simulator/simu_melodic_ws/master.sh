@@ -2,7 +2,11 @@
 
 echo $USER
 
-source /home/$USER/catkin_ws/devel/setup.bash
+source devel/setup.bash
+
+echo $PWD
+
+exit 1
 
 export GAZEBO_PLUGIN_PATH=${GAZEBO_PLUGIN_PATH}:~/catkin_ws/devel/lib
 myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
