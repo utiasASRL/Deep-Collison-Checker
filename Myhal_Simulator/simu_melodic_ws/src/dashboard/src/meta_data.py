@@ -21,10 +21,12 @@ class MetaHandler:
     def __init__(self):
         
         rospy.init_node('meta_data')
+        
+        self.home_path = os.getenv("HOME")
 
         self.read_params()
-        self.file = self.cwd + "/../Data/Simulation_v2/simulated_runs/" + self.start_time 
-        self.path = self.cwd + "/../Data/Simulation_v2/simulated_runs/" + self.start_time + "/logs-" +self.start_time + "/"
+        self.file = self.home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + self.start_time
+        self.path = self.home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + self.start_time + "/logs-" + self.start_time + "/"
         self.meta_json = open(self.path + "meta.json", 'w')
         self.start_subscribers()
 
@@ -65,7 +67,7 @@ class MetaHandler:
             logging.warning('Deleting ' + self.file + ' due to early shutdown')
 
         self.meta_json.close()  
-        shutdown_script = self.cwd + "/simu_melodic_ws/scripts/shutdown.sh"
+        shutdown_script = self.home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/scripts/shutdown.sh"
         subprocess.call(shutdown_script, shell = True)
 
     def unix_term(self, sig, frame):
@@ -77,7 +79,7 @@ class MetaHandler:
             logging.warning('Deleting ' + self.file + ' due to early shutdown')
 
         self.meta_json.close()  
-        shutdown_script = self.cwd + "/simu_melodic_ws/scripts/shutdown.sh"
+        shutdown_script = self.home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/scripts/shutdown.sh"
         subprocess.call(shutdown_script, shell = True)
 
     def on_shutdown(self, msg):
@@ -87,13 +89,11 @@ class MetaHandler:
         self.create_table()
         json.dump(self.table, self.meta_json, indent = 4, sort_keys=True)
         self.meta_json.close()  
-        shutdown_script = self.cwd + "/simu_melodic_ws/scripts/shutdown.sh"
+        shutdown_script = self.home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/scripts/shutdown.sh"
         subprocess.call(shutdown_script, shell = True)
         sys.exit()
 
     def read_params(self):
-        
-        self.cwd = os.getcwd()
         self.localization_test = 'true' if rospy.get_param("/localization_test") else 'false'
         self.class_method = rospy.get_param("/class_method")
         self.load_world = rospy.get_param("/load_world")

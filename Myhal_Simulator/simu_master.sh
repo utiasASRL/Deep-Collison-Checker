@@ -74,8 +74,8 @@ echo " "
 echo "Running tour: $TOUR"
 echo " "
 
-roscore -p $ROSPORT &
-# xterm -bg black -fg lightgray -hold -e roscore -p $ROSPORT &
+# roscore -p $ROSPORT &
+xterm -bg black -fg lightgray -hold -e roscore -p $ROSPORT &
 
 echo " "
 echo "Waiting for roscore initialization ..."
@@ -168,27 +168,7 @@ echo -e "\033[1;4;34mStarting rosbag record\033[0m"
 
 # Save rosbag
 NOHUP_ROSBAG_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_rosbag.txt"
-# nohup rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.bag" \
-#     /clock \
-#     /shutdown_signal \
-#     /velodyne_points \
-#     /move_base/local_costmap/costmap \
-#     /move_base/global_costmap/costmap \
-#     /ground_truth/state \
-#     /map \
-#     /move_base/NavfnROS/plan \
-#     /amcl_pose \
-#     /tf \
-#     /tf_static \
-#     /move_base/result \
-#     /tour_data \
-#     /optimal_path \
-#     /classified_points \
-#     /plan_costmap_3D \
-#     /move_base/TebLocalPlannerROS/local_plan \
-#     /move_base/TebLocalPlannerROS/teb_markers > "$NOHUP_ROSBAG_FILE" 2>&1 &
-
-rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.bag" \
+nohup rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.bag" \
     /clock \
     /shutdown_signal \
     /velodyne_points \
@@ -206,20 +186,24 @@ rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.bag" \
     /classified_points \
     /plan_costmap_3D \
     /move_base/TebLocalPlannerROS/local_plan \
-    /move_base/TebLocalPlannerROS/teb_markers &
+    /move_base/TebLocalPlannerROS/teb_markers > "$NOHUP_ROSBAG_FILE" 2>&1 &
+
 
     
 
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"
 
-# xterm -bg black -fg lightgray -hold -e rosrun dashboard assessor.py &
-rosrun dashboard assessor.py &
+xterm -bg black -fg lightgray -hold -e rosrun dashboard assessor.py &
+# rosrun dashboard assessor.py &
 
+# rosrun xacro xacro.py /home/hth/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/jackal_velodyne/urdf/jackal_velodyne.urdf.xacro
+# exit 1
 
 # Launch jackal for its own tour
 sleep 2.5
 echo -e "\033[1;4;34mRUNNING SIM\033[0m"
+
 roslaunch jackal_velodyne p1.launch gui:=$GUI world_name:=$WORLDFILE #extra_gazebo_args:="-s libdirector.so"
 sleep 0.5
 

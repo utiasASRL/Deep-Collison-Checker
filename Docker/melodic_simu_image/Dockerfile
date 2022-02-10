@@ -113,20 +113,20 @@ RUN echo $username0':myhaljack' | chpasswd
 USER $username0
 
 RUN echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-RUN echo "export GAZEBO_MODEL_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/models" >> ~/.bashrc
 RUN echo "export GAZEBO_RESOURCE_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/models" >> ~/.bashrc
 RUN echo "export GAZEBO_PLUGIN_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/devel/lib" >> ~/.bashrc
+RUN echo "export GAZEBO_MODEL_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/models" >> ~/.bashrc
 RUN cat /usr/share/gazebo/setup.sh >> ~/.bashrc
 
+ENV GAZEBO_RESOURCE_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/models
+ENV GAZEBO_PLUGIN_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/devel/lib
+ENV GAZEBO_MODEL_PATH=/home/$username0/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/models
 
-# export GAZEBO_MASTER_URI=http://localhost:11345
-# export GAZEBO_MODEL_DATABASE_URI=http://models.gazebosim.org
-# export GAZEBO_RESOURCE_PATH=/usr/share/gazebo-9:${GAZEBO_RESOURCE_PATH}
-# export GAZEBO_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gazebo-9/plugins:${GAZEBO_PLUGIN_PATH}
-# export GAZEBO_MODEL_PATH=/usr/share/gazebo-9/models:${GAZEBO_MODEL_PATH}
-# export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib/x86_64-linux-gnu/gazebo-9/plugins
-# export OGRE_RESOURCE_PATH=/usr/lib/x86_64-linux-gnu/OGRE-1.9.0
-
+ENV GAZEBO_RESOURCE_PATH=/usr/share/gazebo-9:${GAZEBO_RESOURCE_PATH}
+ENV GAZEBO_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gazebo-9/plugins:${GAZEBO_PLUGIN_PATH}
+ENV GAZEBO_MODEL_PATH=/usr/share/gazebo-9/models:${GAZEBO_MODEL_PATH}
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib/x86_64-linux-gnu/gazebo-9/plugins
+ENV OGRE_RESOURCE_PATH=/usr/lib/x86_64-linux-gnu/OGRE-1.9.0
 
 # nvidia-docker hooks
 #LABEL com.nvidia.volumes.needed="nvidia_driver"

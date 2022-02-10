@@ -831,8 +831,6 @@ void Puppeteer::ReadParams()
     this->launch_command += std::to_string(this->loc_method);
     this->launch_command += " &";
 
-    std::cout << "COMMAND: " << this->launch_command << std::endl;
-
     if (!nh.getParam("tour_name", this->tour_name))
     {
         std::cout << "ERROR READING TOUR NAME\n";
