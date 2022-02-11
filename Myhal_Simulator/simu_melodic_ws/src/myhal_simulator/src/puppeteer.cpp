@@ -165,12 +165,6 @@ void Puppeteer::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
 
     std::cout << "LOADED ALL VEHICLES\n";
 
-    if (this->tour_name != "")
-    {
-        std::cout << "COMMAND: " << this->launch_command << std::endl;
-        std::system(this->launch_command.c_str());
-    }
-
     if (this->viz_gaz)
     {
         this->global_plan_sub = this->nh.subscribe("/move_base/NavfnROS/plan", 1, &Puppeteer::GlobalPlanCallback, this);
@@ -182,6 +176,9 @@ void Puppeteer::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
     // Create a publisher for the flow field
     flow_pub = nh.advertise<geometry_msgs::PoseArray>("flow_field", 5);
     flow_v_pub = nh.advertise<nav_msgs::OccupancyGrid>("value_field", 5);
+
+    // Create ublisher for the state of puppeteer
+    state_pub = nh.advertise<std_msgs::String>("puppet_state", 5);
 }
 
 void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
@@ -428,6 +425,8 @@ void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
         PublishFlowMarkers();
         PublishIntegrationValue();
     }
+    
+    PublishPuppetState();
 
     if (show_flow_forces)
     {
@@ -810,27 +809,6 @@ void Puppeteer::ReadParams()
         this->viz_gaz = false;
     }
 
-    //roslaunch jackal_velodyne p2.launch filter:=$FILTER mapping:=$MAPPING gt_classify:=$GTCLASS
-    if (this->filter_status)
-    {
-        this->launch_command += " filter:=true ";
-    }
-    else
-    {
-        this->launch_command += " filter:=false ";
-    }
-    if (this->gt_class)
-    {
-        this->launch_command += " gt_classify:=true ";
-    }
-    else
-    {
-        this->launch_command += " gt_classify:=false ";
-    }
-    this->launch_command += " loc_method:=";
-    this->launch_command += std::to_string(this->loc_method);
-    this->launch_command += " &";
-
     if (!nh.getParam("tour_name", this->tour_name))
     {
         std::cout << "ERROR READING TOUR NAME\n";
@@ -1062,6 +1040,16 @@ void Puppeteer::ManagePoseEstimate(geometry_msgs::Pose est_pose)
         }
     }
 }
+
+// Function that publishes the puppeteer state (simple string)
+void Puppeteer::PublishPuppetState()
+{
+
+    std_msgs::String str_msg;
+    str_msg.data = "Puppeteer running";
+    state_pub.publish(str_msg);
+}
+
 
 // Function that publishes the flow field as a PoseArray
 void Puppeteer::PublishFlowMarkers()

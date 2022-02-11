@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Load Jackal's description-->
+  <param name="robot_description"
+         command="$(find jackal_description)/scripts/env_run
+                    $(find jackal_description)/urdf/configs/front_laser
+                    $(find xacro)/xacro 
+                    $(find jackal_velodyne)/urdf/jackal_velodyne.urdf.xacro 
+                    --inorder" />
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+  <!-- Control -->
+  <include file="$(find jackal_velodyne)/launch/include/control.launch" />
+
+  <!-- Spawn Jackal with a delay to wait for camera init -->
+  <arg name="node_start_delay" default="0.1" />  
+  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " 
+              args="-urdf -model jackal -param robot_description -x 0 -y 0 -z 0.5" />
+
+  
+</launch>
+

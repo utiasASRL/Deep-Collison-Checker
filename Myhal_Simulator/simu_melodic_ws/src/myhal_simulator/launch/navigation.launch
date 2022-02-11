@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="loc_method" default="0" />
+
+  <!--- Run Move Base -->
+  <include file="$(find jackal_velodyne)/launch/include/move_base.launch">
+    <arg name="loc_method" value="$(arg loc_method)" />
+  </include>
+
+  <!--- Run Goals -->
+  <node pkg="myhal_simulator" type="navigation_goals_V2" name="navigation_goals_V2"/>
+  <node pkg="dashboard" type="meta_data.py" name="meta_data" output="screen"/>
+  
+</launch>
+

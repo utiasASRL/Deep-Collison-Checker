@@ -1,16 +1,15 @@
 #!/bin/bash
 
+############
+# Parameters
+############
+
+# Initial sourcing
 source ~/.bashrc
 source "/opt/ros/melodic/setup.bash"
 source $PWD/simu_melodic_ws/devel/setup.bash
 
-# export GAZEBO_MODEL_PATH=$PWD/simu_melodic_ws/src/myhal_simulator/models
-# export GAZEBO_RESOURCE_PATH=$PWD/simu_melodic_ws/src/myhal_simulator/models
-# export GAZEBO_PLUGIN_PATH=$PWD/simu_melodic_ws/devel/lib
-
-# Parameters
-# **********
-
+# Printing the command used to call this file
 myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
 
 # List of parameters for the simulator
@@ -50,7 +49,6 @@ echo "Min step size: $MINSTEP"
 echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nTEB: $TEB\nMAPPING: $MAPPING\nGTCLASS: $GTCLASS"
 echo -e " "
 
-
 # Handle the choice betwenn gt and predictions
 c_method="ground_truth"
 if [ "$FILTER" = false ] ; then
@@ -66,16 +64,16 @@ fi
 export GTCLASSIFY=$GTCLASS
 
 
-# ROS
-# ***
+##########
+# ROS CORE
+##########
 
 # Start ROS core
 echo " "
 echo "Running tour: $TOUR"
 echo " "
 
-# roscore -p $ROSPORT &
-xterm -bg black -fg lightgray -hold -e roscore -p $ROSPORT &
+roscore -p $ROSPORT &
 
 echo " "
 echo "Waiting for roscore initialization ..."
@@ -110,8 +108,9 @@ rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 
 
-# Logs
-# ****
+##################
+# Logs of the Tour
+##################
 
 # Create Log folder
 if [ ! -d "$PWD/../Data/Simulation_v2/simulated_runs" ]; then
@@ -145,12 +144,14 @@ echo -e "$(cat $PWD/simu_melodic_ws/src/jackal_velodyne/launch/include/pointclou
 # World file path
 WORLDFILE="$PWD/simu_melodic_ws/src/myhal_simulator/worlds/myhal_sim.world"
 
+
+###################
 # Run the simulator
-# *****************
+###################
 
 echo -e "\033[1;4;34mStarting simulator\033[0m"
 
-# Run with or without world
+# Create a world in simulation
 sleep 0.1
 if [[ -z $LOADWORLD ]]; then
     rosrun myhal_simulator world_factory
@@ -189,23 +190,73 @@ nohup rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.ba
     /move_base/TebLocalPlannerROS/teb_markers > "$NOHUP_ROSBAG_FILE" 2>&1 &
 
 
-    
+# Start the simulation
+sleep 2.5
+echo -e "\033[1;4;34mRUNNING SIM\033[0m"
+
+xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
+    -e roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+sleep 0.5
+
+
+###################
+# Run the simulator
+###################
+
+# Wait for simulation to be running before spawning jackal and running navigation
+echo ""
+echo "Waiting for Gazebo initialization ..."
+until [[ -n "$topic1" ]] || [[ -n "$topic2" ]] || [[ -n "$topic3" ]]
+do 
+    sleep 0.5
+    topic1=$(rostopic list -p | grep "/flow_field")
+    topic2=$(rostopic list -p | grep "/gazebo/model_states")
+    topic3=$(rostopic list -p | grep "/clock")
+
+    #echo "- $topic1 - $topic2 - $topic3 - $topic4 -  "
+    #if [[ -n "$topic4" ]]; then
+    #    rostopic echo -n 1 /clock
+    #fi
+done 
+echo "OK"
+
+# Spawn the robot and start its controller
+roslaunch myhal_simulator jackal_spawn.launch &
+
+# Wait for a message with the flow field (meaning the robot is loaded and everything is ready)
+echo ""
+echo "Waiting for Robot initialization ..."
+until [[ -n "$puppet_state_msg" ]]
+do 
+    sleep 0.5
+    puppet_state_msg=$(rostopic echo -n 1 /puppet_state | grep "running")
+done 
+echo "OK"
+
+# Start localization algo
+xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
+    -e roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS &
+
+# Start navigation algo
+xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
+    -e roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING &
 
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"
 
-xterm -bg black -fg lightgray -hold -e rosrun dashboard assessor.py &
-# rosrun dashboard assessor.py &
+rosrun dashboard assessor.py
 
-# rosrun xacro xacro.py /home/hth/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/jackal_velodyne/urdf/jackal_velodyne.urdf.xacro
-# exit 1
+###############################
+# Eventually run postprocessing
+###############################
 
-# Launch jackal for its own tour
-sleep 2.5
-echo -e "\033[1;4;34mRUNNING SIM\033[0m"
+# Here shut down the different ros nodes before 
+# Movebase
+# Loc 
+# Goals
+# Dashboard
 
-roslaunch jackal_velodyne p1.launch gui:=$GUI world_name:=$WORLDFILE #extra_gazebo_args:="-s libdirector.so"
-sleep 0.5
+
 
 # RUn data processing at the end of the tour
 echo "Running data_processing.py"

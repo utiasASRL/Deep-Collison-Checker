@@ -30,6 +30,7 @@
 #include <geometry_msgs/PoseArray.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
+#include <std_msgs/String.h>
 #include <move_base_msgs/MoveBaseActionGoal.h>
 #include "sensor_msgs/PointCloud2.h"
 #include "tf2_msgs/TFMessage.h"
@@ -111,6 +112,7 @@ class Puppeteer: public gazebo::WorldPlugin{
 
         ros::Subscriber tf_sub;
 
+        ros::Publisher state_pub;
         ros::Publisher flow_pub;
         ros::Publisher flow_v_pub;
         
@@ -149,8 +151,6 @@ class Puppeteer: public gazebo::WorldPlugin{
         bool gt_class;
 
         int loc_method = 0;
-    
-        std::string launch_command = "roslaunch jackal_velodyne p2.launch";
 
         bool viz_gaz = false;
 
@@ -196,6 +196,8 @@ class Puppeteer: public gazebo::WorldPlugin{
 
         void AddGoalMarker(std::string name, const move_base_msgs::MoveBaseActionGoal::ConstPtr& goal, ignition::math::Vector4d color);
         
+        void PublishPuppetState();
+
         void PublishFlowMarkers();
 
         void PublishIntegrationValue();

@@ -54,6 +54,7 @@
   </include>
 
  
+    <!--- Run Goals -->
   <node pkg="myhal_simulator" type="navigation_goals_V2" name="navigation_goals_V2"/>
   <node pkg="dashboard" type="meta_data.py" name="meta_data" output="screen"/>
   
