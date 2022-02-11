@@ -25,6 +25,16 @@ done
 # Path to the Network result folder
 RES_FOLDER="$PWD/../Data/Simulation_v2/nohup_logs"
 
+
+##################
+# Handle rosport #
+##################
+
+rosport=1100
+gazport=$(($rosport+1))
+echo "ROSPORT=$rosport"
+echo "GAZPORT=$gazport"
+
 ##########################
 # Start docker container #
 ##########################
@@ -55,7 +65,10 @@ other_args="-v $XSOCK:$XSOCK \
     --privileged \
 	-e XAUTHORITY=${XAUTH} \
     -e DISPLAY=$DISPLAY \
-    -w /home/$USER/Deep-Collison-Checker"
+    -e ROSPORT=$rosport \
+    -e ROS_MASTER_URI=http://$HOSTNAME:$rosport \
+    -e GAZEBO_MASTER_URI=http://$HOSTNAME:$gazport \
+    -w /home/$USER/Deep-Collison-Checker/Myhal_Simulator"
 
 if [ "$devdoc" = true ] ; then
 
@@ -88,6 +101,5 @@ else
     if [ "$detach" = true ] ; then
         docker logs -f "$USER-foxy-$now" &> $RES_FOLDER/log_sogm_"$now".txt &
     fi
-
 
 fi

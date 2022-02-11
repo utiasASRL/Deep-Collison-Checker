@@ -356,6 +356,8 @@ RUN apt-get update
 RUN apt-get install ros-noetic-move-base-flex -y --no-install-recommends
 RUN apt-get install libsuitesparse-dev -y --no-install-recommends
 RUN apt-get install ros-noetic-libg2o -y --no-install-recommends
+RUN apt-get install ros-noetic-pcl-ros -y --no-install-recommends
+RUN apt-get install ros-noetic-costmap-converter -y --no-install-recommends
 
 #
 # User info

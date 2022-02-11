@@ -15,6 +15,10 @@ Myhal_Simulator/simu_melodic_ws/build
 Myhal_Simulator/simu_melodic_ws/devel
 Myhal_Simulator/simu_melodic_ws/logs
 
+Myhal_Simulator/nav_noetic_ws/build_isolated
+Myhal_Simulator/nav_noetic_ws/devel_isolated
+Myhal_Simulator/nav_noetic_ws/install_isolated
+
 
 
 SOGM-3D-2D-Net/core
