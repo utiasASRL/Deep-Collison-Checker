@@ -1,0 +1,3 @@
+[submodule "Myhal_Simulator/nav_noetic_ws/src/point_slam"]
+	path = Myhal_Simulator/nav_noetic_ws/src/point_slam
+	url = https://github.com/utiasASRL/point_slam.git
