@@ -1,3 +1,6 @@
 [submodule "Myhal_Simulator/nav_noetic_ws/src/point_slam"]
 	path = Myhal_Simulator/nav_noetic_ws/src/point_slam
 	url = https://github.com/utiasASRL/point_slam.git
+[submodule "Myhal_Simulator/nav_noetic_ws/src/teb_risk_map_planner"]
+	path = Myhal_Simulator/nav_noetic_ws/src/teb_risk_map_planner
+	url = https://github.com/utiasASRL/teb_risk_map_planner.git
