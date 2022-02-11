@@ -4,3 +4,6 @@
 [submodule "Myhal_Simulator/nav_noetic_ws/src/teb_risk_map_planner"]
 	path = Myhal_Simulator/nav_noetic_ws/src/teb_risk_map_planner
 	url = https://github.com/utiasASRL/teb_risk_map_planner.git
+[submodule "Myhal_Simulator/onboard_deep_sogm"]
+	path = Myhal_Simulator/onboard_deep_sogm
+	url = https://github.com/utiasASRL/onboard_deep_sogm.git
