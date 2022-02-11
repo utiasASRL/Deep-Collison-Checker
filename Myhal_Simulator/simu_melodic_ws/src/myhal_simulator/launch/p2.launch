@@ -28,7 +28,7 @@
 
 
   <!-- Spawn Jackal with a delay to wait for camera init -->
-  <arg name="node_start_delay" default="5.0" />  
+  <arg name="node_start_delay" default="0.1" />  
   <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " 
               args="-urdf -model jackal -param robot_description -x 0 -y 0 -z 0.5" />
 

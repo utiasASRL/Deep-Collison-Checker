@@ -45,31 +45,31 @@ study_space_546:
   geometry: g546
   positions: p546
   enclosed: "0"
-  scenario: empty
+  scenario: flow_follower_rand_density
 
 irm_lab_580:
   geometry: g580
   positions: p580
   enclosed: "0"
-  scenario: empty
+  scenario: flow_follower_rand_density
 
 admin_off_514:
   geometry: g514
   positions: p514
   enclosed: "0"
-  scenario: empty
+  scenario: flow_follower_rand_density
 
 inter_teaching_lab_570:
   geometry: g570
   positions: p570
   enclosed: "0"
-  scenario: empty
+  scenario: flow_follower_rand_density
 
 study_space_545:
   geometry: g545
   positions: p545
   enclosed: "0"
-  scenario: empty
+  scenario: flow_follower_rand_density
 
 # Unused rooms
 

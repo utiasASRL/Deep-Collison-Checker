@@ -68,10 +68,12 @@ void WorldHandler::AddCameras(){
 
         auto pose = ignition::math::Pose3d(info->x, info->y, info->z, 0,0,0,0);
 
-        char temp[500];
-        std::string current_path(getcwd(temp, sizeof(temp)));
-        auto path = current_path + "/../Data/Simulation_v2/simulated_runs/" + this->start_time + "/logs-" + this->start_time + "/videos/";
+        std::string home_path = "/home/admin";
+        if (const char *home_path0 = std::getenv("HOME"))
+            home_path = home_path0;
 
+        auto path = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + this->start_time + "/logs-" + this->start_time + "/videos/";
+        
         auto cam = myhal::Camera(name, pose, path);
         cam.AddToWorld(this->world_string);
     }
@@ -156,13 +158,12 @@ void WorldHandler::LoadParams(){
         
     this->costmap = std::make_shared<Costmap>(ignition::math::Box(ignition::math::Vector3d(-21.55,-21.4,0), ignition::math::Vector3d(21.55,21.4,0)), 0.2);
 
+    std::string home_path = "/home/admin";
+    if (const char *home_path0 = std::getenv("HOME"))
+        home_path = home_path0;
 
-    char temp[500];
-
-    std::string current_path(getcwd(temp, sizeof(temp)));
-
-    happly::PLYData plyIn(current_path + "/simu_melodic_ws/src/myhal_simulator/params/default_params/myhal_walls.ply");
-
+    happly::PLYData plyIn(home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/params/default_params/myhal_walls.ply");
+    
     auto static_objects = ReadObjects(plyIn);
 
     for (auto obj: static_objects){
@@ -473,8 +474,9 @@ void WorldHandler::LoadParams(){
 
         // Save info in log file
         std::ofstream log_file;
-        std::string filepath = current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/";
+        std::string filepath = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + start_time + "/";
 
+        
         log_file.open(filepath + "/logs-" + start_time + "/log.txt", std::ios_base::app);
         log_file << "\nScenario: " << name << "\nTables: " << table_percentage << "\nActors: " << pop_density << std::endl;
         log_file.close();
@@ -716,10 +718,12 @@ void WorldHandler::FillRoom(std::shared_ptr<RoomInfo> room_info){
 
 void WorldHandler::WriteToFile(std::string out_name){
 
-    char temp[500];
-    std::string current_path(getcwd(temp, sizeof(temp)));
-    std::string in_string = current_path + "/simu_melodic_ws/src/myhal_simulator/worlds/myhal_template.txt";
-    std::string out_string = current_path + "/simu_melodic_ws/src/myhal_simulator/worlds/" + out_name;
+    
+    std::string home_path = "/home/admin";
+    if (const char *home_path0 = std::getenv("HOME"))
+        home_path = home_path0;
+    std::string in_string = home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/worlds/myhal_template.txt";
+    std::string out_string = home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/worlds/" + out_name;
 
     std::ifstream in = std::ifstream(in_string);
 

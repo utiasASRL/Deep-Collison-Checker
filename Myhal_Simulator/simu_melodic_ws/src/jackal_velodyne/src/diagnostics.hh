@@ -41,7 +41,7 @@ class Doctor{
 
         ros::Publisher failure_pub;
 
-        std::string current_path;
+        std::string home_path;
 
         std::string filepath;
 
@@ -85,7 +85,7 @@ Doctor::Doctor(){
 
     this->ReadParams();
 
-    this->filepath = this->current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/";
+    this->filepath = this->home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + start_time + "/";
 
     this->log_file.open(this->filepath + "/logs-"+start_time+"/log.txt", std::ios_base::app);
 
@@ -173,9 +173,10 @@ void Doctor::GroundTruthCallback(const nav_msgs::Odometry::ConstPtr& msg){
 }
 
 void Doctor::ReadParams(){
-
-    char temp[500];
-    this->current_path = std::string(getcwd(temp, sizeof(temp)));
+    
+    home_path = "/home/admin";
+    if (const char *home_path0 = std::getenv("HOME"))
+        home_path = home_path0;
 
     if (!this->nh.getParam("start_time", this->start_time)){
         std::cout << "ERROR SETTING START TIME\n";

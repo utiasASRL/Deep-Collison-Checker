@@ -76,16 +76,17 @@ int main(int argc, char ** argv){
 
     TourParser parser(tour_name);
     std::vector<ignition::math::Pose3d> route = parser.GetRoute();
-
-    char temp[500];
-    std::string current_path(getcwd(temp, sizeof(temp)));
+    
+    std::string home_path = "/home/admin";
+    if (const char *home_path0 = std::getenv("HOME"))
+        home_path = home_path0;
 
     std::string start_time;
     if (!nh.getParam("start_time", start_time)){
         std::cout << "ERROR SETTING START TIME\n";
     }
     
-    std::string filepath = current_path + "/../Data/Simulation_v2/simulated_runs/" + start_time + "/";
+    std::string filepath = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + start_time + "/";
     
     std::ofstream log_file;
     log_file.open(filepath + "/logs-" + start_time + "/log.txt", std::ios_base::app);
@@ -129,7 +130,7 @@ int main(int argc, char ** argv){
     }
 
     std::string filename;
-    std::string shutdown_file = current_path + "/simu_melodic_ws/shutdown.sh";
+    std::string shutdown_file = home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/shutdown.sh";
 
     int count = 0;
     int use_custom_goal_bool(0); // 0 = False, other value = True

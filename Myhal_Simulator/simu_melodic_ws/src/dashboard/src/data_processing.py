@@ -23,7 +23,8 @@ if __name__ == "__main__":
 
     start_time = RealTime.time()
     
-    cwd = os.getcwd()
+    home_path = os.getenv("HOME")
+    
     if (len(sys.argv)-1 < 2):
         print "ERROR: must input filename and filter status"
         exit()
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     filter_status = True if (sys.argv[2] == "true") else False
     print "Processing data for file", filename
 
-    path = cwd + "/../Data/Simulation_v2/simulated_runs/" + filename + "/"
+    path = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + filename + "/"
     if (not os.path.isdir(path)):
         print 'File ' + path + ' has been deleted, aborting data processing'
         exit()
@@ -211,7 +212,7 @@ if __name__ == "__main__":
 
     duration = bt.bag_metadata(bag)['duration']
 
-    vid_path = cwd + "/../Data/Simulation_v2/simulated_runs/" + filename + "/logs-" + filename + "/videos/"
+    vid_path = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + filename + "/logs-" + filename + "/videos/"
     vid_dirs = os.listdir(vid_path) if os.path.isdir(vid_path) else []
 
     count = 0

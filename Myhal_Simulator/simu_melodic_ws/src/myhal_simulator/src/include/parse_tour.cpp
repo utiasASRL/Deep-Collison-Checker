@@ -38,12 +38,14 @@ move_base_msgs::MoveBaseGoal PoseToHardcodedGoal(ignition::math::Pose3d pose, do
 * @param parse_digits  Optional. Default value = false.
 */
 TourParser::TourParser(std::string name, bool _parse_digits){
-    
-    char temp[500];
-    std::string current_path(getcwd(temp, sizeof(temp)));
+
+    std::string home_path = "/home/admin";
+    if (const char *home_path0 = std::getenv("HOME"))
+        home_path = home_path0;
+
 
     this->tour_name = name;
-    this->tour_path = current_path + "/simu_melodic_ws/src/myhal_simulator/tours/" + name + "/";
+    this->tour_path = home_path + "/Deep-Collison-Checker/Myhal_Simulator/simu_melodic_ws/src/myhal_simulator/tours/" + name + "/";
     this->parse_digits = _parse_digits;
     this->ReadTourParams();
     this->ParseTour();
