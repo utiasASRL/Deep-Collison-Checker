@@ -12,20 +12,23 @@ source $PWD/simu_melodic_ws/devel/setup.bash
 # Printing the command used to call this file
 myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
 
-# List of parameters for the simulator
-GUI=false # -v flag
-TOUR="A_tour" # -t (arg) flag
-LOADWORLD="" # -l (arg) flag
-FILTER=false # -f flag
-MAPPING=2 # -m (arg) flag
+# Current time
 t=$(date +'%Y-%m-%d-%H-%M-%S')
-GTCLASS=false # -g flag 
-VIZ_GAZ=false
-PARAMS="default_params"
-TEB=false # -b flag
+
+# List of parameters for the simulator
+PARAMS="default_params" # -p (arg)
+GUI=false       # -v
+TOUR="A_tour"   # -t (arg)
+LOADWORLD=""    # -l (arg)
+FILTER=false    # -f
+MAPPING=2       # -m (arg)
+GTCLASS=false   # -g 
+VIZ_GAZ=false   # -e 
+TEB=false       # -b
+XTERM=false     # -x
 
 # Parse parameters
-while getopts p:t:l:m:n:vfgeb option
+while getopts p:t:l:m:n:vfgebx option
 do
 case "${option}"
 in
@@ -39,6 +42,7 @@ f) FILTER=true;;            # pointcloud filtering?
 g) GTCLASS=true;;           # are we using ground truth classifications, or online_classifications
 e) VIZ_GAZ=true;;           # are we going to vizualize topics in gazebo
 b) TEB=true;;               # are we using TEB planner
+x) XTERM=true;;               # are we using TEB planner
 esac
 done
 
@@ -106,6 +110,8 @@ rosparam set gmapping_status true
 rosparam set loc_method $MAPPING
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
+rosparam set using_teb $TEB
+
 
 
 ##################
@@ -194,8 +200,15 @@ nohup rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.ba
 sleep 2.5
 echo -e "\033[1;4;34mRUNNING SIM\033[0m"
 
-xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
-    -e roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+if [ "$XTERM" = true ] ; then
+    xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
+        -e roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+else
+    NOHUP_GAZ_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gazebo.txt"
+    nohup roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE > "$NOHUP_GAZ_FILE" 2>&1 &
+fi
+
+
 sleep 0.5
 
 
@@ -233,18 +246,35 @@ do
 done 
 echo "OK"
 
-# # Start localization algo
-# xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
-#     -e roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS &
-
-# # Start navigation algo
-# xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
-#     -e roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING &
-
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"
 
 rosrun dashboard assessor.py
+
+
+##################
+# Start Navigation
+##################
+
+# # Start localization algo
+# if [ "$XTERM" = true ] ; then
+#     xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
+#         -e roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS &
+# else
+#     NOHUP_LOC_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_loc.txt"
+#     nohup roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS > "$NOHUP_LOC_FILE" 2>&1 &
+# fi
+
+
+# # Start navigation algo
+# if [ "$XTERM" = true ] ; then
+#     xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
+#         -e roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING &
+# else
+#     NOHUP_NAV_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_nav.txt"
+#     nohup roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING > "$NOHUP_NAV_FILE" 2>&1 &
+# fi
+
 
 ###############################
 # Eventually run postprocessing
@@ -258,7 +288,7 @@ rosrun dashboard assessor.py
 
 
 
-# RUn data processing at the end of the tour
+# Run data processing at the end of the tour
 echo "Running data_processing.py"
 rosrun dashboard data_processing.py $t $FILTER
  
