@@ -1,0 +1,16 @@
+shutdown_costmaps: false
+
+controller_frequency: 20
+controller_patience: 10.0
+
+planner_patience: 5.0
+
+oscillation_timeout: 0.0
+oscillation_distance: 0.5
+
+# The rate in Hz at which to run the global planning loop
+planner_frequency: 0.1
+ 
+
+recovery_behavior_enabled: true
+#clearing_rotation_allowed: true

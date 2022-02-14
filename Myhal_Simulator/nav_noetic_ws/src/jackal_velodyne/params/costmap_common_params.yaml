@@ -1,0 +1,23 @@
+map_type: costmap
+origin_z: 0.0
+z_resolution: 1
+z_voxels: 2
+
+obstacle_range: 10
+raytrace_range: 10
+
+publish_voxel_map: false
+transform_tolerance: 2.0
+meter_scoring: true
+
+footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]]
+footprint_padding: 0.1
+
+# inflater_layer:
+#  inflation_radius: 0.3
+#  cost_scaling_factor: 10.0
+
+#social_prox_layer:
+# enabled = true
+ 
+  

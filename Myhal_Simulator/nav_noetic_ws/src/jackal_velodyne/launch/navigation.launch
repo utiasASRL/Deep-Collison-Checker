@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="global_costmap_params" default="global_costmap_params.yaml" />
+  <arg name="local_costmap_params" default="local_costmap_params.yaml" />
+  <arg name="local_planner_params" default="base_local_planner_params.yaml" />
+  <arg name="local_planner" default="base_local_planner/TrajectoryPlannerROS" />
+
+  <!--- Run Move Base -->
+  <include file="$(find jackal_velodyne)/launch/include/move_base.launch">
+    <arg name="global_costmap_params" default="$(arg global_costmap_params)" />
+    <arg name="local_costmap_params" default="$(arg local_costmap_params)" />
+    <arg name="local_planner_params" default="$(arg local_planner_params)" />
+    <arg name="local_planner" default="$(arg local_planner)" />
+  </include>
+
+  <!--- Run Goals -->
+  <node pkg="myhal_simulator" type="navigation_goals_V2" name="navigation_goals_V2"/>
+  <node pkg="dashboard" type="meta_data.py" name="meta_data" output="screen"/>
+  
+</launch>
+
