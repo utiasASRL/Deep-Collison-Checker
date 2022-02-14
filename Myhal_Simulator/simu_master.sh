@@ -233,13 +233,13 @@ do
 done 
 echo "OK"
 
-# Start localization algo
-xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
-    -e roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS &
+# # Start localization algo
+# xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
+#     -e roslaunch myhal_simulator localization.launch filter:=$FILTER loc_method:=$MAPPING gt_classify:=$GTCLASS &
 
-# Start navigation algo
-xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
-    -e roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING &
+# # Start navigation algo
+# xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
+#     -e roslaunch myhal_simulator navigation.launch loc_method:=$MAPPING &
 
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"
