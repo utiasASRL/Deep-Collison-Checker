@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 #############
 # Description
 #############
@@ -17,45 +16,13 @@
 #       > (pointfilter, others ...)
 
 
-
-# 1
-#   pointslam no filter
-#   move-base with TEB0
-#   
-# 2
-#   pointslam no filter
-#   move-base with DWA
-#   
-# 3
-#   pointslam no filter
-#   move-base with TEB0
-#   GT point filters (ignore dynamic)
-#   
-# 4
-#   pointslam no filter
-#   move-base with TEB1
-#   SOGM prediction
-#   
-#   
-#   
-#   
-#   
-#   
-
-
-
-
-
-
-
-
-
 ############
 # Parameters
 ############
 
 # # Initial sourcing
 source "/opt/ros/noetic/setup.bash"
+source "nav_noetic_ws/devel_isolated/setup.bash"
 
 # Printing the command used to call this file
 myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
@@ -109,13 +76,17 @@ echo "TEB: $TEB"
 # Start Localization
 ####################
 
+echo " "
+echo " "
+echo -e "\033[1;4;34mStarting localization\033[0m"
+
 # First get the chosen launch file
 if [ "$MAPPING" = "0" ] ; then
-    loc_launch=point_slam gmapping.launch
-if [ "$MAPPING" = "1" ] ; then
-    loc_launch=point_slam amcl.launch
+    loc_launch="jackal_velodyne gmapping.launch"
+elif [ "$MAPPING" = "1" ] ; then
+    loc_launch="jackal_velodyne amcl.launch"
 else
-    loc_launch=point_slam point_slam.launch filter:=$FILTER gt_classify:=$GTCLASS
+    loc_launch="jackal_velodyne point_slam.launch filter:=$FILTER gt_classify:=$GTCLASS"
 fi
 
 if [ "$FILTER" = true ] ; then
@@ -137,14 +108,19 @@ fi
 if [ "$FILTER" = true ]; then
     if [ "$MAPPING" = "0" ] || [ "$MAPPING" = "1" ]; then
         NOHUP_FILTER_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_filter.txt"
-        nohup roslaunch point_slam pointcloud_filter2.launch gt_classify:=$GTCLASS > "$NOHUP_LOC_FILE" 2>&1 &
+        nohup roslaunch jackal_velodyne pointcloud_filter2.launch gt_classify:=$GTCLASS > "$NOHUP_LOC_FILE" 2>&1 &
     fi
 fi
 
+echo "OK"
 
 ##################
 # Start Navigation
 ##################
+
+echo " "
+echo " "
+echo -e "\033[1;4;34mStarting navigation\033[0m"
 
 # Chose parameters for global costmap
 if [ "$MAPPING" = "0" ] ; then
@@ -185,7 +161,7 @@ else
 fi
 
 # Create launch command
-nav_command="roslaunch myhal_simulator navigation.launch"
+nav_command="roslaunch jackal_velodyne navigation.launch"
 nav_command="${nav_command} global_costmap_params:=$global_costmap_params"
 nav_command="${nav_command} local_costmap_params:=$local_costmap_params"
 nav_command="${nav_command} local_planner_params:=$local_planner_params"
@@ -200,15 +176,35 @@ else
     nohup $nav_command > "$NOHUP_NAV_FILE" 2>&1 &
 fi
 
+echo "OK"
+
 
 ##################
 # Run Deep Network
 ##################
 
+echo " "
+echo " "
+echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
+
 if [ "$SOGM" = true ] ; then
     cd onboard_deep_sogm/scripts
-    ./collider.sh
+    ./collider.sh #TODO THIS IS THE FILE FOR THE ROBOT< SSO CREATE NEW ONE WITH THE RIGHT SOURCING FOR THE SIMU
 fi
+echo "OK"
+echo " "
+echo " "
+
+# Wait for eveyrthing to end before killing the docker container
+sleep 10
+sleep 10
+sleep 10
+sleep 10
+sleep 10
+sleep 10
+sleep 10
+sleep 10
+sleep 10
 
 
 
