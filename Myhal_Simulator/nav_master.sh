@@ -22,7 +22,7 @@
 
 # # Initial sourcing
 source "/opt/ros/noetic/setup.bash"
-source "nav_noetic_ws/devel_isolated/setup.bash"
+source "nav_noetic_ws/devel/setup.bash"
 
 # Printing the command used to call this file
 myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"

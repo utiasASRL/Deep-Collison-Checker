@@ -7,7 +7,7 @@
   <arg name="local_planner" default="base_local_planner/TrajectoryPlannerROS" />
 
   <!--- Run Move Base -->
-  <include file="$(find jackal_velodyne)/launch/include/move_base.launch">
+  <include file="$(find jackal_velodyne)/launch/move_base.launch">
     <arg name="global_costmap_params" default="$(arg global_costmap_params)" />
     <arg name="local_costmap_params" default="$(arg local_costmap_params)" />
     <arg name="local_planner_params" default="$(arg local_planner_params)" />
