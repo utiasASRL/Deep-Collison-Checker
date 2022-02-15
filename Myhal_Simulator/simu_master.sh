@@ -249,6 +249,9 @@ echo "OK"
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"
 
+rosrun myhal_simulator navigation_goals_V2 &
+rosrun dashboard meta_data.py &
+
 rosrun dashboard assessor.py
 
 
