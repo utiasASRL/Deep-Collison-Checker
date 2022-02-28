@@ -252,6 +252,10 @@ echo -e "\033[1;4;34mStarting dashboard\033[0m"
 rosrun myhal_simulator navigation_goals_V2 &
 rosrun dashboard meta_data.py &
 
+#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
+#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
+#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
+
 rosrun dashboard assessor.py
 
 

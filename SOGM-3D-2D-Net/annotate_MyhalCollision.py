@@ -187,6 +187,11 @@ if __name__ == '__main__':
                    '2022-01-18_11-11-03',   # -   /
                    '2022-01-18_11-15-40',   # -  /
                    '2022-01-18_11-20-21']   # - /
+                   
+
+    train_days += ['2022-02-25_18-19-12',   # - \
+                   '2022-02-25_18-24-30',   # -  > Face to face scenario on (loop_2)
+                   '2022-02-25_18-29-18']   # - /
 
     map_i = 3
     refine_i = np.array([0, 6, 7, 8])
@@ -204,5 +209,7 @@ if __name__ == '__main__':
     # show_2D_SOGMS(dataset_path, train_days, map_day=map_day)
 
     # get_videos(dataset_path, train_days, map_day=map_day)
+    
+    # TODO: Verify last three folders annotated, and then add then to train script
 
 

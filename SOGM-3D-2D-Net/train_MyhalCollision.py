@@ -104,10 +104,10 @@ class MyhalCollisionConfig(Config):
     ######################
 
     # Number of propagating layer
-    n_2D_layers = 30
+    n_2D_layers = 20
 
     # Total time propagated
-    T_2D = 3.0
+    T_2D = 4.0
 
     # Size of 2D convolution grid
     dl_2D = 0.12
@@ -120,7 +120,7 @@ class MyhalCollisionConfig(Config):
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
-    balance_proportions = [0, 0, 1, 1, 20, 0.7]
+    balance_proportions = [0, 0, 1, 1, 20, 0.4]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -386,6 +386,10 @@ if __name__ == '__main__':
                    '2022-01-18_11-11-03',   # -   /
                    '2022-01-18_11-15-40',   # -  /
                    '2022-01-18_11-20-21']   # - /
+                   
+    train_days += ['2022-02-25_18-19-12',   # - \
+                   '2022-02-25_18-24-30',   # -  > Face to face scenario on (loop_2)
+                   '2022-02-25_18-29-18']   # - /
     map_i = 3
     train_i = np.arange(len(train_days))[5:]
     
