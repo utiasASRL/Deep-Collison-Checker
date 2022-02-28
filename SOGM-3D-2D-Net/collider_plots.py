@@ -891,7 +891,7 @@ def evolution_gifs(chosen_log, dataset_path='RealMyhal'):
 
                     # Get the 2D predictions and gt (prop_2D)
                     img = stck_future_preds[b_i, :, :, :, :]
-                    gt_im = stck_future_gts[b_i, (i_frame0+1)):, :, :, :]
+                    gt_im = stck_future_gts[b_i, (i_frame0+1):, :, :, :]
 
                     # # Future errors defined the same as the loss
                     if sf_to_i[(s_ind, f_ind)] == 0:
@@ -3032,6 +3032,7 @@ def Controlled_v2_logs():
     # Give names to the logs (for legends). These logs were all done with e500 and rot augment
     logs_names = ['60/40_3s/30',
                   '60/40_4s/20',
+                  '60/40_5s/25',
                   'etc']
 
     # Copy here the indices you selected with gui

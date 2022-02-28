@@ -104,10 +104,10 @@ class MyhalCollisionConfig(Config):
     ######################
 
     # Number of propagating layer
-    n_2D_layers = 20
+    n_2D_layers = 25
 
     # Total time propagated
-    T_2D = 4.0
+    T_2D = 5.0
 
     # Size of 2D convolution grid
     dl_2D = 0.12
