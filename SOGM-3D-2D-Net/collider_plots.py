@@ -880,17 +880,18 @@ def evolution_gifs(chosen_log, dataset_path='RealMyhal'):
                 for b_i, length in enumerate(lengths):
 
                     # Get the 2D predictions and gt (init_2D)
+                    i_frame0 = config.n_frames - 1
                     img0 = stck_init_preds[b_i, 0, :, :, :]
-                    gt_im0 = np.copy(stck_future_gts[b_i, config.n_frames - 1, :, :, :])
-                    gt_im1 = stck_future_gts[b_i, config.n_frames - 1, :, :, :]
-                    gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, :, :, :, 2], axis=0)
+                    gt_im0 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                    gt_im1 = stck_future_gts[b_i, i_frame0, :, :, :]
+                    gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, i_frame0:, :, :, 2], axis=0)
                     img1 = stck_init_preds[b_i, 1, :, :, :]
                     s_ind = f_inds[b_i, 0]
                     f_ind = f_inds[b_i, 1]
 
                     # Get the 2D predictions and gt (prop_2D)
                     img = stck_future_preds[b_i, :, :, :, :]
-                    gt_im = stck_future_gts[b_i, config.n_frames:, :, :, :]
+                    gt_im = stck_future_gts[b_i, (i_frame0+1)):, :, :, :]
 
                     # # Future errors defined the same as the loss
                     if sf_to_i[(s_ind, f_ind)] == 0:
@@ -1347,10 +1348,11 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
                             for b_i, length in enumerate(lengths):
 
                                 # Get the 2D predictions and gt (init_2D)
+                                i_frame0 = config.n_frames - 1
                                 img0 = stck_init_preds[b_i, 0, :, :, :]
-                                gt_im0 = np.copy(stck_future_gts[b_i, config.n_frames - 1, :, :, :])
-                                gt_im1 = np.copy(stck_future_gts[b_i, config.n_frames - 1, :, :, :])
-                                gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, :, :, :, 2], axis=0)
+                                gt_im0 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                                gt_im1 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                                gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, i_frame0:, :, :, 2], axis=0)
                                 img1 = stck_init_preds[b_i, 1, :, :, :]
                                 s_ind = f_inds[b_i, 0]
                                 f_ind = f_inds[b_i, 1]
@@ -2932,7 +2934,7 @@ def Controlled_Fast_Exp_logs():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-01-26_18-47-27'
-    end = 'Log_2023-01-26_18-47-27'
+    end = 'Log_2022-02-25_21-21-56'
 
     # Path to the results logs
     res_path = 'results'
@@ -3007,6 +3009,83 @@ def Controlled_Fast_Exp_logs():
 
     return logs, logs_names, all_wanted_s, all_wanted_f
 
+
+def Controlled_v2_logs():
+    """
+    Here we use v2 of the data, including three more runs for face to face scenario
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-02-25_21-21-57'
+    end = 'Log_2022-02-27_21-21-57'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['60/40_3s/30',
+                  '60/40_4s/20',
+                  'etc']
+
+    # Copy here the indices you selected with gui
+    # all_wanted_s = []
+    # all_wanted_f = []
+    all_wanted_s = ['2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2021-12-13_18-16-27',
+                    '2021-12-13_18-16-27',
+                    '2021-12-13_18-16-27',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-15-40',
+                    '2022-01-18_11-20-21',
+                    '2022-01-18_11-20-21',
+                    '2022-01-18_11-20-21',
+                    '2022-01-18_11-20-21',
+                    '2022-01-18_11-20-21',
+                    '2022-01-18_11-20-21',
+                    '2021-06-02-20-33-09',
+                    '2021-06-02-20-33-09']
+    all_wanted_f = [1656,
+                    1716,
+                    1746,
+                    714,
+                    743,
+                    919,
+                    438,
+                    462,
+                    576,
+                    608,
+                    619,
+                    1110,
+                    1153,
+                    1355,
+                    324,
+                    354,
+                    1135,
+                    1159,
+                    1549,
+                    1580,
+                    74,
+                    648]
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main call
@@ -3022,9 +3101,9 @@ if __name__ == '__main__':
 
     # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
@@ -3032,7 +3111,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Controlled_Fast_Exp_logs()
+    logs, logs_names, all_wanted_s, all_wanted_f = Controlled_v2_logs()
 
 
     # Check that all logs are of the same dataset. Different object can be compared

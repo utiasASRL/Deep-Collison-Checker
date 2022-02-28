@@ -3565,6 +3565,8 @@ class MyhalCollisionDataset(PointCloudDataset):
             
             # Verify time are synchronized between frames and predictions
             future_dt = self.config.T_2D / self.config.n_2D_layers
+            frame_dt = 0.1
+
 
             # Assertion not true for simulation => Do that assertion once on a mean in the beginining
             # assert(abs(future_dt - (float(self.frames[s_ind][f_ind]) - float(self.frames[s_ind][f_ind - 1]))) < 0.03)
@@ -3584,13 +3586,17 @@ class MyhalCollisionDataset(PointCloudDataset):
             else:
 
                 # We load one more before and after to be sure to have all data
-                i0_2D = - self.config.n_frames
-                i1_2D = self.config.n_2D_layers + 2
                 pts_2D = []
                 times_2D = []
                 labels_2D = []
                 orig_t = float(self.frames[s_ind][f_ind])
-                for i_2D in range(i0_2D, i1_2D):
+                i_2D = - self.config.n_frames
+                f_t0 = -1
+                while (f_t0 < self.config.T_2D):
+
+                    # We need too far into the future, invalid input
+                    if (f_ind + i_2D >= self.frames[s_ind].shape[0]):
+                        return None, None
 
                     # Get groundtruth in 2D points format
                     future_name = self.frames[s_ind][f_ind + i_2D]
@@ -3602,7 +3608,10 @@ class MyhalCollisionDataset(PointCloudDataset):
                     labels_2D.append(data['classif'])
 
                     # Handle time
-                    times_2D.append(data['t'] + (float(future_name) - orig_t))
+                    f_t0 = float(future_name) - orig_t
+                    times_2D.append(data['t'] + f_t0)
+
+                    i_2D += 1
 
                 pts_2D = np.vstack(pts_2D)
                 times_2D = np.hstack(times_2D)
@@ -3613,19 +3622,23 @@ class MyhalCollisionDataset(PointCloudDataset):
             pts_2D = np.hstack((pts_2D, np.zeros_like(pts_2D[:, :1])))
             pts_2D = np.sum(np.expand_dims(pts_2D, 2) * R, axis=1) * scale
 
+            # List the timestamps we want for each SOGM layers
+            init_stamps = (np.arange(self.config.n_frames).astype(np.float32) - (self.config.n_frames - 1)) * frame_dt
+            future_stamps = np.arange(future_dt, self.config.T_2D + 0.1 * future_dt, future_dt)
+            timestamps = np.hstack((init_stamps, future_stamps))
+
             # For each time get the closest annotation
-            timestamps = np.arange(-(self.config.n_frames - 1) * future_dt, self.config.T_2D + 0.5 * future_dt, future_dt)
             future_imgs = []
             try:
                 for future_t in timestamps:
 
                     # Valid points for this timestamps are in the time range dt/2
                     # TODO: Here different valid times for different classes
-                    valid_mask = np.abs(times_2D - future_t) < future_dt / 2
+                    valid_mask = np.abs(times_2D - future_t) < frame_dt / 2
                     extension = 1
                     while np.sum(valid_mask) < 1 and extension < 5:
                         extension += 1
-                        valid_mask = np.abs(times_2D - future_t) < future_dt * extension / 2
+                        valid_mask = np.abs(times_2D - future_t) < frame_dt * extension / 2
 
                     valid_pts = pts_2D[valid_mask, :]
                     valid_labels = labels_2D[valid_mask]
@@ -3653,9 +3666,12 @@ class MyhalCollisionDataset(PointCloudDataset):
                     # Append
                     future_imgs.append(np.stack((future_2, future_3, future_4), axis=2))
 
-            except RuntimeError:
+            except RuntimeError as e:
                 # Temporary bug fix when no neighbors at all we just skip this one
-                print('ERROR')
+                print('------------------')
+                print('ERROR in the future groundtruth generation. either a frame is missing or timings are not synchronized correctly. Error message:')
+                print(e)
+                print('------------------')
                 return None, None
 
             # Stack future images

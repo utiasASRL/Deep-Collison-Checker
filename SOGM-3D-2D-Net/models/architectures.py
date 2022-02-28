@@ -1400,12 +1400,15 @@ class KPCollider(nn.Module):
             # Binary cross entropy loss for multilable classification (because the labels are not mutually exclusive)
             # Only apply loss to part of the empyty space to reduce unbalanced classes
 
+            # Indice of the initial frame (latest of the input frames)
+            i0 = self.n_frames - 1
+
             # Init loss for initial class probablitities => shapes = [B, 1, L_2D, L_2D, 3]
-            self.init_2D_loss = self.power_2D_init_loss * self.criterion_2D(preds_init_2D[:, 0, :, :, :], batch.future_2D[:, self.n_frames - 1, :, :, :])
+            self.init_2D_loss = self.power_2D_init_loss * self.criterion_2D(preds_init_2D[:, 0, :, :, :], batch.future_2D[:, i0, :, :, :])
 
             # Init loss for merged future class probablitities => shapes = [B, 1, L_2D, L_2D, 3]
-            merged_future = batch.future_2D[:, self.n_frames - 1, :, :, :].detach().clone()
-            max_v, _ = torch.max(batch.future_2D[:, :, :, :, 2], dim=1)
+            merged_future = batch.future_2D[:, i0, :, :, :].detach().clone()
+            max_v, _ = torch.max(batch.future_2D[:, i0:, :, :, 2], dim=1)
             merged_future[:, :, :, 2] = max_v
             self.init_2D_loss += self.power_2D_init_loss * self.criterion_2D(preds_init_2D[:, 1, :, :, :], merged_future)
             

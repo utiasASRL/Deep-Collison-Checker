@@ -1490,10 +1490,11 @@ class ModelTrainer:
                 
 
                 # Get the 2D predictions and gt (init_2D)
+                i_frame0 = config.n_frames - 1
                 img0 = stck_init_preds[b_i, 0, :, :, :]
-                gt_im0 = np.copy(stck_future_gts[b_i, config.n_frames - 1, :, :, :])
-                gt_im1 = stck_future_gts[b_i, config.n_frames - 1, :, :, :]
-                gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, :, :, :, 2], axis=0)
+                gt_im0 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                gt_im1 = stck_future_gts[b_i, i_frame0, :, :, :]
+                gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, i_frame0:, :, :, 2], axis=0)
                 img1 = stck_init_preds[b_i, 1, :, :, :]
 
                 
