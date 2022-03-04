@@ -104,7 +104,7 @@ class MyhalCollisionConfig(Config):
     ######################
 
     # Number of propagating layer
-    n_2D_layers = 25
+    n_2D_layers = 50
 
     # Total time propagated
     T_2D = 5.0

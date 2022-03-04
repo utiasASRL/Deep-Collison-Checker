@@ -167,34 +167,39 @@ if __name__ == '__main__':
                   '2021-12-06_08-44-07',    # -   > First runs with controller for mapping of the environment
                   '2021-12-06_08-51-29',    # -  /
                   '2021-12-06_08-54-58',    # - /
-                  '2021-12-10_13-32-10',    # - \
-                  '2021-12-10_13-26-07',    # -  \
-                  '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
-                  '2021-12-10_13-06-09',    # -  /
+                  '2021-12-10_13-32-10',    # 5 \
+                  '2021-12-10_13-26-07',    # 6  \
+                  '2021-12-10_13-17-29',    # 7   > Session with normal TEB planner
+                  '2021-12-10_13-06-09',    # 8  /
                   '2021-12-10_12-53-37',    # - /
                   '2021-12-13_18-16-27',    # - \
                   '2021-12-13_18-22-11',    # -  \
                   '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
                   '2021-12-15_19-13-03']    # -  /
 
-    train_days += ['2022-01-18_10-38-28',   # - \
-                   '2022-01-18_10-42-54',   # -  \
-                   '2022-01-18_10-47-07',   # -   \
-                   '2022-01-18_10-48-42',   # -    \
-                   '2022-01-18_10-53-28',   # -     > Sessions with normal TEB planner on loop_3
-                   '2022-01-18_10-58-05',   # -     > Simple scenarios for experiment
-                   '2022-01-18_11-02-28',   # -    /
-                   '2022-01-18_11-11-03',   # -   /
-                   '2022-01-18_11-15-40',   # -  /
-                   '2022-01-18_11-20-21']   # - /
+    train_days += ['2022-01-18_10-38-28',   # 14 \
+                   '2022-01-18_10-42-54',   # -   \
+                   '2022-01-18_10-47-07',   # -    \
+                   '2022-01-18_10-48-42',   # -     \
+                   '2022-01-18_10-53-28',   # -      > Sessions with normal TEB planner on loop_3
+                   '2022-01-18_10-58-05',   # -      > Simple scenarios for experiment
+                   '2022-01-18_11-02-28',   # 20    /
+                   '2022-01-18_11-11-03',   # -    /
+                   '2022-01-18_11-15-40',   # -   /
+                   '2022-01-18_11-20-21']   # -  /
                    
 
-    train_days += ['2022-02-25_18-19-12',   # - \
-                   '2022-02-25_18-24-30',   # -  > Face to face scenario on (loop_2)
-                   '2022-02-25_18-29-18']   # - /
+    train_days += ['2022-02-25_18-19-12',   # 24 \
+                   '2022-02-25_18-24-30',   # -   > Face to face scenario on (loop_2)
+                   '2022-02-25_18-29-18']   # -  /
+
+    train_days += ['2022-03-01_22-01-13',   # 27 \
+                   '2022-03-01_22-06-28',   # -   > More data (loop_2inv and loop8)
+                   '2022-03-01_22-19-41',   # -   > face to face and crossings
+                   '2022-03-01_22-25-19']   # -  /
 
     map_i = 3
-    refine_i = np.array([0, 6, 7, 8])
+    refine_i = np.array([0, 6, 7, 8, 14, 20, 24, 27])
     train_i = np.arange(len(train_days))[5:]
          
     map_day = train_days[map_i]
@@ -209,7 +214,5 @@ if __name__ == '__main__':
     # show_2D_SOGMS(dataset_path, train_days, map_day=map_day)
 
     # get_videos(dataset_path, train_days, map_day=map_day)
-    
-    # TODO: Verify last three folders annotated, and then add then to train script
 
 

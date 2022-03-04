@@ -1075,6 +1075,8 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     comparison_ingts = []
     comparison_preds = []
     visu_paths = []
+    horizons = []
+    n_2D_layers = []
     for chosen_log, log_name in zip(list_of_paths, list_of_names):
 
         ############
@@ -1084,6 +1086,8 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
         # Load parameters
         config = Config()
         config.load(chosen_log)
+        n_2D_layers.append(config.n_2D_layers)
+        horizons.append(config.T_2D)
 
         # Find all checkpoints in the chosen training folder
         chkp_path = join(chosen_log, 'checkpoints')
@@ -1189,7 +1193,6 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
             all_ingts = []
 
             # Load every file
-            
             for chkp_i, chkp in enumerate(chkps):
                 if chkp_i in wanted_chkp_mod:
                     chkp_preds = []
@@ -1438,7 +1441,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     # #
 
     # for frame_i, w_i in enumerate(wanted_inds):
-    #     collision_risk = comparison_preds[0, frame_i]
+    #     collision_risk = comparison_preds[0][frame_i]
 
     #     fig1, anim1 = show_local_maxima(collision_risk[..., 2], neighborhood_size=5, threshold=0.1, show=False)
     #     fig2, anim2 = show_risk_diffusion(collision_risk, dl=0.12, diff_range=2.5, show=False)
@@ -1469,14 +1472,65 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     # Visualizations
     ################
 
-    # GT is the same for all chkp => [frames_n, T, H, W, 3]
-    comparison_gts = comparison_gts[0]
+    # Choose a  checkpoint for each log 
+    chosen_chkp = -1
+    comparison_preds = [cp[chosen_chkp] for cp in comparison_preds]
+
+    # Preds do not have the same hozizon and frequency
+    dts = [t / n for t, n in zip(horizons, n_2D_layers)]
+    t_max = np.max(horizons)
+    dt_max = np.min(dts)
+    display_times = np.arange(dt_max, t_max + 0.1 * dt_max, dt_max) - 1e-6
+
+    # Stack: comparison_preds shape: [log_n, frames_n, T_disp, H, W, 3]
+    nT_max = np.max([cp.shape[-4] for cp in comparison_preds])
+    new_preds = []
+    for cp_i, cp in enumerate(comparison_preds):
+        t = horizons[cp_i]
+        dt = dts[cp_i]
+        cp_times = np.arange(dt, t + 0.1 * dt, dt)
+        interp_inds = [np.argmin(np.abs(cp_times - cp_t)) for cp_t in display_times]
+        new_preds.append(np.copy(cp[:, interp_inds]))
+    comparison_preds = np.stack(new_preds, axis=0)
+
+    # # GT is the same for all chkp => [frames_n, T, H, W, 3]
+    # comparison_gts = comparison_gts[0]
+    # comparison_ingts = comparison_ingts[0]
+
+    # Handle groundtruth too
+    new_gts = []
+    new_gts_v = []
+    for gt_i, gt in enumerate(comparison_gts):
+        t = horizons[gt_i]
+        dt = dts[gt_i]
+        gt_times = np.arange(dt, t + 0.1 * dt, dt)
+        interp_inds = [np.argmin(np.abs(gt_times - gt_t)) for gt_t in display_times]
+        interp_v = [np.min(np.abs(gt_times - gt_t)) for gt_t in display_times]
+        new_gts.append(np.copy(gt[:, interp_inds]))
+        new_gts_v.append(interp_v)
+
+    # take the best interp value (which had the closest interpolator)
+    new_gts = np.stack(new_gts, axis=0)
+    new_gts_v = np.stack(new_gts_v, axis=0)
+    inds00 = np.argmin(new_gts_v, axis=0)
+    inds01 = np.arange(inds00.shape[0])
+    comparison_gts = np.transpose(new_gts[inds00, :, inds01, :, :, :], axes=(1, 0, 2, 3, 4))
+    
+    # Input gt is always the same
     comparison_ingts = comparison_ingts[0]
 
-    # All predictions shape: [log_n, frames_n, T, H, W, 3]
-    chosen_chkp = -1
-    comparison_preds = np.stack([cp[chosen_chkp] for cp in comparison_preds], axis=0)
-   
+
+    #
+    #
+    # TMP: multip;y prediction to see small values
+    print(np.min(comparison_preds), np.max(comparison_preds))
+    comparison_preds *= 2.0
+    comparison_preds = np.minimum(comparison_preds, 0.99)
+    print(np.min(comparison_preds), np.max(comparison_preds))
+    #
+    #
+
+    
     all_merged_imgs = []
     # Advanced display
     N = len(wanted_inds)
@@ -1676,6 +1730,8 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
     comparison_TP_FP_FN = []
     comparison_MSE = []
     all_chkps = []
+    horizons = []
+    n_2D_layers = []
 
     for i_chosen_log, chosen_log in enumerate(list_of_paths):
 
@@ -1686,6 +1742,8 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
         # Load parameters
         config = Config()
         config.load(chosen_log)
+        n_2D_layers.append(config.n_2D_layers)
+        horizons.append(config.T_2D)
 
         # Change parameters for the test here. For example, you can stop augmenting the input data.
         config.augment_noise = 0
@@ -1991,6 +2049,17 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
     wanted_f_inds = [s_f_inds[1] for s_f_inds in test_dataset.all_inds]
     is_sim = np.array([test_dataset.sim_sequences[s_ind] for s_ind in wanted_s_inds])
 
+
+    # Stack: comparison_preds shape: [log_n, frames_n, T_disp, H, W, 3]
+    dts = [t / n for t, n in zip(horizons, n_2D_layers)]
+    log_times = []
+    for log_i, mse in enumerate(comparison_MSE):
+        t = horizons[log_i]
+        dt = dts[log_i]
+        log_times.append(np.arange(dt, t + 0.1 * dt, dt))
+
+
+
     if False:
 
         # Figure
@@ -2033,9 +2102,16 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
         plt.subplots_adjust(bottom=0.2)
 
         # Init threshold
-        max_Nt = np.max([aaa.shape[-3] for aaa in comparison_TP_FP_FN])
-        allowed_times = (np.arange(max_Nt, dtype=np.float32) + 1) * config.T_2D / config.n_2D_layers
-        time_step = config.T_2D / config.n_2D_layers
+        min_dt = np.min(dts)
+        max_t = np.max(horizons)
+        allowed_times = np.arange(min_dt, max_t + 0.1 * min_dt, min_dt)
+        
+        # for log_i, log_t in enumerate(log_times):
+        #     t = horizons[log_i]
+        #     dt = dts[log_i]
+        #     log_t = np.arange(dt, t + 0.1 * dt, dt)
+            
+        time_step = min_dt
         time_ind_0 = 9
         time_0 = allowed_times[time_ind_0]
 
@@ -2094,12 +2170,12 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
 
         # The function to be called anytime a slider's value changes
         def update_PR(val):
-            time_ind = (int)(np.round(val * config.n_2D_layers / config.T_2D)) - 1
-            for preA, recA, plotsA in zip([real_preA, sim_preA], [real_recA, sim_recA], [real_plotsA, sim_plotsA]):
-                for plot_i, log_plot in enumerate(plotsA):
-                    if time_ind < preA[plot_i].shape[0]:
-                        log_plot.set_xdata(recA[plot_i][time_ind])
-                        log_plot.set_ydata(preA[plot_i][time_ind])
+            for log_i, _ in enumerate(log_times):
+                time_ind = (int)(np.round(val * n_2D_layers[log_i] / horizons[log_i])) - 1
+                for preA, recA, plotsA in zip([real_preA, sim_preA], [real_recA, sim_recA], [real_plotsA, sim_plotsA]):
+                    if time_ind < preA[log_i].shape[0]:
+                        plotsA[log_i].set_xdata(recA[log_i][time_ind])
+                        plotsA[log_i].set_ydata(preA[log_i][time_ind])
 
         # register the update function with each slider
         time_slider.on_changed(update_PR)
@@ -2270,10 +2346,8 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
             all_TP_FP_FN = comparison_TP_FP_FN[i][-1]
 
             # Init x-axis values
-            times = np.arange(comparison_TP_FP_FN[i].shape[-3])
-            times = times.astype(np.float32) / 10
+            times = log_times[i]
             
-
             # All stats from real and sim sequences [T, nt, 3]
             real_TP_FP_FN = np.sum(all_TP_FP_FN[np.logical_not(is_sim)], axis=0)
             sim_TP_FP_FN = np.sum(all_TP_FP_FN[is_sim], axis=0)
@@ -2319,13 +2393,17 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                 else:
                     s += '    '
 
-                s += '{:^10.5f}'.format(100*AP[10])
-                s += '{:^10.5f}'.format(100*AP[20])
-                s += '{:^10.5f}'.format(100*np.mean(AP))
+                ind1 = np.argmin(np.abs(times - 1.0))
+                ind2 = np.argmin(np.abs(times - 2.0))
+                ind3 = np.argmin(np.abs(times - np.min(horizons)))
+
+                s += '{:^10.5f}'.format(100*AP[ind1])
+                s += '{:^10.5f}'.format(100*AP[ind2])
+                s += '{:^10.5f}'.format(100*np.mean(AP[:ind3]))
                 s += '{:^12.5f}'.format(10000 * np.mean(MSE))
 
-                ax.plot(times, AP[best_mean], linewidth=1, label=name)
-                ax.plot(times, f1s[best_mean], linewidth=1, label=name)
+                ax.plot(times[:-1], AP[:-1], linewidth=1, label=name)
+                #ax.plot(times, f1s[best_mean], linewidth=1, label=name)
 
             print(s)
 
@@ -3017,7 +3095,7 @@ def Controlled_v2_logs():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-02-25_21-21-57'
-    end = 'Log_2022-02-27_21-21-57'
+    end = 'Log_2022-03-02_14-32-20'
 
     # Path to the results logs
     res_path = 'results'
@@ -3033,6 +3111,8 @@ def Controlled_v2_logs():
     logs_names = ['60/40_3s/30',
                   '60/40_4s/20',
                   '60/40_5s/25',
+                  '60/40_4s/40',
+                  '60/40_5s/50',
                   'etc']
 
     # Copy here the indices you selected with gui
@@ -3100,11 +3180,11 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
     # plotting = 'PR'  # Comparison of the performances with good metrics
 
-    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
