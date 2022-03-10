@@ -311,8 +311,8 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	float inv_theta_dl = 1.0 / theta_dl;
 	float inv_phi_dl = 1.0 / phi_dl;
 	inv_dl = 1.0 / dl;
-	//float max_angle = 5 * M_PI / 12;
-	//float min_vert_cos = cos(M_PI / 3);
+	float min_cos_angle = cos(5 * M_PI / 12);
+	float min_vert_cos = cos(5 * M_PI / 12);
 	bool motion_distortion = n_slices > 1;
 
 	// Convert alignment matrices to float
@@ -907,26 +907,25 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 			// Update movable prob
 			if (best_rtp.x > min_r && best_rtp.x < frustum_radiuses[gridIdx])
 			{
+				
+				// To avoid removing walls, we do not update when these conditions are met alltogether:
+				// 	> point normal is nearly horizontal
+				bool condition = abs(best_nxyz.z) < min_vert_cos;
 
+				//	> Angle between normal and ray is nearly pi/2
+				float cos_angle = abs(best_xyz.dot(best_nxyz) / best_rtp.x);
+				condition = condition && (cos_angle < min_cos_angle);
 
-				movable_counts[p_i] += 1;
-				movable_probs[p_i] += 1.0;
+				// //  > point is located in further than XX% of the ray.
+				// float min_ray_dist = 0.5;
+				// condition = condition && (best_rtp.x > min_ray_dist * frustum_radiuses[gridIdx]);
 
-				// // Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
-				// if (abs(best_nxyz.z) > min_vert_cos)
-				// {
-				// 	movable_counts[p_i] += 1;
-				// 	movable_probs[p_i] += 1.0;
-				// }
-				// else
-				// {
-				// 	float angle = acos(min(abs(best_xyz.dot(best_nxyz) / best_rtp.x), 1.0f));
-				// 	if (angle < max_angle)
-				// 	{
-				// 		movable_counts[p_i] += 1;
-				// 		movable_probs[p_i] += 1.0;
-				// 	}
-				// }
+				// Do not update if normal is horizontal and perpendicular to ray (to avoid removing walls)
+				if (!condition)
+				{
+					movable_counts[p_i] += 1;
+					movable_probs[p_i] += 1.0;
+				}
 			}
 		}
 

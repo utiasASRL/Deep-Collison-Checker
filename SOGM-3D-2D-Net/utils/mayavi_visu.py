@@ -87,11 +87,17 @@ class Box:
     def inside(self, x, y, margin=0):
 
         if margin == 0:
-            return self.x1 < x < self.x2 \
-                   and self.y1 < y < self.y2
+            return self.x1 < x < self.x2 and self.y1 < y < self.y2
         else:
-            return self.x1 - margin < x < self.x2 + margin \
-                   and self.y1 - margin < y < self.y2 + margin
+            return self.x1 - margin < x < self.x2 + margin and self.y1 - margin < y < self.y2 + margin
+
+    def np_inside(self, X):
+
+        inside_mask = np.logical_and(self.x1 < X[:, 0], X[:, 0] < self.x2)
+        inside_mask = np.logical_and(inside_mask, self.y1 < X[:, 1])
+        inside_mask = np.logical_and(inside_mask, X[:, 1] < self.y2)
+
+        return inside_mask
 
     def min_box_repulsive_vector(self, pos):
 

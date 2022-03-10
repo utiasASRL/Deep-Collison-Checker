@@ -37,6 +37,7 @@ from slam.cpp_slam import update_pointmap, polar_normals, point_to_map_icp, \
     slam_on_sim_sequence, ray_casting_annot, slam_on_real_sequence
 from slam.dev_slam import normal_filtering, bundle_icp, frame_H_to_points, estimate_normals_planarity_debug, \
     cart2pol, get_odometry, ssc_to_homo, extract_ground, save_trajectory, filter_frame_timestamps, extract_flat_ground
+from utils.sparse_morpho import sparse_point_opening, sparse_point_closing
 
 #from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from sklearn.neighbors import KDTree
@@ -1883,6 +1884,7 @@ def annotation_process(dataset,
     map_points = np.vstack((data['x'], data['y'], data['z'])).T
     map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
     map_scores = data['scores']
+    map_classif = data['classif']
     print('OK')
 
     # Load hardcoded map limits
@@ -1986,21 +1988,85 @@ def annotation_process(dataset,
             # Load traj
             with open(cpp_traj_name, 'rb') as f:
                 correct_H = pickle.load(f)
-
-        # Load c++ map
-        data = read_ply(cpp_map_name)
-        day_points = np.vstack((data['x'], data['y'], data['z'])).T
-        day_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-        day_oldests = data['f0']
             
         # height_mask = np.logical_and(day_points[:, 2] < 1.8, day_points[:, 2] > -0.4)
         # day_points = day_points[height_mask]
         # day_normals = day_normals[height_mask]
         # day_counts = day_counts[height_mask]
 
+        ########################
+        # Step 3: Get map points
+        ########################
+        #
+        #   We can start by annotating ghround and stillpoints 
+        #   and we will not have to include them in the ray tracing
+        #
+
+        buffer_name = join(out_folder, 'buffer_{:s}.ply'.format(day))
+        if not exists(buffer_name):
+            
+            print('\nGetting still points and ground\n')
+
+            # Load c++ map
+            data = read_ply(cpp_map_name)
+            day_points = np.vstack((data['x'], data['y'], data['z'])).T
+            day_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            day_oldests = data['f0']
+
+            # get mask of the points outside the map area
+            inside_mask = np.logical_and(min_z < day_points[:, 2], day_points[:, 2] < max_z)
+            inside_mask = np.logical_and(inside_mask, lim_box.np_inside(day_points))
+
+            # Remove anything outside the map
+            day_points = day_points[inside_mask]
+            day_normals = day_normals[inside_mask]
+            day_oldests = day_oldests[inside_mask]
+
+            # Get the new points
+            new_pts = day_points[day_oldests > -0.5]
+            new_normals = day_normals[day_oldests > -0.5]
+
+            # Use binary point closing to get still labels
+            buffer_pts = np.vstack((map_points, new_pts))
+            buffer_normals = np.vstack((map_normals, new_normals))
+            buffer_classif = np.hstack((map_classif, np.zeros((new_pts.shape[0],), dtype=np.int32)))
+            new_mask = buffer_classif == 0
+            still_mask = buffer_classif == 2
+            closed_still_mask = sparse_point_closing(buffer_pts,
+                                                     positive_mask=still_mask,
+                                                     negative_mask=new_mask,
+                                                     dilate_d=0.95,
+                                                     erode_d=0.9)
+
+            buffer_classif[closed_still_mask] = 2
+
+            # Use plane for ground
+            new_ground_mask = extract_flat_ground(buffer_pts,
+                                                  dist_thresh=0.2,
+                                                  remove_dist=0.17)
+
+            buffer_classif[new_ground_mask] = 1
+
+            # Save annotated buffer_map
+            write_ply(buffer_name,
+                      [buffer_pts, buffer_normals, buffer_classif],
+                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'classif'])
+
+        else:
+            
+            
+            print('\nLoading previous still/ground\n')
+            data = read_ply(buffer_name)
+            buffer_pts = np.vstack((data['x'], data['y'], data['z'])).T
+            buffer_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+            buffer_classif = data['classif']
+
         ######################
-        # Step 3: Get Movables
+        # Step 4: Get Movables
         ######################
+
+        ray_pts = buffer_pts[buffer_classif == 0]
+        ray_normals = buffer_normals[buffer_classif == 0]
 
         old_movable_name = join(out_folder, 'debug_movable.ply')
         movable_name = join(out_folder, 'movables_{:s}.ply'.format(day))
@@ -2013,8 +2079,8 @@ def annotation_process(dataset,
 
             # Get short term movables
             movable_prob, movable_count = ray_casting_annot(frame_names,
-                                                            day_points,
-                                                            day_normals,
+                                                            ray_pts,
+                                                            ray_normals,
                                                             correct_H,
                                                             theta_dl=0.33 * np.pi / 180,
                                                             phi_dl=0.5 * np.pi / 180,
@@ -2028,7 +2094,7 @@ def annotation_process(dataset,
 
             # Optionnal debug
             write_ply(movable_name,
-                      [day_points, day_normals, movable_prob, long_prob, movable_count],
+                      [ray_pts, ray_normals, movable_prob, long_prob, movable_count],
                       ['x', 'y', 'z', 'nx', 'ny', 'nz', 'shortT', 'longT', 'counts'])
 
         else:
@@ -2039,7 +2105,7 @@ def annotation_process(dataset,
             long_prob = data['longT']
 
         ######################
-        # Step 4: Annotate map
+        # Step 5: Annotate map
         ######################
         #   0 : "uncertain"
         #   1 : "ground"
@@ -2051,51 +2117,41 @@ def annotation_process(dataset,
         if not exists(annot_name):
             
             print('\nSaving annotated day map\n')
-
+            
             # Compute movable and dynamic points
             categories = np.zeros(movable_prob.shape, dtype=np.int32)
             categories[movable_prob > short_threshold] = 4
             categories[long_prob > long_threshold] = 3
-            
-            # get mask of the points outside the map area
-            outside_mask = np.logical_or(day_points[:, 2] < min_z, day_points[:, 2] > max_z)
-            outside_mask = np.logical_or(outside_mask, day_points[:, 0] < lim_box.x1)
-            outside_mask = np.logical_or(outside_mask, day_points[:, 0] > lim_box.x2)
-            outside_mask = np.logical_or(outside_mask, day_points[:, 1] < lim_box.y1)
-            outside_mask = np.logical_or(outside_mask, day_points[:, 1] > lim_box.y2)
-
-            # Still points come from map
-            valid_mask = np.logical_and(categories > 2, np.logical_not(outside_mask))
-            still_mask = double_still_reproj(day_points,
-                                             day_oldests,
-                                             valid_mask,
-                                             dist_thresh=0.2,
-                                             remove_dist=0.17)
-            categories[still_mask] = 2
-
-            # Ground overwrite every other class
-            ground_mask = extract_flat_ground(day_points,
-                                              dist_thresh=0.2,
-                                              remove_dist=0.17)
-            categories[ground_mask] = 1
-
-            # Points outside map limits are unclassified
-            categories[outside_mask] = 0
-
 
             # Dynamic and movable refine
             #   > First small groups of movables inside dynamic get eaten (margin = 0.12)
             #   > Then the remaining movables eat large group of dynamic (margin = 0.8)
             #   > Eventually, the remaining dynamic eat back some of their fellows (margin = 0.6)
-            categories = dynamic_movable_refine(day_points,
-                                                categories,
-                                                dynamic_margin=0.12,
-                                                movable_margin=0.8,
-                                                remove_dist=0.6)
+            dynamic_mask = categories == 4
+            movable_mask = categories == 3
+            closed_dynamic_mask = sparse_point_closing(ray_pts,
+                                                       positive_mask=dynamic_mask,
+                                                       negative_mask=movable_mask,
+                                                       dilate_d=0.12,
+                                                       erode_d=0.1)
+            categories[closed_dynamic_mask] = 4
+
+            for refine_d in [0.9, 0.4, 0.2]:
+                dynamic_mask = categories == 4
+                movable_mask = categories == 3
+                closed_movable_mask = sparse_point_closing(ray_pts,
+                                                           positive_mask=movable_mask,
+                                                           negative_mask=dynamic_mask,
+                                                           dilate_d=refine_d,
+                                                           erode_d=0.99 * refine_d)
+                categories[closed_movable_mask] = 3
+
+            # Get thses annot on the full map
+            buffer_classif[buffer_classif == 0] = categories
 
             # Save annotated day_map
             write_ply(annot_name,
-                      [day_points, categories],
+                      [buffer_pts, buffer_classif],
                       ['x', 'y', 'z', 'classif'])
 
         else:
@@ -2103,10 +2159,10 @@ def annotation_process(dataset,
             print('\nLoading previously annotated bufer\n')
 
             data = read_ply(annot_name)
-            categories = data['classif']
+            buffer_classif = data['classif']
 
         #############################
-        # Step 5: Reproject on frames
+        # Step 6: Reproject on frames
         #############################
 
         # Folder where we save the first annotated_frames
@@ -2128,7 +2184,7 @@ def annotation_process(dataset,
             if exists(ply_name):
                 continue
             elif map_tree is None:
-                map_tree = KDTree(day_points)
+                map_tree = KDTree(buffer_pts)
 
             t = [time.time()]
 
@@ -2160,10 +2216,15 @@ def annotation_process(dataset,
             #               [world_pts2, f_ts],
             #               ['x', 'y', 'z', 'time'])
             #     a = 1/0
+            
+            # get mask of the points outside the map area
+            inside_mask = np.logical_and(min_z < world_pts[:, 2], world_pts[:, 2] < max_z)
+            inside_mask = np.logical_and(inside_mask, lim_box.np_inside(world_pts))
 
             # Get closest map points
-            neighb_inds = np.squeeze(map_tree.query(world_pts, return_distance=False))
-            frame_classif = categories[neighb_inds]
+            neighb_inds = np.squeeze(map_tree.query(world_pts[inside_mask], return_distance=False))
+            frame_classif = np.zeros((world_pts.shape[0],), dtype=np.int32)
+            frame_classif[inside_mask] = buffer_classif[neighb_inds]
 
             # Get normals (useless for now)
             #frame_normals = day_normals[neighb_inds, :]
@@ -2213,6 +2274,18 @@ def extract_map_ground(points, normals, out_folder,
     return plane_mask
 
 
+
+
+
+
+def double_still_reproj(points, map_mask, valid_mask, dist_thresh=0.2, remove_dist=0.17):
+
+    positive_mask = map_mask
+
+
+
+
+
 def double_still_reproj(points, oldests, valid_mask, dist_thresh=0.2, remove_dist=0.17):
 
     # Points of the original map have a oldest == -1
@@ -2235,7 +2308,33 @@ def double_still_reproj(points, oldests, valid_mask, dist_thresh=0.2, remove_dis
     dists, inds = KDTree(others).query(candidates, 1)
     still_mask[still_mask] = np.squeeze(dists) > remove_dist
 
-    return still_mask
+    return still_mask, border_mask
+
+
+
+def double_still_reproj(points, oldests, valid_mask, dist_thresh=0.2, remove_dist=0.17):
+
+    # Points of the original map have a oldest == -1
+    old_map_mask = oldests < -0.5
+    new_pts_mask = np.logical_not(old_map_mask)
+    old_map_pts = points[old_map_mask]
+
+    # Get points within range of old map
+    old_tree = KDTree(old_map_pts)
+    dists, inds = old_tree.query(points[new_pts_mask], 1)
+    still_mask = old_map_mask
+    still_mask[new_pts_mask] = np.squeeze(dists) < dist_thresh
+
+    # Of these candidates remove the one that are still in range of other points
+    # Other point only comprise movables/dynamic and in limits points
+    other_mask = np.logical_not(still_mask)
+    other_mask = np.logical_and(other_mask, valid_mask)
+    others = points[other_mask]
+    candidates = points[still_mask]
+    dists, inds = KDTree(others).query(candidates, 1)
+    still_mask[still_mask] = np.squeeze(dists) > remove_dist
+
+    return still_mask, border_mask
 
 
 def dynamic_movable_refine(day_points,

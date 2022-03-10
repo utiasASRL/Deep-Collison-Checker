@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
 
-def sparse_point_opening(pts_2D, postive_mask, negative_tree=None, negative_pts=None, negative_mask=None, d=1.0, erode_d=None, dilate_d=None):
+def sparse_point_opening(pts_2D, positive_mask, negative_tree=None, negative_pts=None, negative_mask=None, d=1.0, erode_d=None, dilate_d=None):
 
     # Like image binary opening but on sparse point positions in 3D
     # 1. negatives "eat" positives (erosion)
@@ -47,7 +47,7 @@ def sparse_point_opening(pts_2D, postive_mask, negative_tree=None, negative_pts=
             negative_pts = pts_2D[negative_mask]
 
         else:
-            negative_pts = pts_2D[np.logical_not(postive_mask)]
+            negative_pts = pts_2D[np.logical_not(positive_mask)]
 
         negative_tree = KDTree(negative_pts)
 
@@ -59,21 +59,50 @@ def sparse_point_opening(pts_2D, postive_mask, negative_tree=None, negative_pts=
         dilate_d = d
     
     # Get the dynamic points not in range of static
-    remaining_dyn_mask = np.copy(postive_mask)
-    if (np.any(remaining_dyn_mask)):
-        dists, inds = negative_tree.query(pts_2D[postive_mask], 1)
-        remaining_dyn_mask = np.copy(postive_mask)
-        remaining_dyn_mask[postive_mask] = np.squeeze(dists) > erode_d
+    rem_pos_mask = np.copy(positive_mask)
+    if (np.any(rem_pos_mask)):
+        dists, inds = negative_tree.query(pts_2D[positive_mask], 1)
+        rem_pos_mask = np.copy(positive_mask)
+        rem_pos_mask[positive_mask] = np.squeeze(dists) > erode_d
 
     # Get the dynamic in range of the remaining dynamic
-    opened_mask = np.copy(postive_mask)
-    if (np.any(remaining_dyn_mask)):
-        tree2 = KDTree(pts_2D[remaining_dyn_mask])
-        dists, inds = tree2.query(pts_2D[postive_mask], 1)
-        opened_mask[postive_mask] = np.squeeze(dists) < dilate_d
+    opened_mask = np.copy(positive_mask)
+    if (np.any(rem_pos_mask)):
+        tree2 = KDTree(pts_2D[rem_pos_mask])
+        dists, inds = tree2.query(pts_2D[positive_mask], 1)
+        opened_mask[positive_mask] = np.squeeze(dists) < dilate_d
 
     # Return the opened positive mask
     return opened_mask
+
+
+def sparse_point_closing(pts_2D, positive_mask, negative_mask=None, d=1.0, erode_d=None, dilate_d=None):
+
+    if erode_d is None:
+        erode_d = d
+
+    if dilate_d is None:
+        dilate_d = d
+
+    # Like image binary opening but on sparse point positions in 3D
+    # 1. positives "eat" negatives (dilation)
+    # 2. Remaining negatives "eat back" (erosion)
+
+    # Is equivalent to a opening from the negatives to the positives
+    if negative_mask is None:
+        negative_mask = np.logical_not(positive_mask)
+
+    openened_negatives = sparse_point_opening(pts_2D,
+                                              positive_mask=negative_mask,
+                                              negative_mask=positive_mask,
+                                              erode_d=dilate_d,
+                                              dilate_d=erode_d)
+
+    add_mask = np.logical_and(negative_mask, np.logical_not(openened_negatives))
+    closed_mask = np.logical_or(positive_mask, add_mask)
+
+    return closed_mask
+
 
 def create_circular_mask(h, w, center=None, radius=None):
 

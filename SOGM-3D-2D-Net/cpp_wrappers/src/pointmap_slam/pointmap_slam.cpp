@@ -267,6 +267,7 @@ void preprocess_frame(vector<PointXYZ> &f_pts,
 	
 }
 
+
 void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 								 vector<float> &f_ts,
 								 vector<int> &f_rings,
@@ -440,13 +441,39 @@ void PointMapSLAM::add_new_frame(vector<PointXYZ> &f_pts,
 					params.icp_params.ground_z = 0.0;
 				}
 
-				// 2. ICP refine
-				params.icp_params.init_transform = H_scannerToMap_init;
+				// 2. ICP refine. For robust init, we try different orientations
 				params.icp_params.motion_distortion = false;
-				if (map0.size() > 0)
-					PointToMapICP(sub_pts, sub_alphas, icp_scores, map0, params.icp_params, icp_results);
-				else
-					PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, icp_results);
+				float best_rms = 1e9;
+				Eigen::Matrix4d best_init = Eigen::Matrix4d::Identity();
+				for (float init_angle = -20.0; init_angle<21.0; init_angle+=5.0)
+				{
+					// Rotate initial transform in place
+					float init_radians = init_angle * M_PI / 180.0;
+					Eigen::Matrix3d R_init;
+					if (!rot_u_to_v(PointXYZ(1, 0, 0), PointXYZ(cos(init_radians), sin(init_radians), 0), R_init))
+						R_init = Eigen::Matrix3d::Identity();
+
+							
+					params.icp_params.init_transform = H_scannerToMap_init;
+					params.icp_params.init_transform.block(0, 0, 3, 3) = R_init * params.icp_params.init_transform.block(0, 0, 3, 3);
+
+					ICP_results tmp_results;
+					if (map0.size() > 0)
+						PointToMapICP(sub_pts, sub_alphas, icp_scores, map0, params.icp_params, tmp_results);
+					else
+						PointToMapICP(sub_pts, sub_alphas, icp_scores, map, params.icp_params, tmp_results);
+
+					// Measure quality of the icp alignement
+					if (tmp_results.all_rms[tmp_results.all_rms.size() - 1] < best_rms)
+					{
+						best_rms = tmp_results.all_rms[tmp_results.all_rms.size() - 1];
+						icp_results = tmp_results;
+						best_init = params.icp_params.init_transform;
+					}
+
+				}
+				
+				params.icp_params.init_transform = best_init;
 				params.icp_params.motion_distortion = params.motion_distortion;
 
 				// We override last_transform0 too to neglate motion distortion for this first frame
@@ -1097,13 +1124,15 @@ Eigen::MatrixXd call_on_real_sequence(string& frame_names,
 		vector<int> rings;
 		load_frame(line, f_pts, timestamps, rings, loc_labels, save_path, time_name, ring_name);
 
-		// Map this frame
-		// **************
-
 		clock_t t0 = clock();
 
 		// Get odometry matrix (pose of the scanner in odometry world frame)
 		Eigen::Matrix4d H_OdomToScanner = odom_H.block(frame_ind * 4, 0, 4, 4);
+
+
+		// Map this frame
+		// **************
+
 
 		// Get timestamps
 		float frame_time = (float)(frame_times[frame_ind] - timestamp_0);

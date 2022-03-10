@@ -1808,7 +1808,7 @@ class MyhalCollisionSlam:
 
         return np.array(picked_loop_edges, dtype=np.int32)
 
-    def init_map(self, map_dl=0.03):
+    def init_map(self, map_dl=0.03, occup_threshold=0.8):
 
         # Map is initiated by removing movable points with its own trajectory
         #   > Step 0: REdo the point map from scratch
@@ -2000,7 +2000,7 @@ class MyhalCollisionSlam:
                                                             normals,
                                                             loop_H,
                                                             theta_dl=0.33 * np.pi / 180,
-                                                            phi_dl=0.5 * np.pi / 180,
+                                                            phi_dl=0.4 * np.pi / 180,
                                                             map_dl=map_dl,
                                                             verbose_time=5,
                                                             motion_distortion_slices=16)
@@ -2037,7 +2037,6 @@ class MyhalCollisionSlam:
 
         # TODO: C++ function for loop closure and flatten ground with ceres and pt2pl loss
         
-
         print('\n----- Get a finer barycenter map')
         
         correct_H = loop_H
@@ -2054,7 +2053,7 @@ class MyhalCollisionSlam:
             for _ in range(n_finer):
 
                 # remove movables
-                still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.8)
+                still_mask = np.logical_and(movable_prob > -0.1, movable_prob < occup_threshold)
                 still_mask = np.logical_or(still_mask, ground_mask)
                 still_mask = np.logical_and(still_mask, points[:, 0] > lim_box.x1)
                 still_mask = np.logical_and(still_mask, points[:, 0] < lim_box.x2)
@@ -2102,7 +2101,7 @@ class MyhalCollisionSlam:
                                                                 normals,
                                                                 correct_H,
                                                                 theta_dl=0.33 * np.pi / 180,
-                                                                phi_dl=0.5 * np.pi / 180,
+                                                                phi_dl=0.4 * np.pi / 180,
                                                                 map_dl=map_dl,
                                                                 verbose_time=5,
                                                                 motion_distortion_slices=16)
@@ -2147,7 +2146,7 @@ class MyhalCollisionSlam:
             normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
             scores = data['f1']
 
-            data = read_ply(join(map_folder, 'movable_final.ply'))
+            data = read_ply(join(map_folder, 'fine_movable_final.ply'))
             movable_prob = data['movable']
             movable_count = data['counts']
 
@@ -2157,7 +2156,7 @@ class MyhalCollisionSlam:
                                               remove_dist=0.24)
 
             # Remove movable except on ground
-            still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.8)
+            still_mask = np.logical_and(movable_prob > -0.1, movable_prob < occup_threshold)
             still_mask = np.logical_or(still_mask, ground_mask)
             still_mask = np.logical_and(still_mask, points[:, 0] > lim_box.x1)
             still_mask = np.logical_and(still_mask, points[:, 0] < lim_box.x2)
@@ -2176,7 +2175,7 @@ class MyhalCollisionSlam:
                                               remove_dist=0.24)
 
             # This time remove points with the refined ground
-            still_mask = np.logical_and(movable_prob > -0.1, movable_prob < 0.8)
+            still_mask = np.logical_and(movable_prob > -0.1, movable_prob < occup_threshold)
             still_mask = np.logical_or(still_mask, ground_mask)
             points = points[still_mask]
             normals = normals[still_mask]
@@ -2199,7 +2198,7 @@ class MyhalCollisionSlam:
 
         return
 
-    def refine_map(self, refine_days, map_dl=0.03, min_rays=10, occup_threshold=0.8):
+    def refine_map(self, refine_days, map_dl=0.03, min_rays=10, occup_threshold=0.8, merging_new_points=False):
         """
         Remove moving objects via ray-tracing. (Step 1 in the annotation process)
         """
@@ -2245,7 +2244,7 @@ class MyhalCollisionSlam:
         last_update_i = int(last_map[:-4].split('_')[-1])
 
         # Load map
-        print('Load last update of the map')
+        print('Load last update of the map: ', last_map)
         data = read_ply(join(map_folder, last_map))
         map_points = np.vstack((data['x'], data['y'], data['z'])).T
         map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
@@ -2312,9 +2311,9 @@ class MyhalCollisionSlam:
                                                   barycenter_map=True,
                                                   update_init_map=True,
                                                   verbose_time=5.0,
-                                                  icp_samples=600,
-                                                  icp_pairing_dist=2.0,
-                                                  icp_planar_dist=0.12,
+                                                  icp_samples=800,
+                                                  icp_pairing_dist=2.5,
+                                                  icp_planar_dist=0.20,
                                                   icp_max_iter=100,
                                                   icp_avg_steps=5)
 
@@ -2347,81 +2346,89 @@ class MyhalCollisionSlam:
         ##########################
 
 
-        print('\n----- Add points to the map')
 
-        merged_map_file = join(map_folder, 'merged_map.ply')
-        merged_list_file = join(map_folder, 'merged_list.txt')
-
-        # check if already merged
-        already_merged = False
-        if exists(merged_list_file):
-            merged_days = np.loadtxt(merged_list_file, dtype=str)
-            if (merged_days.shape[0] == refine_days.shape[0]):
-                already_merged = np.all(np.sort(refine_days) == np.sort(merged_days))
-        already_merged = already_merged and exists(merged_map_file)
-
-
-        if already_merged:
-
-            # Reload already merged map
-            data = read_ply(merged_map_file)
-            map_points = np.vstack((data['x'], data['y'], data['z'])).T
-            map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-            map_scores = data['scores']
+        # If the initial map is good enough you can pass this part 
+        if not merging_new_points:
             
-            print('\n    > Done (recovered from previous file)')
+            print('\n----- No new points added to the initial map')
+            print('\n    > Done')
 
         else:
 
-            # New merge map
-            for d, day in enumerate(refine_days):
-                    
-                # Load the barymap
-                out_folder = join(self.data_path, 'annotation', day)
-                fine_map_name = join(out_folder, 'barymap_{:s}.ply'.format(day))
-                data = read_ply(fine_map_name)
-                points = np.vstack((data['x'], data['y'], data['z'])).T
-                normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
-                scores = data['f1']
+            print('\n----- Add points to the map')
 
-                # remove points to far away
-                still_mask = np.logical_and(points[:, 2] > min_z, points[:, 2] < max_z)
-                still_mask = np.logical_and(still_mask, points[:, 0] > lim_box.x1)
-                still_mask = np.logical_and(still_mask, points[:, 0] < lim_box.x2)
-                still_mask = np.logical_and(still_mask, points[:, 1] > lim_box.y1)
-                still_mask = np.logical_and(still_mask, points[:, 1] < lim_box.y2)
-                points = points[still_mask]
-                normals = normals[still_mask]
-                scores = scores[still_mask]
+            merged_map_file = join(map_folder, 'merged_map.ply')
+            merged_list_file = join(map_folder, 'merged_list.txt')
 
-                # Simple function that merges two point maps and reduce the number of point by keeping only the best score per voxel
-                #  1 > Compute distances with original
-                #  2 > Compute double distance back to get the point we need to add 
-                #  3 > (slightly inferior to make sure we do not add point where there are already in the map)
-                #  4 > Merging maps by adding points
-                # TIP: if update normals=True, use very high merge dist to only update teh normals with the best scores
-                map_points, map_normals, map_scores, merge_i = merge_pointmaps(map_points,
-                                                                               map_normals,
-                                                                               map_scores,
-                                                                               add_points=points,
-                                                                               add_normals=normals,
-                                                                               add_scores=scores,
-                                                                               map_voxel_size=map_dl,
-                                                                               merge_dist=0.5,
-                                                                               barycenter_map=False)
+            # check if already merged
+            already_merged = False
+            if exists(merged_list_file):
+                merged_days = np.loadtxt(merged_list_file, dtype=str)
+                if (merged_days.shape[0] == refine_days.shape[0]):
+                    already_merged = np.all(np.sort(refine_days) == np.sort(merged_days))
+            already_merged = already_merged and exists(merged_map_file)
 
-                # write_ply(merged_map_file,
-                #           [map_points, map_normals, map_scores, merge_i],
-                #           ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'merge_i'])
-                # a = 1 / 0
+            if already_merged:
 
-            write_ply(merged_map_file,
-                      [map_points, map_normals, map_scores],
-                      ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores'])
+                # Reload already merged map
+                data = read_ply(merged_map_file)
+                map_points = np.vstack((data['x'], data['y'], data['z'])).T
+                map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+                map_scores = data['scores']
 
-            np.savetxt(merged_list_file, refine_days, fmt='%s')
+                print('\n    > Done (recovered from previous file)')
 
-            print('\n    > Done')
+            else:
+
+                # New merge map
+                for d, day in enumerate(refine_days):
+
+                    # Load the barymap
+                    out_folder = join(self.data_path, 'annotation', day)
+                    fine_map_name = join(out_folder, 'barymap_{:s}.ply'.format(day))
+                    data = read_ply(fine_map_name)
+                    points = np.vstack((data['x'], data['y'], data['z'])).T
+                    normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+                    scores = data['f1']
+
+                    # remove points to far away
+                    still_mask = np.logical_and(points[:, 2] > min_z, points[:, 2] < max_z)
+                    still_mask = np.logical_and(still_mask, points[:, 0] > lim_box.x1)
+                    still_mask = np.logical_and(still_mask, points[:, 0] < lim_box.x2)
+                    still_mask = np.logical_and(still_mask, points[:, 1] > lim_box.y1)
+                    still_mask = np.logical_and(still_mask, points[:, 1] < lim_box.y2)
+                    points = points[still_mask]
+                    normals = normals[still_mask]
+                    scores = scores[still_mask]
+
+                    # Simple function that merges two point maps and reduce the number of point by keeping only the best score per voxel
+                    #  1 > Compute distances with original
+                    #  2 > Compute double distance back to get the point we need to add
+                    #  3 > (slightly inferior to make sure we do not add point where there are already in the map)
+                    #  4 > Merging maps by adding points
+                    # TIP: if update normals=True, use very high merge dist to only update teh normals with the best scores
+                    map_points, map_normals, map_scores, merge_i = merge_pointmaps(map_points,
+                                                                                   map_normals,
+                                                                                   map_scores,
+                                                                                   add_points=points,
+                                                                                   add_normals=normals,
+                                                                                   add_scores=scores,
+                                                                                   map_voxel_size=map_dl,
+                                                                                   merge_dist=0.5,
+                                                                                   barycenter_map=False)
+
+                    # write_ply(join(map_folder, 'merged_map_{:03d}.ply'.format(d)),
+                    #           [map_points, map_normals, map_scores, merge_i],
+                    #           ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores', 'merge_i'])
+                    # a = 1/0
+
+                write_ply(merged_map_file,
+                          [map_points, map_normals, map_scores],
+                          ['x', 'y', 'z', 'nx', 'ny', 'nz', 'scores'])
+
+                np.savetxt(merged_list_file, refine_days, fmt='%s')
+
+                print('\n    > Done')
 
 
         ###################
@@ -2450,15 +2457,13 @@ class MyhalCollisionSlam:
                 correct_H = all_correct_H[d]
                 frame_names = all_frame_names[d]
 
-                print('GO?')
-
                 # Get short term movables
                 movable_prob, movable_count = ray_casting_annot(frame_names,
                                                                 map_points,
                                                                 map_normals,
                                                                 correct_H,
                                                                 theta_dl=0.33 * np.pi / 180,
-                                                                phi_dl=0.5 * np.pi / 180,
+                                                                phi_dl=0.4 * np.pi / 180,
                                                                 map_dl=map_dl,
                                                                 verbose_time=5.0,
                                                                 motion_distortion_slices=16)
@@ -2497,7 +2502,7 @@ class MyhalCollisionSlam:
                                           remove_dist=0.24)
 
         # Remove movable except on ground
-        still_mask = np.logical_and(all_movables_probs > -0.1, all_movables_probs < 0.8)
+        still_mask = np.logical_and(all_movables_probs > -0.1, all_movables_probs < occup_threshold)
         still_mask = np.logical_or(still_mask, ground_mask)
         still_mask = np.logical_and(still_mask, map_points[:, 0] > lim_box.x1)
         still_mask = np.logical_and(still_mask, map_points[:, 0] < lim_box.x2)
@@ -2516,7 +2521,7 @@ class MyhalCollisionSlam:
                                           remove_dist=0.24)
 
         # This time remove map_points with the refined ground
-        still_mask = np.logical_and(all_movables_probs > -0.1, all_movables_probs < 0.8)
+        still_mask = np.logical_and(all_movables_probs > -0.1, all_movables_probs < occup_threshold)
         still_mask = np.logical_or(still_mask, ground_mask)
         map_points = map_points[still_mask]
         map_normals = map_normals[still_mask]
