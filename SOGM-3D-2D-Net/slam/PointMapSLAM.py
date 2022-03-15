@@ -2029,8 +2029,8 @@ def annotation_process(dataset,
             # Use binary point closing to get still labels
             buffer_pts = np.vstack((map_points, new_pts))
             buffer_normals = np.vstack((map_normals, new_normals))
-            buffer_classif = np.hstack((map_classif, np.zeros((new_pts.shape[0],), dtype=np.int32)))
-            new_mask = buffer_classif == 0
+            buffer_classif = np.hstack((map_classif, np.zeros((new_pts.shape[0],), dtype=np.int32) - 1))
+            new_mask = buffer_classif == -1
             still_mask = buffer_classif == 2
             closed_still_mask = sparse_point_closing(buffer_pts,
                                                      positive_mask=still_mask,
@@ -2041,11 +2041,15 @@ def annotation_process(dataset,
             buffer_classif[closed_still_mask] = 2
 
             # Use plane for ground
-            new_ground_mask = extract_flat_ground(buffer_pts,
-                                                  dist_thresh=0.2,
-                                                  remove_dist=0.17)
+            large_ground_mask = extract_flat_ground(buffer_pts,
+                                                    dist_thresh=0.3,
+                                                    remove_dist=0.1)
+            fine_ground_mask = extract_flat_ground(buffer_pts,
+                                                   dist_thresh=0.2,
+                                                   remove_dist=0.15)
 
-            buffer_classif[new_ground_mask] = 1
+            buffer_classif[large_ground_mask] = 0
+            buffer_classif[fine_ground_mask] = 1
 
             # Save annotated buffer_map
             write_ply(buffer_name,
@@ -2065,8 +2069,8 @@ def annotation_process(dataset,
         # Step 4: Get Movables
         ######################
 
-        ray_pts = buffer_pts[buffer_classif == 0]
-        ray_normals = buffer_normals[buffer_classif == 0]
+        ray_pts = buffer_pts[buffer_classif == -1]
+        ray_normals = buffer_normals[buffer_classif == -1]
 
         old_movable_name = join(out_folder, 'debug_movable.ply')
         movable_name = join(out_folder, 'movables_{:s}.ply'.format(day))
@@ -2146,8 +2150,8 @@ def annotation_process(dataset,
                                                            erode_d=0.99 * refine_d)
                 categories[closed_movable_mask] = 3
 
-            # Get thses annot on the full map
-            buffer_classif[buffer_classif == 0] = categories
+            # Get these annot on the full map
+            buffer_classif[buffer_classif == -1] = categories
 
             # Save annotated day_map
             write_ply(annot_name,

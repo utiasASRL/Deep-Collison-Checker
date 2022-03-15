@@ -79,6 +79,8 @@ else
     if [ "$detach" = true ] ; then
         if [[ $command == *"python3 train_"* ]]; then
             command="$command results/Log_$now"
+        elif [[ $command == *"python3 annotate_"* ]]; then
+            command="$command results/Log_$now"
         fi
             
     fi

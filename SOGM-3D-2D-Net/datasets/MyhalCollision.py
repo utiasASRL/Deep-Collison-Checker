@@ -3999,9 +3999,10 @@ class MyhalCollisionSampler(Sampler):
                             label_count[label_v] = label_n
 
                             # Do not count dynamic points if we are not in interesting area
-                            if not self.dataset.sim_sequences[s_ind]:
-                                if p0[1] < 6 and p0[0] < 4:
-                                    label_count[-1] = 0
+                            # Only for Myhal 5th floor
+                            # if not self.dataset.sim_sequences[s_ind]:
+                            #     if p0[1] < 6 and p0[0] < 4:
+                            #         label_count[-1] = 0
 
                             all_pts[s_ind].append(centered_2D)
                             all_colors[s_ind].append(colormap[labels_2D])

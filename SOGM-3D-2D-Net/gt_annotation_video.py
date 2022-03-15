@@ -23,7 +23,7 @@
 
 # Common libs
 import numpy as np
-from utils.ply import read_ply
+from utils.ply import read_ply, write_ply
 
 #from mayavi import mlab
 import imageio
@@ -41,11 +41,17 @@ from scipy.spatial.transform import Rotation as scipyR
 from slam.dev_slam import filter_frame_timestamps
 from slam.PointMapSLAM import motion_rectified
 
+from scipy import ndimage
+
+from train_MyhalCollision import MyhalCollisionConfig
+from datasets.MyhalCollision import MyhalCollisionDataset
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Utilities
 #       \***************/
 #
+
 
 def robot_point_model():
 
@@ -57,7 +63,7 @@ def robot_point_model():
     x = np.linspace(min_x, max_x, nx)
     y = np.linspace(min_y, max_y, ny)
     xv, yv = np.meshgrid(x, y)
-    robot_pts = np.vstack((np.ravel(xv), np.ravel(yv), np.ravel(xv) * 0 + 0.3)).T
+    robot_pts = np.vstack((np.ravel(xv), np.ravel(yv), np.ravel(xv) * 0.02)).T
     robot_annots = (robot_pts[:, 0] * 0).astype(np.int32)
     colormap_robot = np.array([[0, 150, 0]], dtype=np.float32) / 255
 
@@ -151,7 +157,505 @@ def pcd_update_from_data(points, annots, pcd, colormap, normals=None):
         pcd.normals = o3d.utility.Vector3dVector(normals)
 
 
-def show_2D_SOGMS():
+def inspect_sogm_sessions(dataset_path, map_day, train_days):
+
+    print('\n')
+    print('------------------------------------------------------------------------------')
+    print('\n')
+    print('Start session inspection')
+    print('************************')
+    print('\nInitial map run:', map_day)
+    print('\nInspected runs:')
+    for d, day in enumerate(train_days):
+        print(' >', day)
+    print('')
+
+    config = MyhalCollisionConfig()
+
+    # Initialize datasets (dummy validation)
+    dataset = MyhalCollisionDataset(config,
+                                    train_days,
+                                    chosen_set='training',
+                                    dataset_path=dataset_path,
+                                    balance_classes=True)
+
+
+    # convertion from labels to colors
+    im_lim = config.in_radius / np.sqrt(2)
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+
+    # We care about the dynamic class
+    i_l = 4
+    ll = dataset.label_values[i_l]
+
+
+    # Variable containg the selected inds for this class (will replace dataset.class_frames[i_l])
+    selected_mask = np.zeros_like(dataset.all_inds[:, 0], dtype=bool)
+
+
+    for s_ind, seq in enumerate(dataset.sequences):
+
+        print('\nInspecting session:', seq)
+        print('********************' + '*' * len(seq))
+        
+        all_pts = []
+        all_colors = []
+        all_labels = []
+
+        # Advanced display
+        N = dataset.frames[s_ind].shape[0]
+        progress_n = 50
+        fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+        print('\nGetting 2D frames')
+        for f_ind, frame in enumerate(dataset.frames[s_ind]):
+
+            # Get groundtruth in 2D points format
+            gt_file = join(dataset.colli_path[s_ind], frame + '_2D.ply')
+
+            # Read points
+            data = read_ply(gt_file)
+            pts_2D = np.vstack((data['x'], data['y'])).T
+            labels_2D = data['classif']
+                
+            # Special treatment to old simulation annotations
+            if dataset.sim_sequences[s_ind]:
+                times_2D = data['t']
+                time_mask = np.logical_and(times_2D > -0.001, times_2D < 0.001)
+                pts_2D = pts_2D[time_mask]
+                labels_2D = labels_2D[time_mask]
+
+            # Recenter
+            p0 = dataset.poses[s_ind][f_ind][:2, 3]
+            centered_2D = (pts_2D - p0).astype(np.float32)
+
+            # Remove outside boundaries of images
+            img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
+            img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
+            centered_2D = centered_2D[img_mask]
+            labels_2D = labels_2D[img_mask]
+
+            # Get the number of points per label (only present in image)
+            label_v, label_n = np.unique(labels_2D, return_counts=True)
+            label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
+            label_count[label_v] = label_n
+
+            # Do not count dynamic points if we are not in interesting area
+            # Only for Myhal 5th floor
+            # if not dataset.sim_sequences[s_ind]:
+            #     if p0[1] < 6 and p0[0] < 4:
+            #         label_count[-1] = 0
+
+            all_pts.append(centered_2D)
+            all_colors.append(colormap[labels_2D])
+            all_labels.append(label_count)
+
+            print('', end='\r')
+            print(fmt_str.format('#' * (((f_ind + 1) * progress_n) // N), 100 * (f_ind + 1) / N), end='', flush=True)
+
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+        print('\nProcess wanted_inds')
+
+        # Get the wanted indices
+        class_mask = np.vstack(all_labels).T
+        class_mask = class_mask[i_l:i_l + 1] > 10
+
+        # Remove isolated inds with opening
+        open_struct = np.ones((1, 31))
+        class_mask_opened = ndimage.binary_opening(class_mask, structure=open_struct)
+
+        # Remove the one where the person is disappearing or reappearing
+        erode_struct = np.ones((1, 31))
+        erode_struct[:, :13] = 0
+        class_mask_eroded = ndimage.binary_erosion(class_mask_opened, structure=erode_struct)
+
+        # Update selected inds for all sequences
+        seq_mask = dataset.all_inds[:, 0] == s_ind
+        selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
+        
+        print('    > Done')
+
+        print('\nSlider figure')
+
+        # Figure
+        figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+        plt.subplots_adjust(left=0.1, bottom=0.2)
+
+        # Plot first frame of seq
+        plotsA = [axA.scatter(all_pts[0][:, 0],
+                              all_pts[0][:, 1],
+                              s=2.0,
+                              c=all_colors[0])]
+
+        # Show a circle of the loop closure area
+        axA.add_patch(Circle((0, 0), radius=0.2,
+                             edgecolor=[0.2, 0.2, 0.2],
+                             facecolor=[1.0, 0.79, 0],
+                             fill=True,
+                             lw=1))
+
+        # # Customize the graph
+        # axA.grid(linestyle='-.', which='both')
+        axA.set_xlim(-im_lim, im_lim)
+        axA.set_ylim(-im_lim, im_lim)
+        axA.set_aspect('equal', adjustable='box')
+
+        # Make a horizontal slider to control the frequency.
+        axcolor = 'lightgoldenrodyellow'
+        axtime = plt.axes([0.1, 0.1, 0.8, 0.015], facecolor=axcolor)
+        time_slider = Slider(ax=axtime,
+                             label='ind',
+                             valmin=0,
+                             valmax=len(all_pts) - 1,
+                             valinit=0,
+                             valstep=1)
+
+        # The function to be called anytime a slider's value changes
+        def update_PR(val):
+            global f_i
+            f_i = (int)(val)
+            for plot_i, plot_obj in enumerate(plotsA):
+                plot_obj.set_offsets(all_pts[f_i])
+                plot_obj.set_color(all_colors[f_i])
+
+        # register the update function with each slider
+        time_slider.on_changed(update_PR)
+
+        # Ax with the presence of dynamic points
+        class_mask = np.zeros_like(dataset.all_inds[:, 0], dtype=bool)
+        class_mask[dataset.class_frames[i_l]] = True
+        seq_mask = dataset.all_inds[:, 0] == s_ind
+        seq_class_frames = class_mask[seq_mask]
+        seq_class_frames = np.expand_dims(seq_class_frames, 0)
+        axdyn = plt.axes([0.1, 0.08, 0.8, 0.015])
+        axdyn.imshow(seq_class_frames, cmap='GnBu', aspect='auto')
+        axdyn.set_axis_off()
+
+        # Ax with the presence of dynamic points at least 10
+        dyn_img = np.vstack(all_labels).T
+        dyn_img = dyn_img[-1:]
+        dyn_img[dyn_img > 10] = 10
+        dyn_img[dyn_img > 0] += 10
+        axdyn = plt.axes([0.1, 0.06, 0.8, 0.015])
+        axdyn.imshow(dyn_img, cmap='OrRd', aspect='auto')
+        axdyn.set_axis_off()
+        
+        # Ax with opened
+        axdyn = plt.axes([0.1, 0.04, 0.8, 0.015])
+        axdyn.imshow(class_mask_opened, cmap='OrRd', aspect='auto')
+        axdyn.set_axis_off()
+        
+        # Ax with eroded
+        axdyn = plt.axes([0.1, 0.02, 0.8, 0.015])
+        axdyn.imshow(class_mask_eroded, cmap='OrRd', aspect='auto')
+        axdyn.set_axis_off()
+
+        ###################
+        # Saving function #
+        ###################
+        
+        # Register event
+        def onkey(event):
+            global f_i
+
+            # Save current as ptcloud
+            if event.key in ['p', 'P']:
+                print('Saving in progress')
+                
+                seq_name = dataset.sequences[s_ind]
+                frame_name = dataset.frames[s_ind][f_i]
+                sogm_folder = join(dataset.original_path, 'inspect_images')
+                print(sogm_folder)
+                if not exists(sogm_folder):
+                    makedirs(sogm_folder)
+
+                # Save pointcloud
+                H0 = dataset.poses[s_ind][f_i - 1]
+                H1 = dataset.poses[s_ind][f_i]
+                data = read_ply(join(dataset.seq_path[s_ind], frame_name + '.ply'))
+                f_points = np.vstack((data['x'], data['y'], data['z'])).T
+                f_ts = data['time']
+                world_points = motion_rectified(f_points, f_ts, H0, H1)
+
+                data = read_ply(join(dataset.annot_path[s_ind], frame_name + '.ply'))
+                sem_labels = data['classif']
+
+                ply_name = join(sogm_folder, 'ply_{:s}_{:s}.ply'.format(seq_name, frame_name))
+                write_ply(ply_name,
+                          [world_points, sem_labels],
+                          ['x', 'y', 'z', 'classif'])
+
+                print('Done')
+
+            # Save current as ptcloud video
+            if event.key in ['g', 'G']:
+
+                video_i0 = -30
+                video_i1 = 70
+                if f_i + video_i1 >= len(dataset.frames[s_ind]) or f_i + video_i0 < 0:
+                    print('Invalid f_i')
+                    return
+
+                sogm_folder = join(dataset.original_path, 'inspect_images')
+                print(sogm_folder)
+                if not exists(sogm_folder):
+                    makedirs(sogm_folder)
+                    
+                # Video path
+                seq_name = dataset.sequences[s_ind]
+                video_path = join(sogm_folder, 'vid_{:s}_{:s}.gif'.format(seq_name, dataset.frames[s_ind][f_i]))
+
+                # Get the pointclouds
+                vid_pts = []
+                vid_labels = []
+                vid_ts = []
+                vid_H0 = []
+                vid_H1 = []
+                for vid_i in range(video_i0, video_i1):
+                    frame_name = dataset.frames[s_ind][f_i + vid_i]
+                    H0 = dataset.poses[s_ind][f_i + vid_i - 1]
+                    H1 = dataset.poses[s_ind][f_i + vid_i]
+                    data = read_ply(join(dataset.seq_path[s_ind], frame_name + '.ply'))
+                    f_points = np.vstack((data['x'], data['y'], data['z'])).T
+                    f_ts = data['time']
+                    data = read_ply(join(dataset.annot_path[s_ind], frame_name + '.ply'))
+                    sem_labels = data['classif']
+
+                    vid_pts.append(f_points)
+                    vid_labels.append(sem_labels)
+                    vid_ts.append(f_ts)
+                    vid_H0.append(H0)
+                    vid_H1.append(H1)
+
+                map_folder = join(dataset.original_path, 'slam_offline', map_day)
+                map_names = np.sort([f for f in listdir(map_folder) if f.startswith('map_update_')])
+                last_map = join(map_folder, map_names[-1])
+                
+                # Create video
+                open_3d_vid(video_path,
+                            vid_pts,
+                            vid_labels,
+                            vid_ts,
+                            vid_H0,
+                            vid_H1,
+                            map_path=None)
+
+                print('Done')
+
+            return
+        
+        cid = figA.canvas.mpl_connect('key_press_event', onkey)
+
+        plt.show()
+        print('    > Done')
+
+    print('\n')
+    print('  +-----------------------------------+')
+    print('  | Finished all the annotation tasks |')
+    print('  +-----------------------------------+')
+    print('\n')
+
+    return
+
+
+def open_3d_vid(video_path, vid_pts, vid_labels, vid_ts, vid_H0, vid_H1, map_path=None):
+    
+    
+    # Colormap
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+
+    colormap_map = 1 - (1 - colormap) * 0.9
+    
+    # Window for headless visu
+    vis = o3d.visualization.Visualizer()
+    # vis.create_window(visible=True, width=2560, height=1440, left=0, top=0)
+    # vis.create_window(visible=True, width=1920, height=1080, left=0, top=0)
+    vis.create_window(visible=True, width=1600, height=900, left=0, top=0)
+    # vis.create_window(visible=True, width=1280, height=720, left=0, top=0)
+    
+    # Load the first frame in the window
+    vis.clear_geometries()
+    pcd = o3d.geometry.PointCloud()
+    
+    H0 = np.copy(vid_H0[0])
+    H1 = np.copy(vid_H1[0])
+
+    # Only rotate frame to have a hoverer mode
+    H0[:3, 3] -= H1[:3, 3]
+    H1[:3, 3] *= 0
+
+    # Apply transform with motion distorsion
+    rect_points = motion_rectified(vid_pts[0], vid_ts[0], H0, H1)
+    annots = vid_labels[0]
+
+    # Remove ground if we have map
+    if (map_path):
+        rect_points = rect_points[annots > 1.5]
+        annots = annots[annots > 1.5]
+    else:
+        rect_points = rect_points[annots > 0.5]
+        annots = annots[annots > 0.5]
+
+    # Update pcd
+    pcd_update_from_data(rect_points, annots, pcd, colormap)
+    vis.add_geometry(pcd)
+
+    # Create a pcd for the map
+    pcd_map = o3d.geometry.PointCloud()
+    if (map_path):
+        
+        data = read_ply(map_path)
+        map_points = np.vstack((data['x'], data['y'], data['z'])).T
+        map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+        map_classif = data['classif']
+
+        # Only keep ground and still points for map
+        map_mask = np.logical_and(map_classif > 0.5, map_classif < 2.5)
+        map_points = map_points[map_mask]
+        map_normals = map_normals[map_mask]
+        map_classif = map_classif[map_mask]
+
+        pcd_map = o3d.geometry.PointCloud()
+        pcd_update_from_data(map_points, map_classif, pcd_map, colormap_map, normals=map_normals)
+        vis.add_geometry(pcd_map)
+
+    # Add Robot mesh
+    pcd_robot = o3d.geometry.PointCloud()
+    robot_pts, robot_annots, colormap_robot = robot_point_model()
+    pcd_update_from_data(robot_pts, robot_annots, pcd_robot, colormap_robot)
+    vis.add_geometry(pcd_robot)
+
+    # Apply render options
+    render_option = vis.get_render_option()
+    render_option.light_on = True
+    render_option.point_size = 3
+    render_option.show_coordinate_frame = True
+
+    # Prepare view point
+    view_control = vis.get_view_control()
+    target = H1[:3, 3]
+    front = target + np.array([-3.0, -2.0, 4.0])  # scale of this does not matter it is just for direction
+    view_control.set_front(front)
+    view_control.set_lookat(target)
+    view_control.set_up([0.0, 0.0, 1.0])
+    view_control.set_zoom(0.15)
+    # view_control.change_field_of_view(0.45)
+    
+    pinhole0 = view_control.convert_to_pinhole_camera_parameters()
+    follow_H0 = np.copy(pinhole0.extrinsic)
+
+    # Advanced display
+    N = len(vid_pts)
+    progress_n = 30
+    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+    print('\nGenerating Open3D screenshots')
+    video_list = []
+    for i, pts in enumerate(vid_pts):
+
+        # if i < 1:
+        #     continue
+
+        if i > len(vid_H1) - 1:
+            break
+
+        H0 = np.copy(vid_H0[i])
+        H1 = np.copy(vid_H1[i])
+
+        # Only rotate frame to have a hoverer mode
+        T_map = np.copy(H1[:3, 3])
+        H0[:3, 3] -= T_map
+        H1[:3, 3] *= 0
+
+        # Apply transform with motion distorsion
+        rect_points = motion_rectified(pts, vid_ts[i], H0, H1)
+        annots = vid_labels[i]
+
+        # Remove ground if we have map
+        if (map_path):
+            rect_points = rect_points[annots > 1.5]
+            annots = annots[annots > 1.5]
+        else:
+            rect_points = rect_points[annots > 0.5]
+            annots = annots[annots > 0.5]
+
+        # Update pcd
+        pcd_update_from_data(rect_points, annots, pcd, colormap)
+        vis.update_geometry(pcd)
+
+        # Update pcd for the map
+        if (map_path):
+            new_map_pts = map_points - T_map
+            pcd_update_from_data(new_map_pts, map_classif, pcd_map, colormap_map, normals=map_normals)
+            vis.update_geometry(pcd_map)
+
+        # Update Robot mesh
+        H1_robot = np.copy(H1)
+        H1_robot[2, 3] = -T_map[2]
+        robot_ts = vid_ts[i][:robot_pts.shape[0]]
+        new_robot_pts = motion_rectified(np.copy(robot_pts), robot_ts, H1_robot, H1_robot)
+        pcd_update_from_data(new_robot_pts, robot_annots, pcd_robot, colormap_robot)
+        vis.update_geometry(pcd_robot)
+
+        # Render
+        vis.poll_events()
+        vis.update_renderer()
+
+        # Screenshot
+        image = vis.capture_screen_float_buffer(True)
+        npimage = (np.asarray(image) * 255).astype(np.uint8)
+        if npimage.shape[0] % 2 == 1:
+            npimage = npimage[:-1, :]
+        if npimage.shape[1] % 2 == 1:
+            npimage = npimage[:, :-1]
+        video_list.append(npimage)
+        # plt.imsave('test_{:d}.png'.format(i), image, dpi=1)
+
+        print('', end='\r')
+        print(fmt_str.format('#' * (((i + 1) * progress_n) // N), 100 * (i + 1) / N), end='', flush=True)
+
+    # Show a nice 100% progress bar
+    print('', end='\r')
+    print(fmt_str.format('#' * progress_n, 100), flush=True)
+    print('\n')
+
+
+
+
+    if video_path.endswith('.gif'):
+        imageio.mimsave(video_path, video_list, fps=30)
+
+    elif video_path.endswith('.mp4'):
+        # Write video file
+        print('\nWriting video file')
+        kargs = {'macro_block_size': None}
+        with imageio.get_writer(video_path, mode='I', fps=30, quality=10, **kargs) as writer:
+            N = len(video_list)
+            for i, frame in enumerate(video_list):
+                writer.append_data(frame)
+
+                print('', end='\r')
+                print(fmt_str.format('#' * (((i + 1) * progress_n) // N), 100 * (i + 1) / N), end='', flush=True)
+
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+    else:
+        raise ValueError('Unknown video extension: \"{:s}\"'.format(video_path[-4:]))
+    
+    vis.destroy_window()
 
     return
 
