@@ -21,10 +21,8 @@ GUI=false       # -v
 TOUR="A_tour"   # -t (arg)
 LOADWORLD=""    # -l (arg)
 FILTER=false    # -f
-MAPPING=2       # -m (arg)
 GTCLASS=false   # -g 
 VIZ_GAZ=false   # -e 
-TEB=false       # -b
 XTERM=false     # -x
 
 # Parse parameters
@@ -35,14 +33,12 @@ in
 p) PARAMS=${OPTARG};;       # what param file are we using?
 t) TOUR=${OPTARG};;         # What tour is being used 
 l) LOADWORLD=${OPTARG};;    # do you want to load a prexisting world or generate a new one
-m) MAPPING=${OPTARG};;      # use gmapping, AMCL or PointSLAM? (respectively 0, 1, 2)
 n) t=${OPTARG};;            # Overwrite the date
 v) GUI=true;;               # using gui?
 f) FILTER=true;;            # pointcloud filtering?
 g) GTCLASS=true;;           # are we using ground truth classifications, or online_classifications
 e) VIZ_GAZ=true;;           # are we going to vizualize topics in gazebo
-b) TEB=true;;               # are we using TEB planner
-x) XTERM=true;;               # are we using TEB planner
+x) XTERM=true;;             # are we using xterm windows
 esac
 done
 
@@ -50,7 +46,7 @@ done
 echo "Folder Name: $t"
 MINSTEP=0.0001
 echo "Min step size: $MINSTEP"
-echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nTEB: $TEB\nMAPPING: $MAPPING\nGTCLASS: $GTCLASS"
+echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nGTCLASS: $GTCLASS"
 echo -e " "
 
 # Handle the choice betwenn gt and predictions
@@ -107,7 +103,6 @@ rosparam set tour_name $TOUR
 rosparam set start_time $t
 rosparam set filter_status $FILTER
 rosparam set gmapping_status true
-rosparam set loc_method $MAPPING
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 rosparam set using_teb $TEB
@@ -131,7 +126,7 @@ LOGFILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/log.txt"
 touch $LOGFILE
 echo -e "Command used: $myInvocation" >> $LOGFILE
 echo -e "\nPointcloud filter params: \n" >> $LOGFILE
-echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nMAPPING: $MAPPING\nGTCLASS: $GTCLASS"  >> $LOGFILE
+echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nGTCLASS: $GTCLASS"  >> $LOGFILE
 
 # Create param file
 PARAMFILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/params.yaml"
@@ -251,10 +246,6 @@ echo -e "\033[1;4;34mStarting dashboard\033[0m"
 
 rosrun myhal_simulator navigation_goals_V2 &
 rosrun dashboard meta_data.py &
-
-#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
-#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
-#############   TODO: SOMETHING DOES NOT WORK IN THE LAUNCH FILES INVESTIGATE IT   #############
 
 rosrun dashboard assessor.py
 

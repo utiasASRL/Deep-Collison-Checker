@@ -797,11 +797,11 @@ void Puppeteer::ReadParams()
         this->filter_status = false;
     }
 
-    if (!nh.getParam("loc_method", this->loc_method))
-    {
-        std::cout << "ERROR READING loc_method\n";
-        this->loc_method = 0;
-    }
+    // if (!nh.getParam("loc_method", this->loc_method))
+    // {
+    //     std::cout << "ERROR READING loc_method\n";
+    //     this->loc_method = 0;
+    // }
 
     if (!nh.getParam("viz_gaz", this->viz_gaz))
     {

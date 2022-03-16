@@ -67,6 +67,8 @@
   <build_depend>tf2_msgs</build_depend>
   <build_depend>message_filters</build_depend>
   <build_depend>actionlib</build_depend>
+  <build_depend>vox_msgs</build_depend>
+
 
   <build_export_depend>pcl_ros</build_export_depend>
   <build_export_depend>pcl_conversions</build_export_depend>
@@ -84,6 +86,7 @@
   <build_export_depend>tf2_msgs</build_export_depend>
   <build_export_depend>message_filters</build_export_depend>
   <build_export_depend>actionlib</build_export_depend>
+  <build_export_depend>vox_msgs</build_export_depend>
 
   <exec_depend>pcl_ros</exec_depend>
   <exec_depend>pcl_conversions</exec_depend>
@@ -101,6 +104,7 @@
   <exec_depend>tf2_msgs</exec_depend>
   <exec_depend>message_filters</exec_depend>
   <exec_depend>actionlib</exec_depend>
+  <exec_depend>vox_msgs</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

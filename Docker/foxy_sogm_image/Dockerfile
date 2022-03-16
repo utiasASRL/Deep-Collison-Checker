@@ -359,6 +359,7 @@ RUN apt-get install ros-noetic-libg2o -y --no-install-recommends
 RUN apt-get install ros-noetic-pcl-ros -y --no-install-recommends
 RUN apt-get install ros-noetic-costmap-converter -y --no-install-recommends
 RUN apt-get install python3-catkin-tools -y --no-install-recommends
+RUN apt-get install ros-noetic-ros-numpy -y --no-install-recommends
 
 #
 # User info

@@ -3,15 +3,15 @@ origin_z: 0.0
 z_resolution: 1
 z_voxels: 2
 
-obstacle_range: 10
-raytrace_range: 10
+obstacle_range: 5.5
+raytrace_range: 6.0
 
 publish_voxel_map: false
-transform_tolerance: 2.0
+transform_tolerance: 0.5
 meter_scoring: true
 
 footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]]
-footprint_padding: 0.1
+footprint_padding: 0.05
 
 # inflater_layer:
 #  inflation_radius: 0.3

@@ -1,0 +1,109 @@
+TebLocalPlannerROS:
+
+ odom_topic: /odometry/filtered
+ map_frame:  map
+    
+ # Trajectory
+  
+ teb_autosize: True
+ dt_ref: 0.2
+ dt_hysteresis: 0.04
+ min_samples: 5        # Min TEB poses in the planed traj
+ global_plan_overwrite_orientation: True
+ max_global_plan_lookahead_dist: 5.0
+ feasibility_check_no_poses: 2
+ exact_arc_length: False
+
+#  visualize_with_time_as_z_axis_scale: 0.1
+
+ include_dynamic_obstacles: True    # Default False
+
+ control_look_ahead_poses: 2 # Set this to at least t0 2, to get a better estimation of the /cmd_vel
+
+ # Robot       
+ max_vel_x: 1.0               # Actual Jackal value in controller: 2.0 m/s
+ max_vel_x_backwards: 0.5
+ max_vel_theta: 0.7           # Actual Jackal value in controller: 4.0 rad/s
+ acc_lim_x: 0.7               # Actual Jackal value in controller: 20.0 m/s^2
+ acc_lim_theta: 0.8          # Actual Jackal value in controller: 25.0 rad/s^2
+ min_turning_radius: 0.5
+ footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
+   type: "circular"
+   radius: 0.35 # for type "circular"
+
+#  # Legacy obstacle association strategy
+#  legacy_obstacle_association : False  # Default False
+
+#  # Non-legacy obstacle association strategy
+#  obstacle_association_force_inclusion_factor : 5.0   # association distance = min_obstacle_dist * this
+#  obstacle_association_cutoff_factor: 10.0            # cut-off distance = min_obstacle_dist * this
+
+
+ # GoalTolerance
+    
+ xy_goal_tolerance: 1.0   # 0.2 for precise location
+ yaw_goal_tolerance: 100  # 0.1 for precise location
+ free_goal_vel: False
+    
+ # Obstacles
+    
+ min_obstacle_dist: 0.1
+ inflation_dist: 0.6
+ dynamic_obstacle_inflation_dist: 0.5
+ include_costmap_obstacles: True
+ costmap_obstacles_behind_robot_dist: 6.0
+ costmap_obstacles_stride: 2
+ obstacle_poses_affected: 15
+
+ # Costmap converter
+ #costmap_converter_plugin: ""
+ #costmap_converter_spin_thread: True
+ #costmap_converter_rate: 5
+
+
+ # Optimization
+    
+ optimization_activate: True
+ optimization_verbose: False
+
+ no_inner_iterations: 5     # Default: 5
+ no_outer_iterations: 4     # Default: 4
+ penalty_epsilon: 0.1       # Default: 0.1
+ weight_max_vel_x: 2
+ weight_max_vel_theta: 1
+ weight_acc_lim_x: 1
+ weight_acc_lim_theta: 1
+ weight_kinematics_nh: 1000
+ weight_kinematics_forward_drive: 2
+ weight_kinematics_turning_radius: 1
+ weight_optimaltime: 0.5 # must be > 0
+ weight_shortest_path: 0.5
+
+ weight_obstacle: 100
+ weight_inflation: 0.2
+ weight_dynamic_obstacle: 10
+ weight_dynamic_obstacle_inflation: 0.2
+
+ weight_viapoint: 1
+#  weight_adapt_factor: 2
+
+ weight_predicted_costmap: 0   # Default: 0.6 direct multiplier of the error function for predicted costmaps
+ weight_static_costmap: 0   # Default: 0.6 direct multiplier of the error function for predicted costmaps
+
+ # Homotopy Class Planner
+ enable_homotopy_class_planning: True
+ enable_multithreading: True
+ simple_exploration: False
+ max_number_classes: 5
+ selection_cost_hysteresis: 0.99
+
+ roadmap_graph_no_samples: 20
+ roadmap_graph_area_width: 5
+ h_signature_prescaler: 1.0
+ h_signature_threshold: 0.1
+ obstacle_keypoint_offset: 0.1
+ obstacle_heading_threshold: 1.0
+ visualize_hc_graph: False
+
+ # Publishing
+ publish_feedback : False

@@ -150,7 +150,7 @@ class Puppeteer: public gazebo::WorldPlugin{
 
         bool gt_class;
 
-        int loc_method = 0;
+        // int loc_method = 0;
 
         bool viz_gaz = false;
 

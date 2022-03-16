@@ -44,6 +44,7 @@
   <depend>mbf_msgs</depend>
   <depend>pluginlib</depend>
   <depend>roscpp</depend>
+  <depend>ros_numpy</depend>
   <depend>std_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>

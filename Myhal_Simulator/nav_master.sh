@@ -30,14 +30,18 @@ myInvocation="$(printf %q "$BASH_SOURCE")$((($#)) && printf ' %q' "$@")"
 # Init
 XTERM=false     # -x
 SOGM=false      # -s
+TEB=false       # -b
+MAPPING=2       # -m (arg)
 
 # Parse arguments
-while getopts xs option
+while getopts xsbm: option
 do
 case "${option}"
 in
 x) XTERM=true;;     # are we using TEB planner
-x) SOGM=true;;     # are we using SOGMs
+s) SOGM=true;;     # are we using SOGMs
+b) TEB=true;;               # are we using TEB planner
+m) MAPPING=${OPTARG};;      # use gmapping, AMCL or PointSLAM? (respectively 0, 1, 2)
 esac
 done
 
@@ -55,13 +59,15 @@ echo "OK"
 echo " "
 echo " "
 echo -e "\033[1;4;34mReading parameters from ros\033[0m"
+
+rosparam set using_teb $TEB
+rosparam set loc_method $MAPPING
+
 GTCLASS=$(rosparam get gt_class)
 c_method=$(rosparam get class_method)
 TOUR=$(rosparam get tour_name)
 t=$(rosparam get start_time)
 FILTER=$(rosparam get filter_status)
-MAPPING=$(rosparam get loc_method)
-TEB=$(rosparam get using_teb)
 
 echo " "
 echo "START TIME: $t"
@@ -86,7 +92,7 @@ if [ "$MAPPING" = "0" ] ; then
 elif [ "$MAPPING" = "1" ] ; then
     loc_launch="jackal_velodyne amcl.launch"
 else
-    loc_launch="jackal_velodyne point_slam.launch filter:=$FILTER gt_classify:=$GTCLASS"
+    loc_launch="point_slam simu_ptslam.launch filter:=$FILTER gt_classify:=$GTCLASS"
 fi
 
 if [ "$FILTER" = true ] ; then
@@ -95,13 +101,16 @@ else
     scan_topic="/velodyne_points"
 fi
 
+# Add map path
+loc_launch="$loc_launch scan_topic:=$scan_topic init_map_path:=$HOME/Deep-Collison-Checker/Data/Simulation_v2/slam_offline/2020-10-02-13-39-05/map_update_0001.ply"
+
 # Start localization algo
 if [ "$XTERM" = true ] ; then
     xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Localization" -n "Localization" -hold \
-        -e roslaunch $loc_launch scan_topic:=$scan_topic &
+        -e roslaunch $loc_launch &
 else
     NOHUP_LOC_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_loc.txt"
-    nohup roslaunch $loc_launch scan_topic:=$scan_topic > "$NOHUP_LOC_FILE" 2>&1 &
+    nohup roslaunch $loc_launch > "$NOHUP_LOC_FILE" 2>&1 &
 fi
 
 # Start point cloud filtering if necessary
@@ -132,8 +141,6 @@ else
         global_costmap_params="global_costmap_params.yaml"
     fi
 fi
-# TODO HERE THE GLOBAL COSTMAP PARAMETERS FOR POINTSLAM SHOULD NOT HAVE A OBSTACLE PLUGINS LIKE GMAPPINMG
-# VERIFY THIS ON THE ROBOT
 
 # Chose parameters for local costmap
 if [ "$FILTER" = true ] ; then
@@ -145,9 +152,9 @@ fi
 # Chose parameters for local planner
 if [ "$TEB" = true ] ; then
     if [ "$SOGM" = true ] ; then
-        local_planner_params="teb_sogm_params.yaml"
+        local_planner_params="teb_params_sogm.yaml"
     else
-        local_planner_params="teb_normal_params.yaml"
+        local_planner_params="teb_params_normal.yaml"
     fi
 else
     local_planner_params="base_local_planner_params.yaml"
@@ -166,6 +173,9 @@ nav_command="${nav_command} global_costmap_params:=$global_costmap_params"
 nav_command="${nav_command} local_costmap_params:=$local_costmap_params"
 nav_command="${nav_command} local_planner_params:=$local_planner_params"
 nav_command="${nav_command} local_planner:=$local_planner"
+
+file does not exist [/home/hth/Deep-Collison-Checker/Myhal_Simulator/nav_noetic_ws/src/jackal_velodyne/params/teb_normal_params.yaml]
+
 
 # Start navigation algo
 if [ "$XTERM" = true ] ; then
@@ -204,7 +214,14 @@ sleep 10
 sleep 10
 sleep 10
 sleep 10
-sleep 10
+sleep 1000
+sleep 1000
+sleep 1000
+sleep 1000
+sleep 1000
+sleep 1000
+sleep 1000
+sleep 1000
 
 
 

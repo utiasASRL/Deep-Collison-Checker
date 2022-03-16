@@ -43,6 +43,7 @@ class MetaHandler:
         self.table['tour_names'] = self.tour_name
         self.table['filter_status'] = self.filter_status
 
+        self.loc_method = rospy.get_param("/loc_method")
         if self.loc_method == 0:
             tech = "gmapping"
         elif self.loc_method == 1:
@@ -100,7 +101,7 @@ class MetaHandler:
         self.start_time = rospy.get_param("/start_time")
         self.tour_name = rospy.get_param("/tour_name")
         self.filter_status = 'true' if rospy.get_param("/filter_status") else 'false'
-        self.loc_method = rospy.get_param("/loc_method")
+        # self.loc_method = rospy.get_param("/loc_method")
 
         room_names = rospy.get_param("/room_names")
         scenario_names = rospy.get_param("/room_names")
