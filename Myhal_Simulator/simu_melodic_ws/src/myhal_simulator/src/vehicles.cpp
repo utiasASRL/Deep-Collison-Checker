@@ -197,11 +197,28 @@ void Vehicle::OnUpdate(const gazebo::common::UpdateInfo &_info, double dt, std::
     this->Seek(this->curr_target);
 }
 
-void Vehicle::OnPoseUpdate(const gazebo::common::UpdateInfo &_info, double dt, std::vector<gazebo::physics::EntityPtr> objects)
+void Vehicle::OnPoseUpdate(const gazebo::common::UpdateInfo &_info,
+                           double dt,
+                           std::vector<gazebo::physics::EntityPtr> objects)
 {
     // Update
     UpdatePosition(dt);
     // UpdatePositionContactObstacles(objects, dt);
+    UpdateModel();
+}
+
+void Vehicle::OnPoseReprod(const gazebo::common::UpdateInfo &_info,
+                           double dt,
+                           std::vector<gazebo::physics::EntityPtr> objects,
+                           ignition::math::Pose3d new_pose0)
+{
+    // Set the new pose
+    this->pose.Pos() = new_pose0.Pos();
+    this->pose.Rot() = new_pose0.Rot();
+
+    // Set the velocity (in case any other part of the code needs it)
+    this->velocity = (new_pose0.Pos() - this->pose.Pos()) / dt;
+
     UpdateModel();
 }
 
@@ -1885,4 +1902,49 @@ void Bouncer::PlaneBounce(const ignition::math::Vector3d& normal, double dt)
         // we want: velocity += - 2 * correction * normal
         this->acceleration += normal * (-2 * correction / dt);
     }
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------------------
+
+void Reproducer::OnUpdate(const gazebo::common::UpdateInfo &_info,
+                          double dt,
+                          std::vector<boost::shared_ptr<Vehicle>> vehicles,
+                          std::vector<gazebo::physics::EntityPtr> objects,
+                          ignition::math::Pose3d new_pose0)
+{
+
+    // Get next pos
+    this->new_pose = new_pose0;
+
+    // // Predict next position
+    // auto next_pos = this->pose.Pos() + this->velocity * dt;
+}
+
+void Reproducer::UpdatePosition(double dt)
+{
+    // Set the new pose
+    this->pose.Pos() = this->new_pose.Pos();
+    this->pose.Rot() = this->new_pose.Rot();
+
+
+    // Set the velocity (in case any other part of the code needs it)
+    this->velocity = (this->new_pose.Pos() - this->pose.Pos()) / dt;
+
+
+    // // Handle yaw
+    // ignition::math::Vector3d direction = this->velocity;
+    // direction.Normalize();
+    // double dir_yaw = atan2(direction.Y(), direction.X());
+    // double current_yaw = this->pose.Rot().Yaw();
+    // ignition::math::Angle yaw_diff = dir_yaw - current_yaw + IGN_PI_2;
+    // yaw_diff.Normalize();
+    // if (this->velocity.Length() < 10e-2)
+    // {
+    //     yaw_diff = 0;
+    // }
+
+    // // Update pose
+    // this->pose.Pos() += this->velocity * dt;
+    // this->pose.Rot() = ignition::math::Quaterniond(IGN_PI_2, 0, current_yaw + yaw_diff.Radian() * 0.1);
+    // this->acceleration = 0;
 }

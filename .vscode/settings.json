@@ -121,7 +121,8 @@
         "variant": "cpp",
         "filesystem": "cpp",
         "core": "cpp",
-        "numericaldiff": "cpp"
+        "numericaldiff": "cpp",
+        "*.idl": "cpp"
     },
 
 }

@@ -114,31 +114,39 @@ void Puppeteer::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
             }
         }
     }
+    
+    // In case of reproduction, init variables
+    bool reproducing = (this->load_world.size() > 0) && (this->load_world != "none");
+    if (reproducing)
+        parseSavedVehicleTraj();
+
 
     // Compute a flow fields
     // *********************
-
-    // Timing variables
-    std::cout << "\n\n--------------------> Computing flow fields" << std::endl;
-    std::vector<clock_t> t_debug;
-    t_debug.push_back(std::clock());
-
-    // Compute flow fields
-    for (unsigned int i = 0; i < digits_coordinates->size(); ++i)
+    
+    if (!reproducing)
     {
-        flow_fields[i]->Compute(costmap->costmap);
-        auto goal0 = digits_coordinates->at(i).Pos();
-        std::cout << "Goal: (" << goal0.X() << ", " << goal0.Y() << ")" << std::endl;
-        std::cout << "Size: " << flow_fields[i]->rows << " * " << flow_fields[i]->cols << std::endl;
-        std::cout << "Reachability: " << flow_fields[i]->Reachability() * 100 << "% " << std::endl;
-        std::cout << "***********************" << std::endl;
-    }
+        // Timing variables
+        std::cout << "\n\n--------------------> Computing flow fields" << std::endl;
+        std::vector<clock_t> t_debug;
+        t_debug.push_back(std::clock());
 
-    // Debug timing
-    t_debug.push_back(std::clock());
-    double duration = 1000 * (t_debug[1] - t_debug[0]) / (double)CLOCKS_PER_SEC;
-    std::cout << "--------------------> Done in " << duration << " ms\n\n"
-              << std::endl;
+        // Compute flow fields
+        for (unsigned int i = 0; i < digits_coordinates->size(); ++i)
+        {
+            flow_fields[i]->Compute(costmap->costmap);
+            auto goal0 = digits_coordinates->at(i).Pos();
+            std::cout << "Goal: (" << goal0.X() << ", " << goal0.Y() << ")" << std::endl;
+            std::cout << "Size: " << flow_fields[i]->rows << " * " << flow_fields[i]->cols << std::endl;
+            std::cout << "Reachability: " << flow_fields[i]->Reachability() * 100 << "% " << std::endl;
+            std::cout << "***********************" << std::endl;
+        }
+
+        // Debug timing
+        t_debug.push_back(std::clock());
+        double duration = 1000 * (t_debug[1] - t_debug[0]) / (double)CLOCKS_PER_SEC;
+        std::cout << "--------------------> Done in " << duration << " ms\n\n" << std::endl;
+    }
 
     // Parse robot tour from ./worlds/map.txt
     if (this->tour_name != "")
@@ -348,11 +356,17 @@ void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
         }
 
         // Update the forces on vehicle
-        vehicle->OnUpdate(_info, dt, near_vehicles, near_objects);
+        if (this->vehicle_reprod_poses.size() < 1)
+            vehicle->OnUpdate(_info, dt, near_vehicles, near_objects);
     }
+
+    // Get current pose index if reprod
+    size_t pose_i = getCurrentPoseInd(_info.simTime.Double());
 
     // Calling update pose for each vehicle
     std::vector<double> speeds;
+    std::vector<ignition::math::Pose3d> vehicle_poses;
+    size_t veh_i = 0;
     for (auto vehicle : this->vehicles)
     {
         // Init containers for  close by vehicles
@@ -379,12 +393,26 @@ void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
             near_objects.push_back(this->robot);
         }
 
-        // Update the forces on vehicle
-        vehicle->OnPoseUpdate(_info, dt, near_objects);
+        // Update the vehicle
+        if (this->vehicle_reprod_poses.size() > 0)
+        {
+            // Get the pose at this time 
+            ignition::math::Pose3d next_pose = this->vehicle_reprod_poses[pose_i][veh_i];
+            vehicle->OnPoseReprod(_info, dt, near_objects, next_pose);
+        }
+        else
+            vehicle->OnPoseUpdate(_info, dt, near_objects);
 
         if (cout_speeds)
             speeds.push_back(vehicle->GetVelocity().Length());
+        veh_i++;
+
+        // save vehicle poses
+        vehicle_poses.push_back(vehicle->GetPose());
     }
+
+    // save vehicle poses
+    saveVehicleTraj(_info.simTime.Double(), vehicle_poses);
 
     if (cout_speeds)
     {
@@ -815,6 +843,21 @@ void Puppeteer::ReadParams()
         this->tour_name = "";
         return;
     }
+
+    if (!nh.getParam("load_path", this->load_path))
+    {
+        this->load_path = "";
+        return;
+    }
+
+    if (!nh.getParam("load_world", this->load_world))
+    {
+        this->load_world = "";
+        return;
+    }
+
+
+
 }
 
 SmartCamPtr Puppeteer::CreateCamera(gazebo::physics::ModelPtr model)
@@ -1275,3 +1318,134 @@ void Puppeteer::ShowFlowForces()
         }
     }
 }
+
+// Function that save vehicle traj
+void Puppeteer::saveVehicleTraj(double time, 
+                                std::vector<ignition::math::Pose3d> &vehicle_poses)
+{
+    
+    std::string save_path = this->load_path + "/" + this->start_time + "/vehicles.txt";
+
+    // Init line with time
+    char buffer0[100];
+    sprintf(buffer0, "%.3f ", time);
+	std::string line0(buffer0);
+
+    // Add rest of the data
+    for (auto &pose: vehicle_poses)
+    {
+        char buffer1[100];
+        sprintf(buffer1, "%.3f %.3f %.3f %.3f %.3f %.3f %.3f ",
+                pose.Pos().X(),
+                pose.Pos().Y(),
+                pose.Pos().Z(),
+                pose.Rot().W(),
+                pose.Rot().X(),
+                pose.Rot().Y(),
+                pose.Rot().Z());
+        line0 = line0 + std::string(buffer1);
+    }
+
+    // Open file
+    std::ofstream outfile;
+    outfile.open(save_path, std::ios_base::app);
+
+    // Save
+    outfile << line0 << std::endl;
+    outfile.close();
+
+    return;
+}
+
+// Function that Loads vehicle traj
+void Puppeteer::parseSavedVehicleTraj()
+{
+
+    std::cout << "\n\n--------------------> Loading previous trajectories" << std::endl;
+    std::vector<clock_t> t_debug;
+    t_debug.push_back(std::clock());
+
+    std::string saved_traj_path = this->load_path + "/" + this->load_world + "/vehicles.txt";
+
+    // Load tour file
+    std::ifstream saved_traj_file(saved_traj_path);
+    size_t row = 0;
+
+    // Saved file format:
+    //      TIME    x1  y1  a1  x2  y2  a2  ...
+    //      0.1     .   .   .   .   .   .
+    //      0.2     .   .   .   .   .   .
+    //      0.3     .   .   .   .   .   .
+    //      ...
+
+    // Get Tour trajectory points
+    std::string line;
+    while (std::getline(saved_traj_file, line))
+    {
+        std::stringstream ss(line);
+
+        // get first info: time
+        double time0;
+        ss >> time0;
+        this->vehicle_reprod_times.push_back(time0);
+        this->vehicle_reprod_poses.push_back(std::vector<ignition::math::Pose3d>());
+
+        // Now get get vehicles
+        double x, y, z, ax, ay, az, aw;
+        int count = 0;
+        while (ss >> x) 
+        {
+            ss >> y;
+            ss >> z;
+            ss >> aw;
+            ss >> ax;
+            ss >> ay;
+            ss >> az;
+            this->vehicle_reprod_poses.back().push_back(ignition::math::Pose3d(x, y, z, aw, ax, ay, az));
+            count++;
+        }
+    }
+
+    // Close files
+    saved_traj_file.close();
+
+    // Debug timing
+    t_debug.push_back(std::clock());
+    double duration = 1000 * (t_debug[1] - t_debug[0]) / (double)CLOCKS_PER_SEC;
+    std::cout << "--------------------> Done in " << duration << " ms\n\n" << std::endl;
+    
+    return;
+}
+
+
+// Function to get the current pose index if we reproduce traj
+size_t Puppeteer::getCurrentPoseInd(double current_time)
+{
+    size_t pose_i = 0;
+    if (this->vehicle_reprod_times.size() > 0)
+    {
+        for (auto saved_time : this->vehicle_reprod_times)
+        {
+            if (saved_time >= current_time)
+                break;
+            ++pose_i;
+        }
+        if (pose_i >= this->vehicle_reprod_times.size())
+        {
+            ROS_WARN_STREAM("Current sim time greater than max saved sim time. Actors are now stopped");
+            ROS_WARN_STREAM(current_time << " > " << this->vehicle_reprod_times[this->vehicle_reprod_times.size() - 1]);
+            pose_i = this->vehicle_reprod_times.size() - 1;
+        }
+        if (pose_i > 0)
+        {
+            // Find closest
+            double difft1 = std::abs(this->vehicle_reprod_times[pose_i - 1] - current_time);
+            double difft2 = std::abs(this->vehicle_reprod_times[pose_i] - current_time);
+            if (difft1 < difft2)
+                pose_i--;
+        }
+    }
+
+    return pose_i;
+}
+

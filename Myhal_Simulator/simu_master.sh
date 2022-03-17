@@ -105,7 +105,7 @@ rosparam set filter_status $FILTER
 rosparam set gmapping_status true
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
-rosparam set using_teb $TEB
+
 
 
 
@@ -154,17 +154,19 @@ echo -e "\033[1;4;34mStarting simulator\033[0m"
 
 # Create a world in simulation
 sleep 0.1
+LOADPATH="$PWD/../Data/Simulation_v2/simulated_runs"
+rosparam set load_path $LOADPATH
 if [[ -z $LOADWORLD ]]; then
     rosrun myhal_simulator world_factory
     rosparam set load_world "none"
 else
-    WORLDFILE="$PWD/../Data/Simulation_v2/simulated_runs/$LOADWORLD/logs-$LOADWORLD/myhal_sim.world"
     rosparam set load_world $LOADWORLD
+    WORLDFILE="$LOADPATH/$LOADWORLD/logs-$LOADWORLD/myhal_sim.world"
     echo "Loading world $WORLDFILE"
 fi
 
 # Copy world file in log
-cp $WORLDFILE "$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/"
+cp $WORLDFILE "$LOADPATH/$t/logs-$t/"
 
 echo -e "\033[1;4;34mStarting rosbag record\033[0m"
 
@@ -203,9 +205,7 @@ else
     nohup roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE > "$NOHUP_GAZ_FILE" 2>&1 &
 fi
 
-
 sleep 0.5
-
 
 ###################
 # Run the simulator

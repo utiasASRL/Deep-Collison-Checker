@@ -39,6 +39,7 @@
 #include <chrono>
 #include <thread>
 #include <iomanip>
+#include <stdio.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 typedef boost::shared_ptr<SmartCam> SmartCamPtr;
@@ -98,7 +99,7 @@ class Puppeteer: public gazebo::WorldPlugin{
 
         ignition::math::Pose3d sensor_pose;
 
-        std::string start_time, tour_name;
+        std::string start_time, tour_name, load_world, load_path;
 
         boost::shared_ptr<Costmap> costmap;
 
@@ -117,6 +118,9 @@ class Puppeteer: public gazebo::WorldPlugin{
         ros::Publisher flow_v_pub;
         
         std::vector<boost::shared_ptr<FlowField>> flow_fields;
+        
+        std::vector<std::vector<ignition::math::Pose3d>> vehicle_reprod_poses;
+        std::vector<double> vehicle_reprod_times;
 
         boost::shared_ptr<std::vector<ignition::math::Pose3d>> digits_coordinates;
 
@@ -203,7 +207,13 @@ class Puppeteer: public gazebo::WorldPlugin{
         void PublishIntegrationValue();
 
         void ShowFlowForces();
-};
 
+        void saveVehicleTraj(double time,
+                             std::vector<ignition::math::Pose3d> &vehicle_poses);
+
+        void parseSavedVehicleTraj();
+        
+        size_t getCurrentPoseInd(double current_time);
+};
 
 #endif

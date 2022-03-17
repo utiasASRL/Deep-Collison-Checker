@@ -175,7 +175,13 @@ public:
 
     virtual void OnUpdate(const gazebo::common::UpdateInfo &_info, double dt, std::vector<boost::shared_ptr<Vehicle>> vehicles, std::vector<gazebo::physics::EntityPtr> objects);
 
-    void OnPoseUpdate(const gazebo::common::UpdateInfo &_info, double dt, std::vector<gazebo::physics::EntityPtr> objects);
+    void OnPoseUpdate(const gazebo::common::UpdateInfo &_info,
+                      double dt,
+                      std::vector<gazebo::physics::EntityPtr> objects);
+    void OnPoseReprod(const gazebo::common::UpdateInfo &_info,
+                      double dt,
+                      std::vector<gazebo::physics::EntityPtr> objects,
+                      ignition::math::Pose3d new_pose0);
 
     gazebo::physics::ActorPtr GetActor();
 
@@ -465,4 +471,23 @@ public:
 
     void OnUpdate(const gazebo::common::UpdateInfo &_info, double dt, std::vector<boost::shared_ptr<Vehicle>> vehicles, std::vector<gazebo::physics::EntityPtr> objects);
     void PlaneBounce(const ignition::math::Vector3d& normal, double dt);
+};
+
+
+
+class Reproducer : public Vehicle
+{
+
+protected:
+    ignition::math::Pose3d new_pose;
+
+public:
+    using Vehicle::Vehicle;
+
+    void OnUpdate(const gazebo::common::UpdateInfo &_info,
+                  double dt,
+                  std::vector<boost::shared_ptr<Vehicle>> vehicles,
+                  std::vector<gazebo::physics::EntityPtr> objects,
+                  ignition::math::Pose3d new_pose0);
+    void UpdatePosition(double dt);
 };

@@ -43,13 +43,17 @@ class MetaHandler:
         self.table['tour_names'] = self.tour_name
         self.table['filter_status'] = self.filter_status
 
-        self.loc_method = rospy.get_param("/loc_method")
-        if self.loc_method == 0:
-            tech = "gmapping"
-        elif self.loc_method == 1:
-            tech = "amcl"
-        else:
-            tech = "pointslam"
+        try:
+            self.loc_method = rospy.get_param("/loc_method")
+            if self.loc_method == 0:
+                tech = "gmapping"
+            elif self.loc_method == 1:
+                tech = "amcl"
+            else:
+                tech = "pointslam"
+        except KeyError:
+            tech = "none"
+
         self.table['class_method'] = self.class_method
         self.table['localization_test'] = self.localization_test
         self.table['load_world'] = self.load_world
