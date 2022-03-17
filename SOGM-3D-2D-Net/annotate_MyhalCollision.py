@@ -217,6 +217,16 @@ def Myhal1_sessions():
                    '2022-03-09_16-03-21',   # ff1 >    Good    (Many people, moving still or getting to see the robot)
                    '2022-03-09_16-07-11']   # ff1 >    Good    (Many people)
 
+    # Wednesday 10h/12h/14h/15h.
+    train_days += ['2022-03-16_16-05-29',   # ff1 >    Good    ()
+                   '2022-03-16_17-45-52',   # ff1 > Borderline ()
+                   '2022-03-16_20-05-22',   # ff1 >    Good    ()
+                   '2022-03-16_20-10-06',   # ff1 >    Good    ()
+                   '2022-03-16_20-13-08',   # ff2 >    Good    ()
+                   '2022-03-16_21-03-00',   # ff1 >    Good    ()
+                   '2022-03-16_21-21-35',   # ff2 >    Good    ()
+                   '2022-03-16_21-28-09']   # ff1 >    Good    ()
+
     # TODO:
     #       > Inspect each new run:
     #           a. Mapping problem?

@@ -32,27 +32,45 @@ XTERM=false     # -x
 SOGM=false      # -s
 TEB=false       # -b
 MAPPING=2       # -m (arg)
+LOADTRAJ=false  # -l
 
 # Parse arguments
-while getopts xsbm: option
+while getopts xsbm:l option
 do
 case "${option}"
 in
-x) XTERM=true;;     # are we using TEB planner
-s) SOGM=true;;     # are we using SOGMs
+x) XTERM=true;;             # are we using TEB planner
+s) SOGM=true;;              # are we using SOGMs
 b) TEB=true;;               # are we using TEB planner
 m) MAPPING=${OPTARG};;      # use gmapping, AMCL or PointSLAM? (respectively 0, 1, 2)
+l) LOADTRAJ=true;;          # are we using loaded traj for GroundTruth predictions
 esac
 done
 
-# Wait for a message with the flow field (meaning the robot is loaded and everything is ready)
 echo ""
 echo "Waiting for Robot initialization ..."
+
+# Wait until rosmaster has started 
+until [[ -n "$rostopics" ]]
+do
+    rostopics="$(rostopic list)"
+    sleep 0.5
+done
+
+# Wait for a message with the flow field (meaning the robot is loaded)
 until [[ -n "$puppet_state_msg" ]]
 do 
     sleep 0.5
     puppet_state_msg=$(rostopic echo -n 1 /puppet_state | grep "running")
 done 
+
+# Wait for a message with the pointclouds (meaning everything is ready)
+until [[ -n "$velo_state_msg" ]]
+do 
+    sleep 0.5
+    velo_state_msg=$(rostopic echo -n 1 /velodyne_points | grep "header")
+done 
+
 echo "OK"
 
 # Get parameters from ROS
@@ -76,7 +94,6 @@ echo "MAPPING: $MAPPING"
 echo "FILTER: $FILTER"
 echo "GTCLASS: $GTCLASS"
 echo "TEB: $TEB"
-
 
 ####################
 # Start Localization
@@ -174,9 +191,6 @@ nav_command="${nav_command} local_costmap_params:=$local_costmap_params"
 nav_command="${nav_command} local_planner_params:=$local_planner_params"
 nav_command="${nav_command} local_planner:=$local_planner"
 
-file does not exist [/home/hth/Deep-Collison-Checker/Myhal_Simulator/nav_noetic_ws/src/jackal_velodyne/params/teb_normal_params.yaml]
-
-
 # Start navigation algo
 if [ "$XTERM" = true ] ; then
     xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Move base" -n "Move base" -hold \
@@ -197,9 +211,28 @@ echo " "
 echo " "
 echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
 
-if [ "$SOGM" = true ] ; then
-    cd onboard_deep_sogm/scripts
-    ./collider.sh #TODO THIS IS THE FILE FOR THE ROBOT< SSO CREATE NEW ONE WITH THE RIGHT SOURCING FOR THE SIMU
+if [ "$LOADTRAJ" = true ] ; then
+
+    # Get the loaded world
+    LOADPATH=$(rosparam get load_path)
+    LOADWORLD=$(rosparam get load_world)
+
+    if [ "$LOADWORLD" = "" ] || [ "$LOADWORLD" = "none" ] ; then
+        echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        echo "X  Error no world loaded that we can use for gt sogm  X"  
+        echo "X  load_path = $LOADPATH                              X"
+        echo "X  load_world = $LOADWORLD                            X"
+        echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    else
+        rosrun teb_local_planner gt_sogm.py
+    fi
+
+
+else
+    if [ "$SOGM" = true ] ; then
+        cd onboard_deep_sogm/scripts
+        ./collider.sh #TODO THIS IS THE FILE FOR THE ROBOT< SSO CREATE NEW ONE WITH THE RIGHT SOURCING FOR THE SIMU
+    fi
 fi
 echo "OK"
 echo " "

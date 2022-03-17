@@ -282,11 +282,11 @@ namespace gazebo
         const double MIN_INTENSITY = min_intensity_;
 
         // Populate message fields
-        const uint32_t POINT_STEP = 32;
+        const uint32_t POINT_STEP = 22;
         sensor_msgs::PointCloud2 msg;
         msg.header.frame_id = frame_name_;
         msg.header.stamp = ros::Time(_msg->time().sec(), _msg->time().nsec());
-        msg.fields.resize(5);
+        msg.fields.resize(6);
         msg.fields[0].name = "x";
         msg.fields[0].offset = 0;
         msg.fields[0].datatype = sensor_msgs::PointField::FLOAT32;
@@ -299,14 +299,18 @@ namespace gazebo
         msg.fields[2].offset = 8;
         msg.fields[2].datatype = sensor_msgs::PointField::FLOAT32;
         msg.fields[2].count = 1;
-        msg.fields[3].name = "intensity";
-        msg.fields[3].offset = 16;
+        msg.fields[3].name = "time";
+        msg.fields[3].offset = 12;
         msg.fields[3].datatype = sensor_msgs::PointField::FLOAT32;
         msg.fields[3].count = 1;
-        msg.fields[4].name = "ring";
-        msg.fields[4].offset = 20;
-        msg.fields[4].datatype = sensor_msgs::PointField::UINT16;
+        msg.fields[4].name = "intensity";
+        msg.fields[4].offset = 16;
+        msg.fields[4].datatype = sensor_msgs::PointField::FLOAT32;
         msg.fields[4].count = 1;
+        msg.fields[5].name = "ring";
+        msg.fields[5].offset = 20;
+        msg.fields[5].datatype = sensor_msgs::PointField::UINT16;
+        msg.fields[5].count = 1;
         msg.data.resize(verticalRangeCount * rangeCount * POINT_STEP);
 
         int i, j;
@@ -321,6 +325,7 @@ namespace gazebo
                 // Intensity
                 double intensity = _msg->scan().intensities(i + j * rangeCount);
                 int catagory;
+                float time0 = 0;
                 // Ignore points that lay outside range bands or optionally, beneath a
                 // minimum intensity level.
                 if ((MIN_RANGE >= r) || (r >= MAX_RANGE) || (intensity < MIN_INTENSITY))
@@ -371,6 +376,7 @@ namespace gazebo
 
                     if (point.Z() < 0.05){
                         catagory = 0; //ground
+                        *((float *)(ptr + 12)) = time0;
                         *((float *)(ptr + 16)) = catagory;
                         *((uint16_t *)(ptr + 20)) = j; // ring
 
@@ -478,6 +484,7 @@ namespace gazebo
                   
                     
 
+                    *((float *)(ptr + 12)) = time0;
                     *((float *)(ptr + 16)) = catagory;
                     *((uint16_t *)(ptr + 20)) = j; // ring
 

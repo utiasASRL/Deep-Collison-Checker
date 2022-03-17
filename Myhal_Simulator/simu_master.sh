@@ -49,17 +49,17 @@ echo "Min step size: $MINSTEP"
 echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nGTCLASS: $GTCLASS"
 echo -e " "
 
-# Handle the choice betwenn gt and predictions
-c_method="ground_truth"
-if [ "$FILTER" = false ] ; then
-    c_method="none"
-    GTCLASS=false
-else
-    if [ "$GTCLASS" = false ] ; then
+
+# Handle the choice between gt and predictions
+c_method="none"
+if [ "$GTCLASS" = false ] ; then
+    if [ "$FILTER" = false ] ; then
+        c_method="none"
+    else
         c_method="online_predictions"
-    else 
-        c_method="ground_truth"
     fi
+else 
+    c_method="ground_truth"
 fi
 export GTCLASSIFY=$GTCLASS
 
@@ -105,8 +105,6 @@ rosparam set filter_status $FILTER
 rosparam set gmapping_status true
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
-
-
 
 
 ##################
