@@ -33,13 +33,9 @@ os.environ.update(OMP_NUM_THREADS='1',
 import numpy as np
 import torch
 
-
 # Dataset
-from slam.PointMapSLAM import pointmap_slam, detect_short_term_movables, annotation_process
-from slam.dev_slam import bundle_slam, pointmap_for_AMCL
 from torch.utils.data import DataLoader
-from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSlam, MyhalCollisionSampler, \
-    MyhalCollisionCollate
+from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate
 
 from utils.config import Config
 from utils.trainer import ModelTrainer
@@ -47,6 +43,8 @@ from models.architectures import KPCollider
 
 from os.path import exists, join
 from os import makedirs
+
+from MyhalCollision_sessions import Myhal1_sessions
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -104,10 +102,10 @@ class MyhalCollisionConfig(Config):
     ######################
 
     # Number of propagating layer
-    n_2D_layers = 50
+    n_2D_layers = 40
 
     # Total time propagated
-    T_2D = 5.0
+    T_2D = 4.0
 
     # Size of 2D convolution grid
     dl_2D = 0.12
@@ -120,7 +118,7 @@ class MyhalCollisionConfig(Config):
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
-    balance_proportions = [0, 0, 1, 1, 20, 0.4]
+    balance_proportions = [0, 0, 1, 1, 20, 0.0]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -157,7 +155,7 @@ class MyhalCollisionConfig(Config):
     max_val_points = -1
 
     # Choice of input features
-    first_features_dim = 100
+    first_features_dim = 128
 
     # Number of batch
     batch_num = 6
@@ -209,7 +207,7 @@ class MyhalCollisionConfig(Config):
     # Learning rate management
     learning_rate = 1e-2
     momentum = 0.98
-    lr_decays = {i: 0.1 ** (1 / 50) for i in range(1, max_epoch)}
+    lr_decays = {i: 0.1 ** (1 / 60) for i in range(1, max_epoch)}
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
@@ -360,54 +358,11 @@ if __name__ == '__main__':
     # Training sessions
     ###################
 
-    dataset_path = '../Data/RealMyhal'
-    train_days = ['2021-12-06_08-12-39',    # - \
-                  '2021-12-06_08-38-16',    # -  \
-                  '2021-12-06_08-44-07',    # -   > First runs with controller for mapping of the environment
-                  '2021-12-06_08-51-29',    # -  /
-                  '2021-12-06_08-54-58',    # - /
-                  '2021-12-10_13-32-10',    # - \
-                  '2021-12-10_13-26-07',    # -  \
-                  '2021-12-10_13-17-29',    # -   > Session with normal TEB planner
-                  '2021-12-10_13-06-09',    # -  /
-                  '2021-12-10_12-53-37',    # - /
-                  '2021-12-13_18-16-27',    # - \
-                  '2021-12-13_18-22-11',    # -  \
-                  '2021-12-15_19-09-57',    # -   > Session with normal TEB planner Tour A and B
-                  '2021-12-15_19-13-03']    # -  /
+    # Get sessions from the annotation script
+    dataset_path, map_day, refine_sessions, train_days, train_comments = Myhal1_sessions()
 
-    train_days += ['2022-01-18_10-38-28',   # - \
-                   '2022-01-18_10-42-54',   # -  \
-                   '2022-01-18_10-47-07',   # -   \
-                   '2022-01-18_10-48-42',   # -    \
-                   '2022-01-18_10-53-28',   # -     > Sessions with normal TEB planner on loop_3
-                   '2022-01-18_10-58-05',   # -     > Simple scenarios for experiment
-                   '2022-01-18_11-02-28',   # -    /
-                   '2022-01-18_11-11-03',   # -   /
-                   '2022-01-18_11-15-40',   # -  /
-                   '2022-01-18_11-20-21']   # - /
-                   
-    train_days += ['2022-02-25_18-19-12',   # - \
-                   '2022-02-25_18-24-30',   # -  > Face to face scenario on (loop_2)
-                   '2022-02-25_18-29-18']   # - /
-    map_i = 3
-    train_i = np.arange(len(train_days))[5:]
-    
-    # Notes for myself: number of dynamic people emcoutered in each run
-    #
-    # '2021-12-10_12-53-37',    1 driver / 3 people
-    # '2021-12-10_13-06-09',    1 person
-    # '2021-12-10_13-17-29',    Nobody
-    # '2021-12-10_13-26-07',    1 follower / 9 people or more
-    # '2021-12-10_13-32-10',    9 people or more (groups)
-    # '2021-12-13_18-16-27',    1 blocker
-    # '2021-12-13_18-22-11',    1 blocker / 3 people
-    # '2021-12-15_19-09-57',    4 people
-    # '2021-12-15_19-13-03']    3 people
-
-    map_day = train_days[map_i]
-    train_days = np.sort(np.array(train_days)[train_i])
-    val_inds = np.array([1, 2, 5, 7, 11, 17, 18])
+    # Get training and validation sets
+    val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])
 
     ######################
     # Automatic Annotation

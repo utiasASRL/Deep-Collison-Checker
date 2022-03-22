@@ -1077,362 +1077,364 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     visu_paths = []
     horizons = []
     n_2D_layers = []
-    for chosen_log, log_name in zip(list_of_paths, list_of_names):
-
-        ############
-        # Parameters
-        ############
-
-        # Load parameters
-        config = Config()
-        config.load(chosen_log)
-        n_2D_layers.append(config.n_2D_layers)
-        horizons.append(config.T_2D)
-
-        # Find all checkpoints in the chosen training folder
-        chkp_path = join(chosen_log, 'checkpoints')
-        chkps = np.sort([join(chkp_path, f) for f in listdir(chkp_path) if f[:4] == 'chkp'])
-        
-        wanted_chkp_mod = [w_c % len(chkps) for w_c in wanted_chkp]
-
-        # # Get training and validation days
-        # val_path = join(chosen_log, 'val_preds')
-        # val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
-
-        # Util ops
-        softmax = torch.nn.Softmax(1)
-        sigmoid_2D = torch.nn.Sigmoid()
-        fake_loss = FakeColliderLoss(config)
-
-        # Result folder
-        visu_path = join(config.saving_path, 'test_visu')
-        if not exists(visu_path):
-            makedirs(visu_path)
-        visu_paths.append(visu_path)
-
-        ####################################
-        # Preload to avoid long computations
-        ####################################
-        
-        # Dataset
-        test_dataset = MyhalCollisionDataset(config,
-                                             real_val_days,
-                                             chosen_set='validation',
-                                             dataset_path=dataset_path,
-                                             add_sim_path=sim_path,
-                                             add_sim_days=sim_val_days,
-                                             balance_classes=False)
-
-        wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
-        wanted_f_inds = [test_dataset.all_inds[ind][1] for ind in wanted_inds]
-        sf_to_i = {tuple(test_dataset.all_inds[ind]): i for i, ind in enumerate(wanted_inds)}
-
-        # List all files we need per checkpoint
-        all_chkp_files = []
-        for chkp_i, chkp in enumerate(chkps):
-            if chkp_i in wanted_chkp_mod:
-
-                # Check if all wanted_files exists for this chkp
-                all_wanted_files = []
-                preds_chkp_folder = join(visu_path, 'preds_{:s}'.format(chkp[:-4].split('/')[-1]))
-                for ind_i, ind in enumerate(wanted_inds):
-                    seq_folder = join(preds_chkp_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
-                    wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
-                    all_wanted_files.append(wanted_ind_file)
-
-                all_chkp_files.append(all_wanted_files)
-
-        # GT files
-        all_gt_files = []
-        gt_folder = join(visu_path, 'gt_imgs')
-        for ind_i, ind in enumerate(wanted_inds):
-            seq_folder = join(gt_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
-            wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
-            all_gt_files.append(wanted_ind_file)
-
-        # Find which chkp need to be redone [n_chkp, n_w_inds]
-        saved_mask = np.array([[exists(wanted_ind_file) for wanted_ind_file in all_wanted_files] for all_wanted_files in all_chkp_files], dtype=bool)
-        chkp_completed = np.all(saved_mask, axis=1)
-        if redo:
-            chkp_completed = np.zeros_like(chkp_completed)
-
-        ####################
-        print('\n')
-        print(log_name)
-        print('*' * len(log_name))
-        print('\n')
-
-        n_fmt0 = np.max([len(chkp[:-4].split('/')[-1]) for chkp in chkps]) + 2
-        lines = ['{:^{width}s}|'.format('Chkp', width=n_fmt0)]
-        lines += ['{:-^{width}s}|'.format('', width=n_fmt0)]
-        for chkp_i, chkp in enumerate(chkps):
-            lines += ['{:^{width}s}|'.format(chkp[:-4].split('/')[-1], width=n_fmt0)]
-
-        n_fmt1 = 2
-        lines[0] += '{:^{width}s}'.format('Wanted Gifs already Computed?', width=n_fmt1 * len(saved_mask[0]))
-        for s_i in range(saved_mask.shape[1]):
-            lines[1] += '{:-^{width}s}'.format('', width=n_fmt1)
-            save_i = 0
-            for chkp_i, chkp in enumerate(chkps):
-                if chkp_i in wanted_chkp_mod:
-                    if saved_mask[save_i, s_i]:
-                        lines[chkp_i+2] += '{:}{:>{width}s}{:}'.format(bcolors.OKGREEN, u'\u2713', bcolors.ENDC, width=n_fmt1)
-                    else:
-                        lines[chkp_i+2] += '{:}{:>{width}s}{:}'.format(bcolors.FAIL, u'\u2718', bcolors.ENDC, width=n_fmt1)
-                    save_i += 1
-
-        for line_str in lines:
-            print(line_str)
-        ####################
-
-        # If everything is already done, we do not need to prepare GPU etc
-        if np.all(chkp_completed):
-            
-            all_preds = []
-            all_gts = []
-            all_ingts = []
-
-            # Load every file
-            for chkp_i, chkp in enumerate(chkps):
-                if chkp_i in wanted_chkp_mod:
-                    chkp_preds = []
-                    for ind_i, wanted_ind_file in enumerate(all_chkp_files[len(all_preds)]):
-                        with open(wanted_ind_file, 'rb') as wfile:
-                            ind_preds = pickle.load(wfile)
-                        chkp_preds.append(np.copy(ind_preds))
-                    chkp_preds = np.stack(chkp_preds, axis=0)
-                    all_preds.append(chkp_preds)
-
-            # All predictions shape: [chkp_n, frames_n, T, H, W, 3]
-            all_preds = np.stack(all_preds, axis=0)
-
-            # All gts shape: [frames_n, T, H, W, 3]
-            for ind_i, wanted_ind_file in enumerate(all_gt_files):
-                with open(wanted_ind_file, 'rb') as wfile:
-                    ind_gts, ind_ingts = pickle.load(wfile)
-                all_gts.append(np.copy(ind_gts))
-                all_ingts.append(np.copy(ind_ingts))
-            all_gts = np.stack(all_gts, axis=0)
-            all_ingts = np.stack(all_ingts, axis=0)
-
-        ########
-        # Or ...
-        ########
-
-        else:
+    
+    with torch.no_grad():
+        for chosen_log, log_name in zip(list_of_paths, list_of_names):
 
             ############
-            # Choose GPU
+            # Parameters
             ############
+
+            # Load parameters
+            config = Config()
+            config.load(chosen_log)
+            n_2D_layers.append(config.n_2D_layers)
+            horizons.append(config.T_2D)
+
+            # Find all checkpoints in the chosen training folder
+            chkp_path = join(chosen_log, 'checkpoints')
+            chkps = np.sort([join(chkp_path, f) for f in listdir(chkp_path) if f[:4] == 'chkp'])
             
-            torch.cuda.empty_cache()
+            wanted_chkp_mod = [w_c % len(chkps) for w_c in wanted_chkp]
 
-            # Automatic choice (need pynvml to be installed)
-            if GPU_ID == 'auto':
-                print('\nSearching a free GPU:')
-                for i in range(torch.cuda.device_count()):
-                    a = torch.cuda.list_gpu_processes(i)
-                    print(torch.cuda.list_gpu_processes(i))
-                    a = a.split()
-                    if a[1] == 'no':
-                        GPU_ID = a[0][-1:]
+            # # Get training and validation days
+            # val_path = join(chosen_log, 'val_preds')
+            # val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
 
-            # Safe check no free GPU
-            if GPU_ID == 'auto':
-                print('\nNo free GPU found!\n')
-                a = 1 / 0
+            # Util ops
+            softmax = torch.nn.Softmax(1)
+            sigmoid_2D = torch.nn.Sigmoid()
+            fake_loss = FakeColliderLoss(config)
 
-            else:
-                print('\nUsing GPU:', GPU_ID, '\n')
+            # Result folder
+            visu_path = join(config.saving_path, 'test_visu')
+            if not exists(visu_path):
+                makedirs(visu_path)
+            visu_paths.append(visu_path)
 
-            # Set GPU visible device
-            chosen_gpu = int(GPU_ID)
-
-            ##################################
-            # Change model parameters for test
-            ##################################
-
-            # Change parameters for the test here. For example, you can stop augmenting the input data.
-            config.augment_noise = 0
-            config.augment_scale_min = 1.0
-            config.augment_scale_max = 1.0
-            config.augment_symmetries = [False, False, False]
-            config.augment_rotation = 'none'
-            config.validation_size = 100
-
-            ###########################
-            # Initialize model and data
-            ###########################
-
-            # Specific sampler with pred inds
-            test_sampler = MyhalCollisionSamplerTest(test_dataset, wanted_inds)
-            test_loader = DataLoader(test_dataset,
-                                     batch_size=1,
-                                     sampler=test_sampler,
-                                     collate_fn=MyhalCollisionCollate,
-                                     num_workers=config.input_threads,
-                                     pin_memory=True)
-
-            # Calibrate samplers
-            if config.max_val_points < 0:
-                config.max_val_points = 1e9
-                test_loader.dataset.max_in_p = 1e9
-                test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True)
-            test_sampler.calibration(test_loader, verbose=True)
-
-            # Init model
-            net = KPCollider(config, test_dataset.label_values, test_dataset.ignored_labels)
-
-            # Choose to test on CPU or GPU
-            if torch.cuda.is_available():
-                device = torch.device("cuda:{:d}".format(chosen_gpu))
-                net.to(device)
-            else:
-                device = torch.device("cpu")
+            ####################################
+            # Preload to avoid long computations
+            ####################################
             
-            torch.cuda.synchronize(device)
+            # Dataset
+            test_dataset = MyhalCollisionDataset(config,
+                                                 real_val_days,
+                                                 chosen_set='validation',
+                                                 dataset_path=dataset_path,
+                                                 add_sim_path=sim_path,
+                                                 add_sim_days=sim_val_days,
+                                                 balance_classes=False)
 
-            ######################################
-            # Start predictions with ckpts weights
-            ######################################
+            wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
+            wanted_f_inds = [test_dataset.all_inds[ind][1] for ind in wanted_inds]
+            sf_to_i = {tuple(test_dataset.all_inds[ind]): i for i, ind in enumerate(wanted_inds)}
 
-            all_preds = []
-            all_gts = [None for _ in wanted_inds]
-            all_ingts = [None for _ in wanted_inds]
-
+            # List all files we need per checkpoint
+            all_chkp_files = []
             for chkp_i, chkp in enumerate(chkps):
                 if chkp_i in wanted_chkp_mod:
 
-                    if chkp_completed[len(all_preds)]:
+                    # Check if all wanted_files exists for this chkp
+                    all_wanted_files = []
+                    preds_chkp_folder = join(visu_path, 'preds_{:s}'.format(chkp[:-4].split('/')[-1]))
+                    for ind_i, ind in enumerate(wanted_inds):
+                        seq_folder = join(preds_chkp_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
+                        wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
+                        all_wanted_files.append(wanted_ind_file)
 
-                        # Load every file
+                    all_chkp_files.append(all_wanted_files)
+
+            # GT files
+            all_gt_files = []
+            gt_folder = join(visu_path, 'gt_imgs')
+            for ind_i, ind in enumerate(wanted_inds):
+                seq_folder = join(gt_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
+                wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
+                all_gt_files.append(wanted_ind_file)
+
+            # Find which chkp need to be redone [n_chkp, n_w_inds]
+            saved_mask = np.array([[exists(wanted_ind_file) for wanted_ind_file in all_wanted_files] for all_wanted_files in all_chkp_files], dtype=bool)
+            chkp_completed = np.all(saved_mask, axis=1)
+            if redo:
+                chkp_completed = np.zeros_like(chkp_completed)
+
+            ####################
+            print('\n')
+            print(log_name)
+            print('*' * len(log_name))
+            print('\n')
+
+            n_fmt0 = np.max([len(chkp[:-4].split('/')[-1]) for chkp in chkps]) + 2
+            lines = ['{:^{width}s}|'.format('Chkp', width=n_fmt0)]
+            lines += ['{:-^{width}s}|'.format('', width=n_fmt0)]
+            for chkp_i, chkp in enumerate(chkps):
+                lines += ['{:^{width}s}|'.format(chkp[:-4].split('/')[-1], width=n_fmt0)]
+
+            n_fmt1 = 2
+            lines[0] += '{:^{width}s}'.format('Wanted Gifs already Computed?', width=n_fmt1 * len(saved_mask[0]))
+            for s_i in range(saved_mask.shape[1]):
+                lines[1] += '{:-^{width}s}'.format('', width=n_fmt1)
+                save_i = 0
+                for chkp_i, chkp in enumerate(chkps):
+                    if chkp_i in wanted_chkp_mod:
+                        if saved_mask[save_i, s_i]:
+                            lines[chkp_i+2] += '{:}{:>{width}s}{:}'.format(bcolors.OKGREEN, u'\u2713', bcolors.ENDC, width=n_fmt1)
+                        else:
+                            lines[chkp_i+2] += '{:}{:>{width}s}{:}'.format(bcolors.FAIL, u'\u2718', bcolors.ENDC, width=n_fmt1)
+                        save_i += 1
+
+            for line_str in lines:
+                print(line_str)
+            ####################
+
+            # If everything is already done, we do not need to prepare GPU etc
+            if np.all(chkp_completed):
+                
+                all_preds = []
+                all_gts = []
+                all_ingts = []
+
+                # Load every file
+                for chkp_i, chkp in enumerate(chkps):
+                    if chkp_i in wanted_chkp_mod:
                         chkp_preds = []
                         for ind_i, wanted_ind_file in enumerate(all_chkp_files[len(all_preds)]):
                             with open(wanted_ind_file, 'rb') as wfile:
                                 ind_preds = pickle.load(wfile)
                             chkp_preds.append(np.copy(ind_preds))
+                        chkp_preds = np.stack(chkp_preds, axis=0)
+                        all_preds.append(chkp_preds)
 
-                        print("\nPrevious gifs found for " + chkp)
+                # All predictions shape: [chkp_n, frames_n, T, H, W, 3]
+                all_preds = np.stack(all_preds, axis=0)
 
-                    else:
+                # All gts shape: [frames_n, T, H, W, 3]
+                for ind_i, wanted_ind_file in enumerate(all_gt_files):
+                    with open(wanted_ind_file, 'rb') as wfile:
+                        ind_gts, ind_ingts = pickle.load(wfile)
+                    all_gts.append(np.copy(ind_gts))
+                    all_ingts.append(np.copy(ind_ingts))
+                all_gts = np.stack(all_gts, axis=0)
+                all_ingts = np.stack(all_ingts, axis=0)
 
-                        # Load new checkpoint weights
-                        if torch.cuda.is_available():
-                            checkpoint = torch.load(chkp, map_location=device)
+            ########
+            # Or ...
+            ########
+
+            else:
+
+                ############
+                # Choose GPU
+                ############
+                
+                torch.cuda.empty_cache()
+
+                # Automatic choice (need pynvml to be installed)
+                if GPU_ID == 'auto':
+                    print('\nSearching a free GPU:')
+                    for i in range(torch.cuda.device_count()):
+                        a = torch.cuda.list_gpu_processes(i)
+                        print(torch.cuda.list_gpu_processes(i))
+                        a = a.split()
+                        if a[1] == 'no':
+                            GPU_ID = a[0][-1:]
+
+                # Safe check no free GPU
+                if GPU_ID == 'auto':
+                    print('\nNo free GPU found!\n')
+                    a = 1 / 0
+
+                else:
+                    print('\nUsing GPU:', GPU_ID, '\n')
+
+                # Set GPU visible device
+                chosen_gpu = int(GPU_ID)
+
+                ##################################
+                # Change model parameters for test
+                ##################################
+
+                # Change parameters for the test here. For example, you can stop augmenting the input data.
+                config.augment_noise = 0
+                config.augment_scale_min = 1.0
+                config.augment_scale_max = 1.0
+                config.augment_symmetries = [False, False, False]
+                config.augment_rotation = 'none'
+                config.validation_size = 100
+
+                ###########################
+                # Initialize model and data
+                ###########################
+
+                # Specific sampler with pred inds
+                test_sampler = MyhalCollisionSamplerTest(test_dataset, wanted_inds)
+                test_loader = DataLoader(test_dataset,
+                                         batch_size=1,
+                                         sampler=test_sampler,
+                                         collate_fn=MyhalCollisionCollate,
+                                         num_workers=config.input_threads,
+                                         pin_memory=True)
+
+                # Calibrate samplers
+                if config.max_val_points < 0:
+                    config.max_val_points = 1e9
+                    test_loader.dataset.max_in_p = 1e9
+                    test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True)
+                test_sampler.calibration(test_loader, verbose=True)
+
+                # Init model
+                net = KPCollider(config, test_dataset.label_values, test_dataset.ignored_labels)
+
+                # Choose to test on CPU or GPU
+                if torch.cuda.is_available():
+                    device = torch.device("cuda:{:d}".format(chosen_gpu))
+                    net.to(device)
+                else:
+                    device = torch.device("cpu")
+                
+                torch.cuda.synchronize(device)
+
+                ######################################
+                # Start predictions with ckpts weights
+                ######################################
+
+                all_preds = []
+                all_gts = [None for _ in wanted_inds]
+                all_ingts = [None for _ in wanted_inds]
+
+                for chkp_i, chkp in enumerate(chkps):
+                    if chkp_i in wanted_chkp_mod:
+
+                        if chkp_completed[len(all_preds)]:
+
+                            # Load every file
+                            chkp_preds = []
+                            for ind_i, wanted_ind_file in enumerate(all_chkp_files[len(all_preds)]):
+                                with open(wanted_ind_file, 'rb') as wfile:
+                                    ind_preds = pickle.load(wfile)
+                                chkp_preds.append(np.copy(ind_preds))
+
+                            print("\nPrevious gifs found for " + chkp)
+
                         else:
-                            checkpoint = torch.load(chkp, map_location=torch.device('cpu'))
-                        net.load_state_dict(checkpoint['model_state_dict'])
-                        epoch_i = checkpoint['epoch'] + 1
-                        net.eval()
-                        print("\nModel and training state restored from " + chkp)
 
-                        chkp_preds = [None for _ in wanted_inds]
+                            # Load new checkpoint weights
+                            if torch.cuda.is_available():
+                                checkpoint = torch.load(chkp, map_location=device)
+                            else:
+                                checkpoint = torch.load(chkp, map_location=torch.device('cpu'))
+                            net.load_state_dict(checkpoint['model_state_dict'])
+                            epoch_i = checkpoint['epoch'] + 1
+                            net.eval()
+                            print("\nModel and training state restored from " + chkp)
 
-                        # Predict wanted inds with this chkp
-                        for i, batch in enumerate(test_loader):
+                            chkp_preds = [None for _ in wanted_inds]
 
-                            if 'cuda' in device.type:
-                                batch.to(device)
+                            # Predict wanted inds with this chkp
+                            for i, batch in enumerate(test_loader):
 
-                            # Forward pass
-                            outputs, preds_init_2D, preds_2D = net(batch, config)
+                                if 'cuda' in device.type:
+                                    batch.to(device)
 
-                            # Get probs and labels
-                            f_inds = batch.frame_inds.cpu().numpy()
-                            lengths = batch.lengths[0].cpu().numpy()
-                            stck_init_preds = sigmoid_2D(preds_init_2D).cpu().detach().numpy()
-                            stck_future_logits = preds_2D.cpu().detach().numpy()
-                            stck_future_preds = sigmoid_2D(preds_2D).cpu().detach().numpy()
-                            stck_future_gts = batch.future_2D.cpu().detach().numpy()
-                            torch.cuda.synchronize(device)
+                                # Forward pass
+                                outputs, preds_init_2D, preds_2D = net(batch, config)
 
-                            # Loop on batch
-                            i0 = 0
-                            for b_i, length in enumerate(lengths):
+                                # Get probs and labels
+                                f_inds = batch.frame_inds.cpu().numpy()
+                                lengths = batch.lengths[0].cpu().numpy()
+                                stck_init_preds = sigmoid_2D(preds_init_2D).cpu().detach().numpy()
+                                stck_future_logits = preds_2D.cpu().detach().numpy()
+                                stck_future_preds = sigmoid_2D(preds_2D).cpu().detach().numpy()
+                                stck_future_gts = batch.future_2D.cpu().detach().numpy()
+                                torch.cuda.synchronize(device)
 
-                                # Get the 2D predictions and gt (init_2D)
-                                i_frame0 = config.n_frames - 1
-                                img0 = stck_init_preds[b_i, 0, :, :, :]
-                                gt_im0 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
-                                gt_im1 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
-                                gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, i_frame0:, :, :, 2], axis=0)
-                                img1 = stck_init_preds[b_i, 1, :, :, :]
-                                s_ind = f_inds[b_i, 0]
-                                f_ind = f_inds[b_i, 1]
+                                # Loop on batch
+                                i0 = 0
+                                for b_i, length in enumerate(lengths):
 
-                                # Get the 2D predictions and gt (prop_2D)
-                                img = stck_future_preds[b_i, :, :, :, :]
-                                gt_im = stck_future_gts[b_i, config.n_frames:, :, :, :]
-                                
-                                # Get the input frames gt
-                                ingt_im = stck_future_gts[b_i, :config.n_frames, :, :, :]
+                                    # Get the 2D predictions and gt (init_2D)
+                                    i_frame0 = config.n_frames - 1
+                                    img0 = stck_init_preds[b_i, 0, :, :, :]
+                                    gt_im0 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                                    gt_im1 = np.copy(stck_future_gts[b_i, i_frame0, :, :, :])
+                                    gt_im1[:, :, 2] = np.max(stck_future_gts[b_i, i_frame0:, :, :, 2], axis=0)
+                                    img1 = stck_init_preds[b_i, 1, :, :, :]
+                                    s_ind = f_inds[b_i, 0]
+                                    f_ind = f_inds[b_i, 1]
 
-                                # # Future errors defined the same as the loss
-                                future_errors_bce = fake_loss.apply(gt_im, stck_future_logits[b_i, :, :, :, :], error='bce')
-                                # future_errors = fake_loss.apply(gt_im, stck_future_logits[b_i, :, :, :, :], error='linear')
-                                # future_errors = np.concatenate((future_errors_bce, future_errors), axis=0)
+                                    # Get the 2D predictions and gt (prop_2D)
+                                    img = stck_future_preds[b_i, :, :, :, :]
+                                    gt_im = stck_future_gts[b_i, config.n_frames:, :, :, :]
+                                    
+                                    # Get the input frames gt
+                                    ingt_im = stck_future_gts[b_i, :config.n_frames, :, :, :]
 
-                                # # Save prediction too in gif format
-                                # s_ind = f_inds[b_i, 0]
-                                # f_ind = f_inds[b_i, 1]
-                                # filename = '{:s}_{:07d}_e{:04d}.npy'.format(test_dataset.sequences[s_ind], f_ind, epoch_i)
-                                # gifpath = join(config.saving_path, 'test_visu', filename)
-                                # fast_save_future_anim(gifpath[:-4] + '_f_gt.gif', gt_im, zoom=5, correction=True)
-                                # fast_save_future_anim(gifpath[:-4] + '_f_pre.gif', img, zoom=5, correction=True)
+                                    # # Future errors defined the same as the loss
+                                    future_errors_bce = fake_loss.apply(gt_im, stck_future_logits[b_i, :, :, :, :], error='bce')
+                                    # future_errors = fake_loss.apply(gt_im, stck_future_logits[b_i, :, :, :, :], error='linear')
+                                    # future_errors = np.concatenate((future_errors_bce, future_errors), axis=0)
 
-                                # Store all predictions
-                                chkp_preds[sf_to_i[(s_ind, f_ind)]] = img
-                                all_gts[sf_to_i[(s_ind, f_ind)]] = gt_im
-                                all_ingts[sf_to_i[(s_ind, f_ind)]] = ingt_im
+                                    # # Save prediction too in gif format
+                                    # s_ind = f_inds[b_i, 0]
+                                    # f_ind = f_inds[b_i, 1]
+                                    # filename = '{:s}_{:07d}_e{:04d}.npy'.format(test_dataset.sequences[s_ind], f_ind, epoch_i)
+                                    # gifpath = join(config.saving_path, 'test_visu', filename)
+                                    # fast_save_future_anim(gifpath[:-4] + '_f_gt.gif', gt_im, zoom=5, correction=True)
+                                    # fast_save_future_anim(gifpath[:-4] + '_f_pre.gif', img, zoom=5, correction=True)
+
+                                    # Store all predictions
+                                    chkp_preds[sf_to_i[(s_ind, f_ind)]] = img
+                                    all_gts[sf_to_i[(s_ind, f_ind)]] = gt_im
+                                    all_ingts[sf_to_i[(s_ind, f_ind)]] = ingt_im
+
+                                    if np.all([chkp_pred is not None for chkp_pred in chkp_preds]):
+                                        break
 
                                 if np.all([chkp_pred is not None for chkp_pred in chkp_preds]):
                                     break
 
-                            if np.all([chkp_pred is not None for chkp_pred in chkp_preds]):
-                                break
-
-                        # Save
-                        preds_chkp_folder = join(visu_path, 'preds_{:s}'.format(chkp[:-4].split('/')[-1]))
-                        for ind_i, ind in enumerate(wanted_inds):
-                            seq_folder = join(preds_chkp_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
-                            if not exists(seq_folder):
-                                makedirs(seq_folder)
-                            wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
-                            with open(wanted_ind_file, 'wb') as wfile:
-                                pickle.dump(np.copy(chkp_preds[ind_i]), wfile)
-
-                        # Save GT
-                        gt_folder = join(visu_path, 'gt_imgs')
-                        for ind_i, ind in enumerate(wanted_inds):
-                            seq_folder = join(gt_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
-                            if not exists(seq_folder):
-                                makedirs(seq_folder)
-                            wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
-                            if not exists(wanted_ind_file):
+                            # Save
+                            preds_chkp_folder = join(visu_path, 'preds_{:s}'.format(chkp[:-4].split('/')[-1]))
+                            for ind_i, ind in enumerate(wanted_inds):
+                                seq_folder = join(preds_chkp_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
+                                if not exists(seq_folder):
+                                    makedirs(seq_folder)
+                                wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
                                 with open(wanted_ind_file, 'wb') as wfile:
-                                    pickle.dump((np.copy(all_gts[ind_i]), np.copy(all_ingts[ind_i])),
-                                                wfile)
+                                    pickle.dump(np.copy(chkp_preds[ind_i]), wfile)
 
-                    # Stack chkp predictions [frames_n, T, H, W, 3]
-                    chkp_preds = np.stack(chkp_preds, axis=0)
+                            # Save GT
+                            gt_folder = join(visu_path, 'gt_imgs')
+                            for ind_i, ind in enumerate(wanted_inds):
+                                seq_folder = join(gt_folder, test_dataset.sequences[wanted_s_inds[ind_i]])
+                                if not exists(seq_folder):
+                                    makedirs(seq_folder)
+                                wanted_ind_file = join(seq_folder, 'f_{:06d}.pkl'.format(wanted_f_inds[ind_i]))
+                                if not exists(wanted_ind_file):
+                                    with open(wanted_ind_file, 'wb') as wfile:
+                                        pickle.dump((np.copy(all_gts[ind_i]), np.copy(all_ingts[ind_i])),
+                                                    wfile)
 
-                    # Store all predictions
-                    all_preds.append(np.copy(chkp_preds))
+                        # Stack chkp predictions [frames_n, T, H, W, 3]
+                        chkp_preds = np.stack(chkp_preds, axis=0)
+
+                        # Store all predictions
+                        all_preds.append(np.copy(chkp_preds))
 
 
-            # All predictions shape: [chkp_n, frames_n, T, H, W, 3]
-            all_preds = np.stack(all_preds, axis=0)
+                # All predictions shape: [chkp_n, frames_n, T, H, W, 3]
+                all_preds = np.stack(all_preds, axis=0)
 
-            # All gts shape: [frames_n, T, H, W, 3]
-            all_gts = np.stack(all_gts, axis=0)
-            all_ingts = np.stack(all_ingts, axis=0)
+                # All gts shape: [frames_n, T, H, W, 3]
+                all_gts = np.stack(all_gts, axis=0)
+                all_ingts = np.stack(all_ingts, axis=0)
 
-        comparison_preds.append(np.copy(all_preds))
-        comparison_gts.append(np.copy(all_gts))
-        comparison_ingts.append(np.copy(all_ingts))
+            comparison_preds.append(np.copy(all_preds))
+            comparison_gts.append(np.copy(all_gts))
+            comparison_ingts.append(np.copy(all_ingts))
 
-        # Free cuda memory
-        torch.cuda.empty_cache()
+            # Free cuda memory
+            torch.cuda.empty_cache()
 
 
     # ####################### DEBUG #######################
@@ -1519,18 +1521,10 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     # Input gt is always the same
     comparison_ingts = comparison_ingts[0]
 
+    # # Multiply prediction to see small values
+    # comparison_preds *= 2.0
+    # comparison_preds = np.minimum(comparison_preds, 0.99)
 
-    #
-    #
-    # TMP: multip;y prediction to see small values
-    print(np.min(comparison_preds), np.max(comparison_preds))
-    comparison_preds *= 2.0
-    comparison_preds = np.minimum(comparison_preds, 0.99)
-    print(np.min(comparison_preds), np.max(comparison_preds))
-    #
-    #
-
-    
     all_merged_imgs = []
     # Advanced display
     N = len(wanted_inds)
@@ -1706,6 +1700,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     print('Instructions:\n')
     print('> Use right and left arrows to navigate among examples.')
     print('> Use enter to start/stop animation loop.')
+    print('> Use "g" to save as gif.')
     print('\n---------------------------------------\n')
 
     plt.show()
@@ -3167,6 +3162,107 @@ def Controlled_v2_logs():
 
     return logs, logs_names, all_wanted_s, all_wanted_f
 
+
+def Myhal1_v1_logs():
+    """
+    Here we use the data Myhal1 v1
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-03-18_17-44-43'
+    end = 'Log_2022-05-02_14-32-20'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['50/50_4s/50',
+                  'Real_4s/50',
+                  '50/50_4s/40',
+                  'Real_4s/40',
+                  'etc']
+
+    # Copy here the indices you selected with gui
+    # all_wanted_s = []
+    # all_wanted_f = []
+    all_wanted_s = ['2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21']
+    all_wanted_f = [735,
+                    357,
+                    365,
+                    844,
+                    883,
+                    1077,
+                    1819,
+                    1926,
+                    26,
+                    480,
+                    527,
+                    551,
+                    647,
+                    859,
+                    889,
+                    958,
+                    1024,
+                    1050,
+                    1110,
+                    1185,
+                    1243,
+                    1288,
+                    1365,
+                    1405,
+                    1444,
+                    1472,
+                    1491,
+                    1525,
+                    1583,
+                    1609,
+                    1658]
+
+
+   
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main call
@@ -3180,9 +3276,9 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    # plotting = 'PR'  # Comparison of the performances with good metrics
+    plotting = 'PR'  # Comparison of the performances with good metrics
 
     # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
@@ -3192,7 +3288,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Controlled_v2_logs()
+    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v1_logs()
 
 
     # Check that all logs are of the same dataset. Different object can be compared
