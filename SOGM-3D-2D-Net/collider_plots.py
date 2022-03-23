@@ -3276,9 +3276,9 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR'  # Comparison of the performances with good metrics
 
     # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
