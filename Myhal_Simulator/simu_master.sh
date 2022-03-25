@@ -23,10 +23,11 @@ LOADWORLD=""    # -l (arg)
 FILTER=false    # -f
 GTCLASS=false   # -g 
 VIZ_GAZ=false   # -e 
+RVIZ=false      # -r
 XTERM=false     # -x
 
 # Parse parameters
-while getopts p:t:l:m:n:vfgebx option
+while getopts p:t:l:m:n:vrfgebx option
 do
 case "${option}"
 in
@@ -35,6 +36,7 @@ t) TOUR=${OPTARG};;         # What tour is being used
 l) LOADWORLD=${OPTARG};;    # do you want to load a prexisting world or generate a new one
 n) t=${OPTARG};;            # Overwrite the date
 v) GUI=true;;               # using gui?
+r) RVIZ=true;;              # using rviz?
 f) FILTER=true;;            # pointcloud filtering?
 g) GTCLASS=true;;           # are we using ground truth classifications, or online_classifications
 e) VIZ_GAZ=true;;           # are we going to vizualize topics in gazebo
@@ -190,17 +192,26 @@ nohup rosbag record -O "$PWD/../Data/Simulation_v2/simulated_runs/$t/raw_data.ba
     /move_base/TebLocalPlannerROS/local_plan \
     /move_base/TebLocalPlannerROS/teb_markers > "$NOHUP_ROSBAG_FILE" 2>&1 &
 
+    
+# setup ros environment
+source "/usr/share/gazebo/setup.sh"
+export QT_X11_NO_MITSHM=1
+
 
 # Start the simulation
 sleep 2.5
 echo -e "\033[1;4;34mRUNNING SIM\033[0m"
 
+OLD_DISPLAY=$DISPLAY
+export DISPLAY=:0
+echo $DISPLAY
+
 if [ "$XTERM" = true ] ; then
     xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
-        -e roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+        -e roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
 else
     NOHUP_GAZ_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gazebo.txt"
-    nohup roslaunch myhal_simulator p1.launch gui:=$GUI world_name:=$WORLDFILE > "$NOHUP_GAZ_FILE" 2>&1 &
+    nohup roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE > "$NOHUP_GAZ_FILE" 2>&1 &
 fi
 
 sleep 0.5
@@ -238,6 +249,23 @@ do
     puppet_state_msg=$(rostopic echo -n 1 /puppet_state | grep "running")
 done 
 echo "OK"
+
+# Run rviz and client if needed
+if [ "$GUI" = true ] ; then
+    export DISPLAY=$OLD_DISPLAY
+    echo $DISPLAY
+    NOHUP_GC_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gzclient.txt"
+    nohup roslaunch myhal_simulator p1_gzclient.launch > "$NOHUP_GC_FILE" 2>&1 &
+fi
+
+if [ "$RVIZ" = true ] ; then
+    export DISPLAY=$OLD_DISPLAY
+    echo $DISPLAY
+    NOHUP_RVIZ_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_rviz.txt"
+    nohup roslaunch myhal_simulator p1_rviz.launch > "$NOHUP_RVIZ_FILE" 2>&1 &
+fi
+
+
 
 # Run Dashboard
 echo -e "\033[1;4;34mStarting dashboard\033[0m"

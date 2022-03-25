@@ -4,6 +4,7 @@ it needs to be shut down'''
 import os
 import numpy as np
 import rospy
+import time
 import tf2_ros 
 import tf2_geometry_msgs
 import tf.transformations
@@ -44,6 +45,7 @@ class Assessor(object):
         self.map_to_odom = None
         self.tour_length = None
         self.curr_t = 1 
+        self.last_time = time.time()
         rospy.init_node("assessor")
         rospy.Subscriber("ground_truth/state", Odometry, self.ground_truth_callback)
         rospy.Subscriber("/tf", TFMessage, self.tf_callback)
@@ -59,13 +61,21 @@ class Assessor(object):
                         msg.pose.pose.position.z, msg.header.stamp.to_sec()),
                        dtype=[("x", np.float), ("y", np.float), ("z", np.float),
                               ("t", np.float)])
-
    
         if (self.tour_length is not None):
             if self.curr_t != -1:
                 print "t = {:.2f}s => target {}/{}".format(pos["t"], self.curr_t, self.tour_length)
             else:
                 print "Tour failed, Seeking target {}/{}".format(self.curr_t, self.tour_length) 
+
+        # Print gazebo simulation time compared to real time
+        current_time = time.time()
+        dt_simu = pos["t"] - self.last_msg["t"]  
+        dt_real = current_time - self.last_time
+        self.last_time = current_time
+        
+        print "    Time: {:.2f}s elapsed, real_time_factor = {:.1f}".format(dt_real, dt_real / dt_simu)
+
 
         # Two ways to get the instateneuous speed of the robot
         velocity = np.array((msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z))

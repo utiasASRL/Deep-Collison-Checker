@@ -13,20 +13,20 @@ typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseCl
 //int max_cycles = 10;
 
 bool lidar = false;
-bool camera = false;
+bool camera = true;
 
-void ImageCallback(const sensor_msgs::Image::ConstPtr& msg){
+// void ImageCallback(const sensor_msgs::Image::ConstPtr& msg){
 	
-	if (!camera){
-		if (!lidar){
-			ROS_WARN("CAMERA RECEIVED, waiting for lidar\n");
-		} else{
-			ROS_WARN("CAMERA RECEIVED\n");
-		}
+// 	if (!camera){
+// 		if (!lidar){
+// 			ROS_WARN("CAMERA RECEIVED, waiting for lidar\n");
+// 		} else{
+// 			ROS_WARN("CAMERA RECEIVED\n");
+// 		}
 		
-	}
-	camera = true;
-}
+// 	}
+// 	camera = true;
+// }
 
 void LidarCallback(const sensor_msgs::PointCloud2::ConstPtr& msg){
 
@@ -101,7 +101,7 @@ int main(int argc, char ** argv){
 	// Here the waiting is more advanced see ros doc
 
     ros::Subscriber lidar_sub = nh.subscribe("velodyne_points", 1000, LidarCallback);
-    ros::Subscriber camera_sub = nh.subscribe("kinect_V2/depth/image_raw", 1000, ImageCallback); //nh.subscribe("no_gpu_points", 1000, LidarCallback);
+    // ros::Subscriber camera_sub = nh.subscribe("kinect_V2/depth/image_raw", 1000, ImageCallback); //nh.subscribe("no_gpu_points", 1000, LidarCallback);
     ros::Rate r(10);
     while (!lidar || !camera){ // wait until both lidar and camera have been recieved 
         

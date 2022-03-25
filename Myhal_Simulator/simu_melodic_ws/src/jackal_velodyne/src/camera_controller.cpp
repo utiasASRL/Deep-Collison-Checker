@@ -66,13 +66,17 @@ void CameraController::OnNewFrame(const unsigned char *_image,
     //std::cout << "ROS: " << this->last_update_time << " "; 
     //std::cout << "Gazebo: " << this->parentSensor->LastUpdateTime() << std::endl;
     
-    if (!this->world->IsPaused()){
+    if (!this->world->IsPaused())
+    {
         this->world->SetPaused(true);
     }
 
-    if (this->save_count == 0){
+    if (this->save_count == 0)
+    {
         this->last_update_time = ros::Time::now();
-    } else {
+    } 
+    else 
+    {
         double dt = (ros::Time::now() - this->last_update_time).toSec();
         this->avg_dt = rolling_avg(this->avg_dt, dt, (double) this->save_count);
 
@@ -85,18 +89,17 @@ void CameraController::OnNewFrame(const unsigned char *_image,
     this->last_update_time = ros::Time::now();  
 
     char name[1024];
-    snprintf(name, sizeof(name), "%s-%05d.jpg",
-      this->parentSensor->Name().c_str(), this->save_count);
+    snprintf(name, sizeof(name), "%s-%05d.jpg", this->parentSensor->Name().c_str(), this->save_count);
 
     std::string filename = this->filepath + std::string(name);
 
 
-    this->parentSensor->Camera()->SaveFrame(
-        _image, _width, _height, _depth, _format, filename);
+    this->parentSensor->Camera()->SaveFrame(_image, _width, _height, _depth, _format, filename);
 
     this->save_count++;
 
-    if (this->world->IsPaused()){
+    if (this->world->IsPaused())
+    {
         this->world->SetPaused(false);
     }
 

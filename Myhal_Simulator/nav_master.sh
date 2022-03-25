@@ -109,17 +109,11 @@ if [ "$MAPPING" = "0" ] ; then
 elif [ "$MAPPING" = "1" ] ; then
     loc_launch="jackal_velodyne amcl.launch"
 else
-    loc_launch="point_slam simu_ptslam.launch filter:=$FILTER gt_classify:=$GTCLASS"
-fi
-
-if [ "$FILTER" = true ] ; then
-    scan_topic="/filtered_points"
-else
-    scan_topic="/velodyne_points"
+    loc_launch="point_slam simu_ptslam.launch filter:=$FILTER"
 fi
 
 # Add map path
-loc_launch="$loc_launch scan_topic:=$scan_topic init_map_path:=$HOME/Deep-Collison-Checker/Data/Simulation_v2/slam_offline/2020-10-02-13-39-05/map_update_0001.ply"
+loc_launch="$loc_launch init_map_path:=$HOME/Deep-Collison-Checker/Data/Simulation_v2/slam_offline/2020-10-02-13-39-05/map_update_0001.ply"
 
 # Start localization algo
 if [ "$XTERM" = true ] ; then
@@ -168,7 +162,7 @@ fi
 
 # Chose parameters for local planner
 if [ "$TEB" = true ] ; then
-    if [ "$SOGM" = true ] ; then
+    if [ "$SOGM" = true ] || [ "$LOADTRAJ" = true ] ; then
         local_planner_params="teb_params_sogm.yaml"
     else
         local_planner_params="teb_params_normal.yaml"
@@ -232,29 +226,15 @@ else
     if [ "$SOGM" = true ] ; then
         cd onboard_deep_sogm/scripts
         ./collider.sh #TODO THIS IS THE FILE FOR THE ROBOT< SSO CREATE NEW ONE WITH THE RIGHT SOURCING FOR THE SIMU
+
+    else
+        # Wait for eveyrthing to end before killing the docker container
+        sleep 10000
+        sleep 10000
+        sleep 10000
+        sleep 10000
     fi
 fi
 echo "OK"
 echo " "
 echo " "
-
-# Wait for eveyrthing to end before killing the docker container
-sleep 10
-sleep 10
-sleep 10
-sleep 10
-sleep 10
-sleep 10
-sleep 10
-sleep 10
-sleep 1000
-sleep 1000
-sleep 1000
-sleep 1000
-sleep 1000
-sleep 1000
-sleep 1000
-sleep 1000
-
-
-

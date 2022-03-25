@@ -1252,20 +1252,20 @@ def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
     # ingt_shape = [..., n, H, W, 3]
 
     # Define color palette
-    background = np.array([0, 0, 0], dtype=np.float64)
-    perma = np.array([1.0, 1.0, 0.0], dtype=np.float64)
-    longT = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-    shortT1 = np.array([1.0, 0.0, 0.0], dtype=np.float64)
-    shortT2 = np.array([1.0, 0.0, 1.0], dtype=np.float64)
-    gt_shortT = np.array([0.0, 1.0, 1.0], dtype=np.float64)
-    past_shortT = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+    background = np.array([0, 0, 0], dtype=np.float32)
+    perma = np.array([1.0, 1.0, 0.0], dtype=np.float32)
+    longT = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    shortT1 = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    shortT2 = np.array([1.0, 0.0, 1.0], dtype=np.float32)
+    gt_shortT = np.array([0.0, 1.0, 1.0], dtype=np.float32)
+    past_shortT = np.array([0.0, 1.0, 0.0], dtype=np.float32)
 
     # Merge color function
     if np.mean(background) > 0.5:
         merge_func = np.minimum
     else:
         merge_func = np.maximum
-
+        
     # Define colormaps
     resolution = 256
     cmap_perma = (np.linspace(background, perma, resolution) * 255).astype(np.uint8)
@@ -1274,9 +1274,12 @@ def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
     cmap_past_shortT = (np.linspace(background, past_shortT, resolution) * 255).astype(np.uint8)
     cmap_shortT = np.vstack((np.linspace(background, shortT1, resolution), np.linspace(shortT1, shortT2, resolution)))
     cmap_shortT = (cmap_shortT * 255).astype(np.uint8)
-
+    
     # Create past and future images
-    future_imgs = (np.ones_like(pred_imgs) * background * 255).astype(np.uint8)
+    future_imgs = np.ones_like(pred_imgs)
+    future_imgs *= background * 255
+    future_imgs = future_imgs.astype(np.uint8)
+
     past_imgs = np.zeros_like(ingt_imgs).astype(np.uint8)
 
     # Color future image

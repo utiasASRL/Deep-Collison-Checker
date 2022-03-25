@@ -10,10 +10,11 @@ TebLocalPlannerROS:
  dt_hysteresis: 0.08
  min_samples: 5        # Min TEB poses in the planed traj
  global_plan_overwrite_orientation: True
- max_global_plan_lookahead_dist: 5.0
+ max_global_plan_lookahead_dist: 2.5
  feasibility_check_no_poses: 2
  exact_arc_length: False
- # visualize_with_time_as_z_axis_scale: 0.1
+
+#  visualize_with_time_as_z_axis_scale: 0.3
 
  include_dynamic_obstacles: True    # Default False
 
@@ -86,7 +87,7 @@ TebLocalPlannerROS:
  weight_viapoint: 1
 #  weight_adapt_factor: 2
 
- weight_predicted_costmap: 1.1   # Default: 0.6 direct multiplier of the error function for predicted costmaps
+ weight_predicted_costmap: 1.5   # Default: 0.6 direct multiplier of the error function for predicted costmaps
  weight_static_costmap: 0.7   # Default: 0.6 direct multiplier of the error function for predicted costmaps
 
  # Homotopy Class Planner

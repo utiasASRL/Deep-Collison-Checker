@@ -121,8 +121,19 @@ def Myhal1_sessions():
                               ['2022-03-16_21-21-35', 'ff2 train >    Good    (Few people but full ff2 tour)'],
                               ['2022-03-16_21-28-09', 'ff1 train > Borderline (Some people but ok)']]
 
+    # Tuesday 9h/10h/11h.
+    sessions_and_comments += [['2022-03-22_14-04-53', 'ff1 train >    Good    (Session ended early, but overal nice)'],
+                              ['2022-03-22_14-07-26', 'ff1 train >    Good    (Fair amount of people)'],
+                              ['2022-03-22_14-12-20', 'ff1  val  >    Good    (not many people)'],
+                              ['2022-03-22_15-05-20', 'ff1 train >    Good    (Many people)'],
+                              ['2022-03-22_15-09-02', 'ff1 train >    Good    (Fair amount of people)'],
+                              ['2022-03-22_15-12-23', 'ff1 train >    Good    (A few people)'],
+                              ['2022-03-22_16-04-06', 'ff1 train >    Good    (Mega Busy)'],
+                              ['2022-03-22_16-08-09', 'ff1  val  >    Good    (Many people)']]
+
+
     # Procesing
-    # ****************************
+    # *********
     
     sessions_and_comments = [(s, c) for s, c in sessions_and_comments if 'ERASED' not in c]
 

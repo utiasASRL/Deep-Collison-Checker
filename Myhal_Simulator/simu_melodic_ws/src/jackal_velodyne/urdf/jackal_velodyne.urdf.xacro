@@ -357,10 +357,4 @@
     </VLP-16>
   </xacro:unless>
   
-  <xacro:include filename="$(find kinect_v2)/urdf/kinect_v2.urdf.xacro" />
-    <xacro:kinect_v2  parent="support_link3">
-        <origin xyz="0 0 -0.04"
-                rpy="0 0 0" />
-   </xacro:kinect_v2>
-  
 </robot>

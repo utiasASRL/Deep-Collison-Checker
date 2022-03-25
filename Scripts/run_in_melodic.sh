@@ -68,6 +68,7 @@ other_args="-v $XSOCK:$XSOCK \
     -e ROSPORT=$rosport \
     -e ROS_MASTER_URI=http://$HOSTNAME:$rosport \
     -e GAZEBO_MASTER_URI=http://$HOSTNAME:$gazport \
+    -e QT_X11_NO_MITSHM=1 \
     -w /home/$USER/Deep-Collison-Checker/Myhal_Simulator"
 
 if [ "$devdoc" = true ] ; then

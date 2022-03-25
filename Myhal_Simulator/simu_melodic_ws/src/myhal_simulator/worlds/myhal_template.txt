@@ -68,8 +68,8 @@
     <physics name='default_physics' default='0' type='ode'>
       <!--adjust max_step size to throttle the simulation (0.001/1.0/1000 is realtime, 0.0005/0.1/200 for slow)-->
       <max_step_size>0.0005</max_step_size>
-      <real_time_factor>0.05</real_time_factor>
-      <real_time_update_rate>100</real_time_update_rate>
+      <real_time_factor>0.2</real_time_factor>
+      <real_time_update_rate>400</real_time_update_rate>
     </physics>
     <scene>
       <ambient>0.4 0.4 0.4 1</ambient>

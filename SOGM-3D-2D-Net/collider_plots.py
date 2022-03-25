@@ -1554,6 +1554,9 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
         # showed_preds[..., 2] *= 0.6
         # merged_imgs = superpose_gt(showed_preds, showed_gts * 0, showed_ingts, ingts_fade=(100, -5))
 
+        # Reverse image height axis so that imshow is consistent with plot
+        merged_imgs = merged_imgs[:, :, ::-1, :, :]
+
         all_merged_imgs.append(merged_imgs)
 
         print('', end='\r')
@@ -1576,7 +1579,6 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     for ax_i, log_i in enumerate(c_showed):
 
         # Init plt
-        all_merged_imgs[frame_i][log_i, 0]
         images.append(axes[ax_i].imshow(all_merged_imgs[frame_i][log_i, 0]))
         # plt.axis('off')
 
@@ -3170,7 +3172,7 @@ def Myhal1_v1_logs():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-03-18_17-44-43'
-    end = 'Log_2022-05-02_14-32-20'
+    end = 'Log_2022-03-23_21-06-41'
 
     # Path to the results logs
     res_path = 'results'
@@ -3263,6 +3265,86 @@ def Myhal1_v1_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
+def Myhal1_v2_logs():
+    """
+    Here we use the data Myhal1 v2 (data until 2022-03-22)
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-03-23_21-06-42'
+    end = 'Log_2022-05-02_14-32-20'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['70/30_4s/40',
+                  'Real_4s/40',
+                  'etc']
+
+    # Copy here the indices you selected with gui
+    # all_wanted_s = []
+    # all_wanted_f = []
+    all_wanted_s = ['2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09']
+    all_wanted_f = [360,
+                    380,
+                    842,
+                    885,
+                    34,
+                    523,
+                    551,
+                    664,
+                    868,
+                    917,
+                    1144,
+                    1367,
+                    1390,
+                    1459,
+                    1478,
+                    532,
+                    668,
+                    948,
+                    1204,
+                    470,
+                    620,
+                    999,
+                    1550]
+
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main call
@@ -3288,7 +3370,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v1_logs()
+    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v2_logs()
 
 
     # Check that all logs are of the same dataset. Different object can be compared
