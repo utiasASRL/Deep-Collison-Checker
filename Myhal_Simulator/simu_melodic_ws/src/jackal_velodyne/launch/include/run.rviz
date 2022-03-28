@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Marker2/Namespaces1
+        - /SOGM Delay1
       Splitter Ratio: 0.625
     Tree Height: 734
   - Class: rviz/Selection
@@ -457,7 +458,7 @@ Visualization Manager:
     - Class: jsk_rviz_plugin/PieChart
       Enabled: true
       Name: SOGM Delay
-      Topic: ""
+      Topic: /move_base/TebLocalPlannerROS/sogm_delay
       Value: true
       auto color change: true
       background color: 0; 0; 0
@@ -468,10 +469,10 @@ Visualization Manager:
       foreground color: 85; 255; 0
       left: 60
       max color: 255; 0; 0
-      max color change threthold: 0.6000000238418579
-      max value: 2
+      max color change threthold: 0.25
+      max value: 4
       med color: 255; 255; 0
-      med color change threthold: 0.4000000059604645
+      med color change threthold: 0.15000000596046448
       min value: 0
       show caption: true
       size: 100
