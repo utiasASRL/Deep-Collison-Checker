@@ -196,6 +196,17 @@ fi
 
 echo "OK"
 
+######
+# Rviz
+######
+
+RVIZ=false
+if [ "$RVIZ" = true ] ; then
+    t=$(rosparam get start_time)
+    NOHUP_RVIZ_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_rviz.txt"
+    nohup rviz -d nav_noetic_ws/src/jackal_velodyne/rviz/nav.rviz > "$NOHUP_RVIZ_FILE" 2>&1 &
+fi
+
 
 ##################
 # Run Deep Network

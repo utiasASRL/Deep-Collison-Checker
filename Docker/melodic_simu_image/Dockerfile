@@ -102,6 +102,9 @@ RUN apt-get install python-tk ipython -y --no-install-recommends
 RUN apt-get install xterm -y --no-install-recommends
 ENV TERM xterm-256color
 
+# Install jsk for melodic
+RUN apt-get update
+RUN apt-get install ros-melodic-jsk-rviz-plugins -y --no-install-recommends
 
 # Setup user information
 ARG username0=bag

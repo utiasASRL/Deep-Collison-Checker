@@ -156,27 +156,6 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        kinect2_base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        kinect2_ir_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        kinect2_ir_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        kinect2_rgb_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        kinect2_rgb_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
         mid_mount:
           Alpha: 1
           Show Axes: false
@@ -444,7 +423,7 @@ Visualization Manager:
       Marker Topic: /move_base/TebLocalPlannerROS/teb_pose_layer
       Name: MarkerArray
       Namespaces:
-        {}
+        teb_custom: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -475,6 +454,54 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Class: jsk_rviz_plugin/PieChart
+      Enabled: true
+      Name: SOGM Delay
+      Topic: ""
+      Value: true
+      auto color change: true
+      background color: 0; 0; 0
+      backround alpha: 0.8999999761581421
+      clockwise rotate direction: false
+      foreground alpha: 0.699999988079071
+      foreground alpha 2: 0.4000000059604645
+      foreground color: 85; 255; 0
+      left: 60
+      max color: 255; 0; 0
+      max color change threthold: 0.6000000238418579
+      max value: 2
+      med color: 255; 255; 0
+      med color change threthold: 0.4000000059604645
+      min value: 0
+      show caption: true
+      size: 100
+      text size: 10
+      top: 30
+    - Buffer length: 100
+      Class: jsk_rviz_plugin/Plotter2D
+      Enabled: true
+      Name: Plotter2D
+      Show Value: true
+      Topic: ""
+      Value: true
+      auto color change: false
+      auto scale: true
+      background color: 0; 0; 0
+      backround alpha: 0
+      border: true
+      foreground alpha: 0.699999988079071
+      foreground color: 25; 255; 240
+      height: 128
+      left: 128
+      linewidth: 1
+      max color: 255; 0; 0
+      max value: 1
+      min value: -1
+      show caption: true
+      text size: 12
+      top: 128
+      update interval: 0.03999999910593033
+      width: 128
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0

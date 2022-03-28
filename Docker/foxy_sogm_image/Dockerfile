@@ -360,7 +360,19 @@ RUN apt-get install ros-noetic-costmap-converter -y --no-install-recommends
 RUN apt-get install python3-catkin-tools -y --no-install-recommends
 RUN apt-get install ros-noetic-ros-numpy -y --no-install-recommends
 
+# Install jsk for noetic
+RUN apt-get update
+RUN apt-get install ros-noetic-dynamic-tf-publisher -y --no-install-recommends
+RUN apt-get install ros-noetic-jsk-recognition-utils -y --no-install-recommends
+RUN apt-get install ros-noetic-jsk-topic-tools -y --no-install-recommends
+RUN apt-get install ros-noetic-image-view -y --no-install-recommends
+RUN apt-get install ros-noetic-image-publisher -y --no-install-recommends
+RUN apt-get install ros-noetic-jsk-rviz-plugins -y --no-install-recommends
+
+
+# Install aditionnal foxy pkgs
 RUN apt-get install ros-foxy-gazebo-ros-pkgs -y --no-install-recommends
+
 
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib/x86_64-linux-gnu/gazebo-11/plugins
 ENV QT_X11_NO_MITSHM 1

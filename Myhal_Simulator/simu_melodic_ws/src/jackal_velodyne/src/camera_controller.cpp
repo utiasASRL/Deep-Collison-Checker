@@ -78,12 +78,15 @@ void CameraController::OnNewFrame(const unsigned char *_image,
     else 
     {
         double dt = (ros::Time::now() - this->last_update_time).toSec();
-        this->avg_dt = rolling_avg(this->avg_dt, dt, (double) this->save_count);
-
+        double avg_n = std::max(this->save_count, 50);
+        this->avg_dt = rolling_avg(this->avg_dt, dt, avg_n);
         double curr_step = this->p_eng->GetMaxStepSize();
         double frac = (this->avg_dt)/(1/this->fps);
         double new_step = curr_step/frac;
-        this->p_eng->SetMaxStepSize(std::max(new_step, this->min_step));
+
+        ROS_INFO_STREAM("Camera_dt (avg fps): " << dt << " (" << 1 / avg_dt << ")");
+
+        //this->p_eng->SetMaxStepSize(std::max(new_step, this->min_step));
     }
 
     this->last_update_time = ros::Time::now();  
