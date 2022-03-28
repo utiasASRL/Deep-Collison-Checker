@@ -144,6 +144,7 @@ echo -e "$(cat $PWD/simu_melodic_ws/src/jackal_velodyne/launch/include/pointclou
 
 # World file path
 WORLDFILE="$PWD/simu_melodic_ws/src/myhal_simulator/worlds/myhal_sim.world"
+WORLDFILE_LOAD=""
 
 
 ###################
@@ -161,8 +162,13 @@ if [[ -z $LOADWORLD ]]; then
     rosparam set load_world "none"
 else
     rosparam set load_world $LOADWORLD
-    WORLDFILE="$LOADPATH/$LOADWORLD/logs-$LOADWORLD/myhal_sim.world"
-    echo "Loading world $WORLDFILE"
+    WORLDFILE_LOAD="$LOADPATH/$LOADWORLD/logs-$LOADWORLD/myhal_sim.world"
+    echo "Loading world $WORLDFILE_LOAD"
+fi
+
+# Copy the loaded world file to our workspace if necessary
+if [[ -n "$WORLDFILE_LOAD" ]]; then
+    cp $WORLDFILE_LOAD $WORLDFILE
 fi
 
 # Copy world file in log
@@ -207,8 +213,13 @@ export DISPLAY=:0
 echo $DISPLAY
 
 if [ "$XTERM" = true ] ; then
-    xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
-        -e roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+
+    # Prb with DISPLAY MODIFIED, the xterm windows open on the server and not on the ssh session
+    # xterm -bg black -fg lightgray -xrm "xterm*allowTitleOps: false" -T "Gazebo Core" -n "Gazebo Core" -hold \
+    #     -e roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE & #extra_gazebo_args:="-s libdirector.so"
+
+    roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE &
+
 else
     NOHUP_GAZ_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gazebo.txt"
     nohup roslaunch myhal_simulator p1.launch world_name:=$WORLDFILE > "$NOHUP_GAZ_FILE" 2>&1 &
@@ -238,7 +249,8 @@ done
 echo "OK"
 
 # Spawn the robot and start its controller
-roslaunch myhal_simulator jackal_spawn.launch &
+NOHUP_SPAWN_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_spawn.txt"
+nohup roslaunch myhal_simulator jackal_spawn.launch > "$NOHUP_SPAWN_FILE" 2>&1 &
 
 # Wait for a message with the flow field (meaning the robot is loaded and everything is ready)
 echo ""
@@ -247,6 +259,7 @@ until [[ -n "$puppet_state_msg" ]]
 do 
     sleep 0.5
     puppet_state_msg=$(rostopic echo -n 1 /puppet_state | grep "running")
+    echo "$puppet_state_msg"
 done 
 echo "OK"
 

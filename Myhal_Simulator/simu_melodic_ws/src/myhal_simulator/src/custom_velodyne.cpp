@@ -59,6 +59,9 @@ namespace gazebo
     // Load the controller
     void GazeboRosVelodyneLaser::Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf){
 
+        ROS_INFO("Starting velodyne GPU init ");
+
+
         // Load plugin
         RayPlugin::Load(_parent, _sdf);
 
