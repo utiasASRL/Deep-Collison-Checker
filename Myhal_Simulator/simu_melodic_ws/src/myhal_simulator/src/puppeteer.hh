@@ -169,12 +169,19 @@ class Puppeteer: public gazebo::WorldPlugin{
         gazebo::physics::ModelPtr pose_est = nullptr;
         
         std::vector<gazebo::physics::ModelPtr> showed_forces;
+        
+        std::chrono::system_clock::time_point last_real_time;
+        int time_count = 0;
+        double aim_real_time_factor;
+        double max_step_size;
 
     public: 
         
         void Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf);
 
         void OnUpdate(const gazebo::common::UpdateInfo &_info);
+
+        void ProcessUpdate(const gazebo::common::UpdateInfo &_info);
 
         void ReadSDF();
 

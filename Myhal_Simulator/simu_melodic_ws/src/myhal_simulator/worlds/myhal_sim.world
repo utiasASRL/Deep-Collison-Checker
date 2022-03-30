@@ -68,8 +68,8 @@
     <physics name='default_physics' default='0' type='ode'>
       <!--adjust max_step size to throttle the simulation (0.001/1.0/1000 is realtime, 0.0005/0.1/200 for slow)-->
       <max_step_size>0.001</max_step_size>
-      <real_time_factor>0.2</real_time_factor>
-      <real_time_update_rate>200</real_time_update_rate>
+      <real_time_factor>0.1</real_time_factor>
+      <real_time_update_rate>0</real_time_update_rate>
     </physics>
     <scene>
       <ambient>0.4 0.4 0.4 1</ambient>
@@ -130,7 +130,7 @@
 						<filepath>/home/hth/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/2022-03-25-19-56-53/logs-2022-03-25-19-56-53/videos/CAM_1_-1.000000_-1.000000_8.000000_-2.000000_14.000000/</filepath>
 					</plugin>
 					<always_on>1</always_on>
-					<update_rate>24</update_rate>
+					<update_rate>60</update_rate>
 				</sensor>
 			</link>
 		</model>

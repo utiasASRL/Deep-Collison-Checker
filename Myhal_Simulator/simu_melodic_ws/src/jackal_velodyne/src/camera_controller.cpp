@@ -63,6 +63,9 @@ void CameraController::OnNewFrame(const unsigned char *_image,
         unsigned int _depth, 
         const std::string &_format) {
 
+    // Init
+    // ****
+
     //std::cout << "ROS: " << this->last_update_time << " "; 
     //std::cout << "Gazebo: " << this->parentSensor->LastUpdateTime() << std::endl;
     
@@ -71,36 +74,40 @@ void CameraController::OnNewFrame(const unsigned char *_image,
         this->world->SetPaused(true);
     }
 
-    if (this->save_count == 0)
+    // Get ros time now
+    ros::Time t_ros_now = ros::Time::now();
+
+    // Controll Camera FPS
+    if (this->save_count > 0)
     {
-        this->last_update_time = ros::Time::now();
-    } 
-    else 
-    {
-        double dt = (ros::Time::now() - this->last_update_time).toSec();
+        double dt = (t_ros_now - this->last_update_time).toSec();
         double avg_n = std::max(this->save_count, 50);
         this->avg_dt = rolling_avg(this->avg_dt, dt, avg_n);
         double curr_step = this->p_eng->GetMaxStepSize();
         double frac = (this->avg_dt)/(1/this->fps);
         double new_step = curr_step/frac;
 
-        ROS_INFO_STREAM("Camera_dt (avg fps): " << dt << " (" << 1 / avg_dt << ")");
+        // ROS_INFO_STREAM("Camera_dt (avg fps): " << dt << " (" << 1 / avg_dt << ")");
 
-        //this->p_eng->SetMaxStepSize(std::max(new_step, this->min_step));
+        // this->p_eng->SetMaxStepSize(std::max(new_step, this->min_step));
     }
 
-    this->last_update_time = ros::Time::now();  
+    // Processing
+    // **********
 
     char name[1024];
-    snprintf(name, sizeof(name), "%s-%05d.jpg", this->parentSensor->Name().c_str(), this->save_count);
+    snprintf(name, sizeof(name), "%s-%08.3f.jpg", this->parentSensor->Name().c_str(), t_ros_now.toSec());
 
     std::string filename = this->filepath + std::string(name);
 
-
     this->parentSensor->Camera()->SaveFrame(_image, _width, _height, _depth, _format, filename);
 
+
+    // Update last time variables
+    this->last_update_time = t_ros_now;
     this->save_count++;
 
+    // Unpause simulation
     if (this->world->IsPaused())
     {
         this->world->SetPaused(false);

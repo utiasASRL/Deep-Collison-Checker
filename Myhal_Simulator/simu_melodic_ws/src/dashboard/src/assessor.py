@@ -74,7 +74,7 @@ class Assessor(object):
         dt_real = current_time - self.last_time
         self.last_time = current_time
         
-        print "    Time: {:.2f}s elapsed, real_time_factor = {:.1f}".format(dt_real, dt_real / dt_simu)
+        print "    Time: Simu running {:.1f} times slower than reality".format(dt_real / dt_simu)
 
 
         # Two ways to get the instateneuous speed of the robot

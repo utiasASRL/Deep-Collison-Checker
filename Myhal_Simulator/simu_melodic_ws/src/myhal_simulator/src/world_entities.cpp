@@ -321,7 +321,7 @@ std::string Camera::CreateSDF(){
     plugin->AddSubtag(path);
 
     auto always_on = std::make_shared<DataTag>("always_on", "1");
-    auto update_rate = std::make_shared<DataTag>("update_rate", "24");
+    auto update_rate = std::make_shared<DataTag>("update_rate", "60");
     sensor->AddSubtag(plugin);
     sensor->AddSubtag(always_on);
     sensor->AddSubtag(update_rate);

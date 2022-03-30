@@ -2,6 +2,7 @@
 
 import sys
 import os
+import time
 import numpy as np
 import time as RealTime
 import pickle
@@ -50,15 +51,30 @@ if __name__ == "__main__":
 
     localization_test = True if (meta_data['localization_test'] == 'true') else False
 
-    try:
-        bag = rosbag.Bag(path + "raw_data.bag")
-    except:
+    # Try to load bag file for a little while
+
+    t0 = time.time()
+    successful = False
+    bag = None
+    while (time.time() - t0 < 5.0):
         try:
-            bag = rosbag.Bag(path + "localization_test.bag")
-            localization_test = True
+            bag = rosbag.Bag(path + "raw_data.bag")
+            successful = True
+            break
         except:
-            print "ERROR: invalid filename"
-            exit()
+            time.sleep(0.1)
+    
+    if not successful:
+        print "ERROR: invalid filename"
+        print " > " + path + "raw_data.bag"
+        exit()
+        # try:
+        #     bag = rosbag.Bag(path + "localization_test.bag")
+        #     localization_test = True
+        # except:
+        #     print "ERROR: invalid filename"
+        #     print " > " + path + "localization_test.bag"
+        #     exit()
 
     pickle_dict = {}
 
@@ -218,11 +234,19 @@ if __name__ == "__main__":
     for dir in vid_dirs:
 
         try:
-            num_pics = len(os.listdir(vid_path + dir + "/"))
+            pic_names = np.sort([f[:-4] for f in os.listdir(vid_path + dir + "/") if f.endswith(".jpg")])
+            num_pics = len(pic_names)
         except:
             continue
 
-        fps = int(num_pics / duration)
+        if num_pics < 3:
+            continue
+
+        pic_times = [float(f.split('-')[-1]) for f in pic_names]
+
+        fps = int((num_pics - 2) / (pic_times[-1] - pic_times[1]))
+
+        # fps = int(num_pics / duration)
 
         s_name = dir.split("_")
         mode = ["sentry", "hoverer", "stalker"]

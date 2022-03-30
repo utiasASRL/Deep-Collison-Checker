@@ -191,6 +191,63 @@ void Puppeteer::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
 
 void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
 {
+
+    ////////////////////////
+    // Puppeteer processings
+    ////////////////////////
+
+    ProcessUpdate(_info);
+
+
+    ////////////////////////////////
+    // Ros/Real Time synchronisation
+    ////////////////////////////////
+
+    // real_time_factor: max_step_size x real_time_update_rate
+    // max_step_size = 0.001
+    // real_time_factor = 0.2
+    // real_time_update_rate = real_time_factor / max_step_size = 200
+    // real_time_update_dt = max_step_size / real_time_factor = 0.005
+
+    double aim_real_dt = this->max_step_size / this->aim_real_time_factor;
+    std::chrono::duration<double> aim_duration(aim_real_dt);
+
+    std::chrono::system_clock::time_point next_time;
+    if (this->time_count > 0)
+    {
+
+        // Get variables
+        next_time = this->last_real_time + std::chrono::duration_cast<std::chrono::system_clock::duration>(aim_duration);
+
+        // Warning if we can't keep up with pace
+        std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now() - this->last_real_time;
+        if (elapsed_seconds.count() > aim_real_dt)
+        {
+            ROS_WARN_STREAM("Gazebo Camera real_time_factor control can't keep up with desired rate"
+                            << std::endl << "current_dt = " << elapsed_seconds.count() << " / desired_dt = " << aim_real_dt);
+        }
+
+        // Wait until reaching desired rate
+        while (elapsed_seconds.count() < aim_real_dt)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            elapsed_seconds = std::chrono::system_clock::now() - this->last_real_time;
+        }
+    }
+    else
+        next_time = std::chrono::system_clock::now();
+
+
+    // Update last time variables
+    this->last_real_time = next_time;
+    this->time_count++;
+
+}
+
+
+void Puppeteer::ProcessUpdate(const gazebo::common::UpdateInfo &_info)
+{
+
     /////////////////////
     // Function frequency
     /////////////////////
@@ -505,6 +562,10 @@ void Puppeteer::OnUpdate(const gazebo::common::UpdateInfo &_info)
                   << std::endl;
     }
 }
+
+
+
+
 
 void Puppeteer::ReadSDF()
 {
@@ -855,9 +916,16 @@ void Puppeteer::ReadParams()
         this->load_world = "";
         return;
     }
-
-
-
+    
+    if (!nh.getParam("real_time_factor", this->aim_real_time_factor))
+    {
+        this->aim_real_time_factor = 0.1;
+    }
+    
+    if (!nh.getParam("/gazebo/time_step", this->max_step_size))
+    {
+        this->max_step_size = 0.001;
+    }
 }
 
 SmartCamPtr Puppeteer::CreateCamera(gazebo::physics::ModelPtr model)

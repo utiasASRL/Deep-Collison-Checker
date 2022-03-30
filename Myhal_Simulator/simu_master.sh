@@ -108,6 +108,8 @@ rosparam set gmapping_status true
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 
+rosparam set real_time_factor 0.05
+
 
 ##################
 # Logs of the Tour
@@ -327,6 +329,7 @@ rosrun dashboard assessor.py
 
 # Run data processing at the end of the tour
 echo "Running data_processing.py"
+sleep 1.5
 rosrun dashboard data_processing.py $t $FILTER
  
 exit 1
