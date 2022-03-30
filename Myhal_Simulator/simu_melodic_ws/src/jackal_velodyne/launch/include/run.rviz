@@ -5,8 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Map1
         - /Marker2/Namespaces1
-        - /SOGM Delay1
       Splitter Ratio: 0.625
     Tree Height: 734
   - Class: rviz/Selection
@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Velodyne
+    SyncSource: PointCloud2
   - Class: rviz/Help
     Name: Help
 Preferences:
@@ -69,7 +69,7 @@ Visualization Manager:
       Color: 162; 162; 162
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 6
@@ -86,7 +86,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -220,12 +220,12 @@ Visualization Manager:
       Class: rviz/Map
       Color Scheme: costmap
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: Map
-      Topic: /move_base/local_costmap/costmap
+      Topic: /move_base/global_costmap/costmap
       Unreliable: false
       Use Timestamp: false
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -428,38 +428,40 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Alpha: 1
-      Autocompute Intensity Bounds: true
+      Autocompute Intensity Bounds: false
       Autocompute Value Bounds:
         Max Value: 10
         Min Value: -10
         Value: true
       Axis: Z
-      Channel Name: intensity
+      Channel Name: classif
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
       Enabled: true
-      Invert Rainbow: false
+      Invert Rainbow: true
       Max Color: 255; 255; 255
+      Max Intensity: 4
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
+      Size (m): 0.05000000074505806
       Style: Spheres
-      Topic: /colli_points
+      Topic: /classified_points
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
     - Class: jsk_rviz_plugin/PieChart
-      Enabled: true
+      Enabled: false
       Name: SOGM Delay
       Topic: /move_base/TebLocalPlannerROS/sogm_delay
-      Value: true
+      Value: false
       auto color change: true
       background color: 0; 0; 0
       backround alpha: 0.8999999761581421
@@ -480,11 +482,11 @@ Visualization Manager:
       top: 30
     - Buffer length: 100
       Class: jsk_rviz_plugin/Plotter2D
-      Enabled: true
+      Enabled: false
       Name: Plotter2D
       Show Value: true
       Topic: ""
-      Value: true
+      Value: false
       auto color change: false
       auto scale: true
       background color: 0; 0; 0

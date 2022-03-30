@@ -8,7 +8,7 @@ cd onboard_deep_sogm
 source "/opt/ros/$ROS_1_DISTRO/setup.bash"
 
 # And if you have a ROS 1 overlay workspace, something like:
-. "../nav_noetic_ws/install_isolated/setup.bash"
+. "../nav_noetic_ws/devel/setup.bash"
 
 # Source your ROS 2 installation:
 . "/opt/ros/foxy/setup.bash"

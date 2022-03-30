@@ -14,3 +14,7 @@ echo "--------------- test VoxGrid ---------------"
 ros2 interface list | grep "VoxGrid"
 ros2 interface list | grep "Obstacle"
 echo "--------------------------------------------"
+
+# Also build cpp wrappers
+cd src/deep_sogm/deep_sogm/cpp_wrappers
+./compile_wrappers.sh

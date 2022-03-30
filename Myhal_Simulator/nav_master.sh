@@ -132,6 +132,7 @@ if [ "$FILTER" = true ]; then
     fi
 fi
 
+echo "$loc_launch"
 echo "OK"
 
 ##################
@@ -216,27 +217,28 @@ echo " "
 echo " "
 echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
 
-if [ "$LOADTRAJ" = true ] ; then
 
-    # Get the loaded world
-    LOADPATH=$(rosparam get load_path)
-    LOADWORLD=$(rosparam get load_world)
-
-    if [ "$LOADWORLD" = "" ] || [ "$LOADWORLD" = "none" ] ; then
-        echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        echo "X  Error no world loaded that we can use for gt sogm  X"  
-        echo "X  load_path = $LOADPATH                              X"
-        echo "X  load_world = $LOADWORLD                            X"
-        echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    else
-        rosrun teb_local_planner gt_sogm.py
-    fi
-
+if [ "$SOGM" = true ] ; then
+    cd onboard_deep_sogm/scripts
+    ./simu_collider.sh
 
 else
-    if [ "$SOGM" = true ] ; then
-        cd onboard_deep_sogm/scripts
-        ./collider.sh #TODO THIS IS THE FILE FOR THE ROBOT< SSO CREATE NEW ONE WITH THE RIGHT SOURCING FOR THE SIMU
+
+    if [ "$LOADTRAJ" = true ] ; then
+
+        # Get the loaded world
+        LOADPATH=$(rosparam get load_path)
+        LOADWORLD=$(rosparam get load_world)
+
+        if [ "$LOADWORLD" = "" ] || [ "$LOADWORLD" = "none" ] ; then
+            echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            echo "X  Error no world loaded that we can use for gt sogm  X"  
+            echo "X  load_path = $LOADPATH                              X"
+            echo "X  load_world = $LOADWORLD                            X"
+            echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        else
+            rosrun teb_local_planner gt_sogm.py
+        fi
 
     else
         # Wait for eveyrthing to end before killing the docker container
@@ -246,6 +248,9 @@ else
         sleep 10000
     fi
 fi
+
+
+
 echo "OK"
 echo " "
 echo " "
