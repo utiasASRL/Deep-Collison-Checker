@@ -135,6 +135,20 @@ fi
 echo "$loc_launch"
 echo "OK"
 
+# Waiting for pointslam initialization
+echo ""
+echo "Waiting for PointSlam initialization ..."
+until [ -n "$map_topic" ] 
+do 
+    sleep 0.1
+    map_topic=$(rostopic list -p | grep "/map")
+done 
+until [[ -n "$point_slam_msg" ]]
+do 
+    sleep 0.1
+    point_slam_msg=$(rostopic echo -n 1 /map | grep "frame_id")
+done
+
 ##################
 # Start Navigation
 ##################

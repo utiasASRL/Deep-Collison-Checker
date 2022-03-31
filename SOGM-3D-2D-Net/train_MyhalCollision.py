@@ -165,7 +165,7 @@ class MyhalCollisionConfig(Config):
     num_kernel_points = 15
 
     # Size of the first subsampling grid in meter
-    first_subsampling_dl = 0.12
+    first_subsampling_dl = 0.06
 
     # Radius of convolution in "number grid cell". (2.5 is the standard value)
     conv_radius = 2.5
@@ -530,11 +530,12 @@ if __name__ == '__main__':
     if config.max_in_points < 0:
         config.max_in_points = 1e9
         training_loader.dataset.max_in_p = 1e9
-        training_sampler.calib_max_in(config, training_loader, untouched_ratio=0.9, verbose=True)
+        training_sampler.calib_max_in(config, training_loader, untouched_ratio=0.9, verbose=True, force_redo=True)
     if config.max_val_points < 0:
         config.max_val_points = 1e9
         test_loader.dataset.max_in_p = 1e9
-        test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True)
+        test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True, force_redo=True)
+
 
     # Calibrate samplers
     training_sampler.calibration(training_loader, verbose=True)

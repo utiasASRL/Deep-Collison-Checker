@@ -109,7 +109,7 @@ rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 
 # rosparam set real_time_factor 0.05
-rosparam set real_time_factor 0.2
+rosparam set real_time_factor 0.1
 
 
 ##################

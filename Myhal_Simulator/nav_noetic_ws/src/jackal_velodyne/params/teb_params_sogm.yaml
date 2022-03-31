@@ -10,7 +10,7 @@ TebLocalPlannerROS:
  dt_hysteresis: 0.08
  min_samples: 5        # Min TEB poses in the planed traj
  global_plan_overwrite_orientation: True
- max_global_plan_lookahead_dist: 2.5
+ max_global_plan_lookahead_dist: 2.9
  feasibility_check_no_poses: 2
  exact_arc_length: False
 
@@ -21,12 +21,12 @@ TebLocalPlannerROS:
  control_look_ahead_poses: 2 # Set this to at least t0 2, to get a better estimation of the /cmd_vel
     
  # Robot       
- max_vel_x: 1.0               # Actual Jackal value in controller: 2.0 m/s
+ max_vel_x: 1.2   # 1.0            # Actual Jackal value in controller: 2.0 m/s
  max_vel_x_backwards: 0.5
- max_vel_theta: 0.7           # Actual Jackal value in controller: 4.0 rad/s
- acc_lim_x: 0.7               # Actual Jackal value in controller: 20.0 m/s^2
- acc_lim_theta: 0.8          # Actual Jackal value in controller: 25.0 rad/s^2
- min_turning_radius: 0.5
+ max_vel_theta: 1.2  # 0.7         # Actual Jackal value in controller: 4.0 rad/s
+ acc_lim_x: 1.7  # 0.7             # Actual Jackal value in controller: 20.0 m/s^2
+ acc_lim_theta: 1.2  # 0.8         # Actual Jackal value in controller: 25.0 rad/s^2
+ min_turning_radius: 0.4
  footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
    type: "circular"
    radius: 0.35 # for type "circular"
@@ -74,7 +74,7 @@ TebLocalPlannerROS:
  weight_acc_lim_x: 1
  weight_acc_lim_theta: 1
  weight_kinematics_nh: 1000
- weight_kinematics_forward_drive: 2
+ weight_kinematics_forward_drive: 3
  weight_kinematics_turning_radius: 1
  weight_optimaltime: 0.8 # must be > 0
  weight_shortest_path: 0.4
@@ -87,7 +87,7 @@ TebLocalPlannerROS:
  weight_viapoint: 1
 #  weight_adapt_factor: 2
 
- weight_predicted_costmap: 1.5   # Default: 0.6 direct multiplier of the error function for predicted costmaps
+ weight_predicted_costmap: 1.3   # Default: 0.6 direct multiplier of the error function for predicted costmaps
  weight_static_costmap: 0.7   # Default: 0.6 direct multiplier of the error function for predicted costmaps
 
  # Homotopy Class Planner

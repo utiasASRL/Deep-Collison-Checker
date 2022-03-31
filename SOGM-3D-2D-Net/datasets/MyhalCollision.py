@@ -4405,15 +4405,18 @@ class MyhalCollisionSampler(Sampler):
         else:
             batch_lim_dict = {}
 
+
         # Check if the batch limit associated with current parameters exists
         if self.dataset.balance_classes:
             sampler_method = 'balanced'
         else:
             sampler_method = 'random'
-        key = '{:s}_{:d}_{:.3f}_{:.3f}_{:d}_{:d}'.format(
-            sampler_method, self.dataset.config.n_frames, self.dataset.in_R,
-            self.dataset.config.first_subsampling_dl, self.dataset.batch_num,
-            self.dataset.max_in_p)
+        key = '{:s}_{:d}_{:.3f}_{:.3f}_{:d}_{:d}'.format(sampler_method,
+                                                         self.dataset.config.n_frames,
+                                                         self.dataset.in_R,
+                                                         self.dataset.config.first_subsampling_dl,
+                                                         self.dataset.batch_num,
+                                                         self.dataset.max_in_p)
         if not redo and key in batch_lim_dict:
             self.dataset.batch_limit[0] = batch_lim_dict[key]
         else:
