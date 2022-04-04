@@ -52,6 +52,34 @@ echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nGTCLASS
 echo -e " "
 
 
+
+
+
+
+# TODO:
+#
+#   > use frame_dl = 0.06 in simu_ptslam.launch !!!!!!!!!!!!!
+#   > Exp in simu to find the right parameters for navigation
+#   > blur in t dimension
+#
+# Runs to debug:
+#       04/01-10h52 => debug run to replay in rviz. Avoiding me, and going in the stairs at the end
+#       04/01-10h56 => run with sogm, not much happening
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Handle the choice between gt and predictions
 c_method="none"
 if [ "$GTCLASS" = false ] ; then

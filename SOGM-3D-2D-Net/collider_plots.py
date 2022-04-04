@@ -23,6 +23,7 @@
 
 # Common libs
 import os
+import shutil
 import torch
 os.environ.update(OMP_NUM_THREADS='1',
                   OPENBLAS_NUM_THREADS='1',
@@ -350,6 +351,51 @@ def load_multi_IoU(filename, n_parts):
         all_IoUs += [obj_IoUs]
     return all_IoUs
 
+
+def cleanup(res_path, max_clean_date, remove_tmp_test=False):
+
+    # Removing data:
+    #   > all checkpoints except last
+    #   > all future_visu
+    #   > all val_preds
+    #   > (option) all test temp data
+
+    # List results folders
+    res_folders = np.sort([f for f in listdir(res_path) if f.startswith('Log_')])
+
+    # Only consider folder up to max_clean_date
+    res_folders = res_folders[res_folders < max_clean_date]
+
+    for res_folder in res_folders:
+
+        print('Erasing useless data for:', res_folder)
+
+        # checkpoints
+        chkp_path = join(res_path, res_folder, 'checkpoints')
+
+        # Remove 'current_chkp.tar'
+        current_chkp = join(chkp_path, 'current_chkp.tar')
+        if exists(current_chkp):
+            remove(current_chkp)
+
+        # List checkpoints, keep last one
+        chkps = np.sort([join(chkp_path, f) for f in listdir(chkp_path) if f.endswith('.tar')])
+        for chkp in chkps[:-1]:
+            remove(chkp)
+
+        # Remove unused folders
+        removed_folders = [join(res_path, res_folder, 'future_visu'),
+                           join(res_path, res_folder, 'val_preds')]
+
+        if remove_tmp_test:
+            removed_folders += [join(res_path, res_folder, 'test_metrics'),
+                                join(res_path, res_folder, 'test_visu')]
+
+        for removed_folder in removed_folders:
+            if (os.path.isdir(removed_folder)):
+                shutil.rmtree(removed_folder)
+
+    return
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -3353,6 +3399,24 @@ def Myhal1_v2_logs():
 
 
 if __name__ == '__main__':
+
+    ##########
+    # Clean-up
+    ##########
+    #
+    # Optional. Do it to save space but you will lose some data:
+    #   > all checkpoints except last
+    #   > all future_visu
+    #   > all val_preds
+    #   > (option) all test temp data
+    #
+
+    cleaning = False
+    if cleaning:
+        res_path = 'results'
+        max_clean_date = 'Log_2022-01-26_18-47-27'
+        cleanup(res_path, max_clean_date, remove_tmp_test=False)
+    
 
     ######################################
     # Step 1: Choose what you want to plot

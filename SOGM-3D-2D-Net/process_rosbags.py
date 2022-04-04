@@ -78,7 +78,7 @@ def main(save_velo=True,
             run_path = '../Data/RealMyhal/runs'
         elif (file >= '2022-02-00_00-00-00.bag' and file <= '2022-03-03_00-00-00.bag'):
             run_path = '../Data/RealMyhal/runs'
-        elif (file >= '2022-03-03_00-00-00.bag' and file <= '2022-04-00_00-00-00.bag'):
+        elif (file >= '2022-03-03_00-00-00.bag' and file <= '2022-05-00_00-00-00.bag'):
             run_path = '../Data/Myhal1/runs'
         elif (file == '2021-12-05_18-04-51.bag'):
             run_path = '../Data/RealAlbany/runs'
