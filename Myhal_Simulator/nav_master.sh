@@ -227,16 +227,21 @@ fi
 # Run Deep Network
 ##################
 
-echo " "
-echo " "
-echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
-
 
 if [ "$SOGM" = true ] ; then
+
+    echo " "
+    echo " "
+    echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
+
     cd onboard_deep_sogm/scripts
     ./simu_collider.sh
 
 else
+
+    echo " "
+    echo " "
+    echo -e "\033[1;4;34mStarting with groundtruth SOGM\033[0m"
 
     if [ "$LOADTRAJ" = true ] ; then
 

@@ -211,15 +211,10 @@ def Myhal1_sessions():
     #
 
     # TODO: Other
-    #       > Simulation thing Tim talked about?
-    #       > ICRA video
     #       > sur Idefix, larger global map extension radius, higher refresh rate, and use classified frame for global map
     #       > TEB convergence speed is not very fast... Maybe work on this
-    #       > Reduce turning radius
     #
     #       > TODO Install PyVista and use it instead of open3d for videos because it has EDL
     #
-    #       > TODO Go travailler sur le simulateur
-
     return dataset_path, map_day, refine_sessions, train_sessions, train_comments
 

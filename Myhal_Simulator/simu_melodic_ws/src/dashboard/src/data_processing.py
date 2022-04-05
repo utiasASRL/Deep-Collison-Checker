@@ -222,8 +222,6 @@ if __name__ == "__main__":
     # Video
     #######
 
-    # TODO: convert image files to .mp4 and save
-
     duration = bt.bag_metadata(bag)['duration']
 
     vid_path = home_path + "/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/" + filename + "/logs-" + filename + "/videos/"

@@ -2993,8 +2993,6 @@ def Controlled_Exp_logs():
                   'dl=0.12_mixed_FAST',
                   'etc']
     
-    # TODO NOW TAKE A STEP BCK, LIST ALL RESULTS WE NEED FOR THE PAPER AND GO REDO EVERYTHING!
-
     # Copy here the indices you selected with gui
     # all_wanted_s = []
     # all_wanted_f = []

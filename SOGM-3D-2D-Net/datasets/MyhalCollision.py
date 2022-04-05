@@ -2804,17 +2804,6 @@ class MyhalCollisionSlam:
                     clean_pts_2D = pts_2D[valid_mask]
                     clean_annots_2D = annots_2D[valid_mask]
 
-                # TODO: DO the closing / opening on 3 layers:
-                #       1) This will eliminate large areas that diaspear right after
-                #       2) This should help to better keep people because the blob is continuous in the 3 layers
-                #
-                #   OR, maybe using tracking of blob for this????? OR maybe the tracking should be after this noise removal???
-                #
-                # TODO: When choosing training examples, create a mask of valid training inds, (similar to balance_class)
-                #       The valid frames are the one with more than 10 dynamic points and not isolated (the prev / next X (X=4?) frames 
-                #       also have more than 10 dynamic points)
-                #
-
 
                 # Here save as 2D slices
                 if debug_noise:
