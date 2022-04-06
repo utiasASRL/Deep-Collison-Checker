@@ -137,24 +137,20 @@ def Myhal1_sessions():
                               ['2022-03-28_15-00-42', 'ff1 train >    Good    (Good amount of people)'],
                               ['2022-03-28_15-04-24', 'ff1 train >    Good    (Good amount of people)'],
                               ['2022-03-28_16-56-52', 'ff1  val  >     Bad    (no movement)'],
-                              ['2022-03-28_16-59-33', 'ff1 train >    ERASE   (Error in mapping)'],
-                              ['2022-03-28_17-03-29', 'ff1 train >    Good    (MEGA crowd)'],
+                              ['2022-03-28_17-03-29', 'ff1 train >    Good    (Mega crowd)'],
                               ['2022-03-28_17-07-19', 'ff1 train >    Good    (Some people)'],
                               ['2022-03-28_17-10-13', 'ff1 train >    Good    (Good amount of people)'],
-                              ['2022-03-28_21-57-36', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_22-02-15', 'ff1  val  >    Good    ()']]
+                              ['2022-03-28_21-57-36', 'ff1 train >   Medium   (Some people + dancers)'],
+                              ['2022-03-28_22-02-15', 'ff1 train >    Good    (Some people)']]
 
     # Monday 10h/12h/17h.
-    sessions_and_comments += [['2022-04-01_13-04-29', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_13-10-27', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_14-00-06', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_14-03-50', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_14-08-19', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_14-53-42', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_14-57-35', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_15-01-18', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_15-06-55', 'ff1 train >    Good    ()'],
-                              ['2022-04-01_15-11-29', 'ff1 train >    Good    ()']]
+    sessions_and_comments += [['2022-04-01_14-00-06', 'ff1  val  >    Good    (Some people)'],
+                              ['2022-04-01_14-03-50', 'ff1 train >    Good    (Many people)'],
+                              ['2022-04-01_14-53-42', 'ff1 train > Borderline (Some people and me passing in front)'],
+                              ['2022-04-01_14-57-35', 'ff1  val  > Borderline (just a group of 4)'],
+                              ['2022-04-01_15-01-18', 'ff1 train >    Good    (Mega crowd)'],
+                              ['2022-04-01_15-06-55', 'ff1  val  >    Good    (Mega crowd)'],
+                              ['2022-04-01_15-11-29', 'ff1  val  >    Good    (Many people)']]
                               
 
     # Procesing
