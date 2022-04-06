@@ -125,8 +125,6 @@ def erase_runs(dataset_path, runs_to_erase):
     return erased_runs
 
 
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main Call
@@ -167,4 +165,13 @@ if __name__ == '__main__':
 
         # Inspect runs
         if not erased_runs:
-            inspect_sogm_sessions(dataset_path, map_day, train_sessions, train_comments)
+            # Only inspect sessions with empty comments
+
+            inspect_mask = np.array([tc.endswith('()') for tc in train_comments], dtype=bool)
+            inspect_sessions = train_sessions[inspect_mask]
+            inspect_comments = train_comments[inspect_mask]
+
+            if len(inspect_sessions) > 0:
+                inspect_sogm_sessions(dataset_path, map_day, inspect_sessions, inspect_comments)
+            else:
+                inspect_sogm_sessions(dataset_path, map_day, train_sessions, train_comments)

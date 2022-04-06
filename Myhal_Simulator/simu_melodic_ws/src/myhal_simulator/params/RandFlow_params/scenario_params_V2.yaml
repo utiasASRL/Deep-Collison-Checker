@@ -13,7 +13,7 @@ empty:
   
 flow_follower_rand_density:
   pop_rand_range: "0.001"     # 0.06 if specified and positive the pop density is random uniform in [pop_density - pop_rand_range, pop_density + pop_rand_range]
-  pop_density: "0.09"         # 0.065
+  pop_density: "0.15"         # 0.065
   table_rand_range: "0.45"    # 0.45
   table_percentage: "0.1"     # 0.4
   actor: actor_flow_follower

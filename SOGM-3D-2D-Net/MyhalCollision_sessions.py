@@ -132,15 +132,15 @@ def Myhal1_sessions():
                               ['2022-03-22_16-08-09', 'ff1  val  >    Good    (Many people)']]
 
     # Monday 10h/12h/17h.
-    sessions_and_comments += [['2022-03-28_14-53-33', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_14-57-17', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_15-00-42', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_15-04-24', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_16-56-52', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_16-59-33', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_17-03-29', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_17-07-19', 'ff1 train >    Good    ()'],
-                              ['2022-03-28_17-10-13', 'ff1 train >    Good    ()'],
+    sessions_and_comments += [['2022-03-28_14-53-33', 'ff1  val  > Borderline (Only two or three persons)'],
+                              ['2022-03-28_14-57-17', 'ff1 train >    Good    (Some people ok)'],
+                              ['2022-03-28_15-00-42', 'ff1 train >    Good    (Good amount of people)'],
+                              ['2022-03-28_15-04-24', 'ff1 train >    Good    (Good amount of people)'],
+                              ['2022-03-28_16-56-52', 'ff1  val  >     Bad    (no movement)'],
+                              ['2022-03-28_16-59-33', 'ff1 train >    ERASE   (Error in mapping)'],
+                              ['2022-03-28_17-03-29', 'ff1 train >    Good    (MEGA crowd)'],
+                              ['2022-03-28_17-07-19', 'ff1 train >    Good    (Some people)'],
+                              ['2022-03-28_17-10-13', 'ff1 train >    Good    (Good amount of people)'],
                               ['2022-03-28_21-57-36', 'ff1 train >    Good    ()'],
                               ['2022-03-28_22-02-15', 'ff1  val  >    Good    ()']]
 
