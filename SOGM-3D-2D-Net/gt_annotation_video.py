@@ -773,7 +773,7 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
 
 
     # convertion from labels to colors
-    im_lim = config.in_radius / np.sqrt(2)
+    im_lim = config.radius_2D / np.sqrt(2)
     colormap = np.array([[209, 209, 209],
                         [122, 122, 122],
                         [255, 255, 0],

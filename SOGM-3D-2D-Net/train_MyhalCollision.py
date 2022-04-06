@@ -110,6 +110,9 @@ class MyhalCollisionConfig(Config):
     # Size of 2D convolution grid
     dl_2D = 0.12
 
+    # Radius of the considered arear in 2D
+    radius_2D = 8.0
+
     # Power of the loss for the 2d predictions (use smaller prop loss when shared weights)
     power_2D_init_loss = 1.0
     power_2D_prop_loss = 50.0
@@ -147,8 +150,8 @@ class MyhalCollisionConfig(Config):
     ###################
 
     # Radius of the input sphere
-    in_radius = 8.0
-    val_radius = 8.0
+    in_radius = 38.0
+    val_radius = 38.0
     n_frames = 3
     in_features_dim = n_frames
     max_in_points = -1

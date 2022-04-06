@@ -53,6 +53,9 @@ class Config:
 
     # Size of 2D convolution grid
     dl_2D = 0.1
+    
+    # Radius of the 2D area 
+    radius_2D = 8.0
 
     # Power of the loss for the 2d predictions (use smaller prop loss when shared weights)
     power_2D_init_loss = 1.0
@@ -403,6 +406,7 @@ class Config:
             text_file.write('in_points_dim = {:d}\n'.format(self.in_points_dim))
             text_file.write('in_features_dim = {:d}\n'.format(self.in_features_dim))
             text_file.write('in_radius = {:.6f}\n'.format(self.in_radius))
+            text_file.write('radius_2D = {:.6f}\n'.format(self.radius_2D))
             text_file.write('input_threads = {:d}\n'.format(self.input_threads))
 
             # Model parameters

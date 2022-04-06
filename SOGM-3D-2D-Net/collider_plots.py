@@ -2496,7 +2496,7 @@ def wanted_gifs(chosen_log, real_val_days, sim_val_days, dataset_path, sim_path,
     seq_inds = test_dataset.all_inds[:, 0]
     frame_inds = test_dataset.all_inds[:, 1]
 
-    im_lim = config.in_radius / np.sqrt(2)
+    im_lim = config.radius_2D / np.sqrt(2)
 
     if len(all_wanted_f) < 1:
 

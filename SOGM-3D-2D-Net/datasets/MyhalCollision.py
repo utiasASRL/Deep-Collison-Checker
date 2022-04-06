@@ -3222,7 +3222,7 @@ class MyhalCollisionDataset(PointCloudDataset):
                         wanted_ind = np.random.choice(f_points.shape[0])
                     p0 = world_points[wanted_ind, :3]
 
-                # Eliminate points further than config.in_radius
+                # Eliminate points further than config in_radius
                 mask = np.sum(np.square(world_points - p0), axis=1) < self.in_R**2
                 mask_inds = np.where(mask)[0].astype(np.int32)
 
@@ -3520,8 +3520,8 @@ class MyhalCollisionDataset(PointCloudDataset):
         support_pts[:, 2] *= 0
 
         # Create grid
-        grid_ticks = np.arange(-self.config.in_radius / np.sqrt(2),
-                               self.config.in_radius / np.sqrt(2),
+        grid_ticks = np.arange(-self.config.radius_2D / np.sqrt(2),
+                               self.config.radius_2D / np.sqrt(2),
                                self.config.dl_2D)
         xx, yy = np.meshgrid(grid_ticks, grid_ticks)
         L_2D = xx.shape[0]
@@ -3931,7 +3931,7 @@ class MyhalCollisionSampler(Sampler):
         if (manual_training_frames):
 
             # convertion from labels to colors
-            im_lim = self.dataset.config.in_radius / np.sqrt(2)
+            im_lim = self.dataset.config.radius_2D / np.sqrt(2)
             colormap = np.array([[209, 209, 209],
                                 [122, 122, 122],
                                 [255, 255, 0],
