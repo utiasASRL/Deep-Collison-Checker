@@ -1169,6 +1169,11 @@ class KPCollider(nn.Module):
         self.initial_net = Initial2DBlock(out_dim, config.first_features_dim, levels=config.init_2D_levels, resnet_per_level=config.init_2D_resnets)
         self.init_softmax_2D = nn.Conv2d(config.first_features_dim, 3, kernel_size=1, bias=True)
         self.merge_softmax_2D = nn.Conv2d(config.first_features_dim, 3, kernel_size=1, bias=True)
+        
+        self.skipcut_2D = config.shared_2D
+        head_softmax_in_D = config.first_features_dim
+        if self.skipcut_2D:
+            head_softmax_in_D *= 2
 
         self.shared_2D = config.shared_2D
         if self.shared_2D:
@@ -1176,14 +1181,14 @@ class KPCollider(nn.Module):
             self.prop_net = Propagation2DBlock(config.first_features_dim, config.first_features_dim, n_blocks=config.prop_2D_resnets)
 
             # Shared head softmax
-            self.head_softmax_2D = nn.Conv2d(config.first_features_dim, 3, kernel_size=1, bias=True)
+            self.head_softmax_2D = nn.Conv2d(head_softmax_in_D, 3, kernel_size=1, bias=True)
 
         else:
             self.prop_net = nn.ModuleList()
             self.head_softmax_2D = nn.ModuleList()
             for i in range(config.n_2D_layers):
                 self.prop_net.append(Propagation2DBlock(config.first_features_dim, config.first_features_dim, n_blocks=config.prop_2D_resnets))
-                self.head_softmax_2D.append(nn.Conv2d(config.first_features_dim, 3, kernel_size=1, bias=True))
+                self.head_softmax_2D.append(nn.Conv2d(head_softmax_in_D, 3, kernel_size=1, bias=True))
 
 
         ################
@@ -1329,14 +1334,21 @@ class KPCollider(nn.Module):
 
             # Propagated preds
             preds_2D = []
+            x_2D_0 = x_2D.clone()
             if self.shared_2D:
                 for i in range(config.n_2D_layers):
                     x_2D = self.prop_net(x_2D)
-                    preds_2D.append(self.head_softmax_2D(x_2D))
+                    if self.skipcut_2D:
+                        preds_2D.append(self.head_softmax_2D(torch.cat([x_2D, x_2D_0], dim=1)))
+                    else:
+                        preds_2D.append(self.head_softmax_2D(x_2D))
             else:
                 for i in range(config.n_2D_layers):
                     x_2D = self.prop_net[i](x_2D)
-                    preds_2D.append(self.head_softmax_2D[i](x_2D))
+                    if self.skipcut_2D:
+                        preds_2D.append(self.head_softmax_2D[i](torch.cat([x_2D, x_2D_0], dim=1)))
+                    else:
+                        preds_2D.append(self.head_softmax_2D[i](x_2D))
 
             # Stack 2d outputs and permute dimension to get the shape: [B, T, L_2D, L_2D, 3]
             preds_2D = torch.stack(preds_2D, axis=2).permute(0, 2, 3, 4, 1)

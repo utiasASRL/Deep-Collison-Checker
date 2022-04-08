@@ -137,6 +137,7 @@ class MyhalCollisionConfig(Config):
 
     # Share weights for 2D network TODO: see if not sharing makes a difference
     shared_2D = False
+    skipcut_2D = True
 
     # Trainable backend 3D network
     apply_3D_loss = True
@@ -150,8 +151,8 @@ class MyhalCollisionConfig(Config):
     ###################
 
     # Radius of the input sphere
-    in_radius = 38.0
-    val_radius = 38.0
+    in_radius = 8.0
+    val_radius = 8.0
     n_frames = 3
     in_features_dim = n_frames
     max_in_points = -1
@@ -533,11 +534,11 @@ if __name__ == '__main__':
     if config.max_in_points < 0:
         config.max_in_points = 1e9
         training_loader.dataset.max_in_p = 1e9
-        training_sampler.calib_max_in(config, training_loader, untouched_ratio=0.9, verbose=True, force_redo=True)
+        training_sampler.calib_max_in(config, training_loader, untouched_ratio=0.9, verbose=True, force_redo=False)
     if config.max_val_points < 0:
         config.max_val_points = 1e9
         test_loader.dataset.max_in_p = 1e9
-        test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True, force_redo=True)
+        test_sampler.calib_max_in(config, test_loader, untouched_ratio=0.95, verbose=True, force_redo=False)
 
 
     # Calibrate samplers

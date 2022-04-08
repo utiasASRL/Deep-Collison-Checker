@@ -3316,7 +3316,7 @@ def Myhal1_v2_logs():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-03-23_21-06-42'
-    end = 'Log_2022-05-02_14-32-20'
+    end = 'Log_2022-03-25_21-06-42'
 
     # Path to the results logs
     res_path = 'results'
@@ -3382,6 +3382,86 @@ def Myhal1_v2_logs():
                     620,
                     999,
                     1550]
+
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
+def Myhal1_v3_logs():
+    """
+    Here we use the data Myhal1 v2 (data until 2022-04-01)
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-03-25_21-06-42'
+    end = 'Log_2022-05-02_14-32-20'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['Real_4s/40',
+                  'Real_4s/40-skipcut',
+                  'etc']
+
+    # Copy here the indices you selected with gui
+    all_wanted_s = []
+    all_wanted_f = []
+    # all_wanted_s = ['2022-03-09_15-58-56',
+    #                 '2022-03-09_15-58-56',
+    #                 '2022-03-09_15-58-56',
+    #                 '2022-03-09_15-58-56',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-09_16-03-21',
+    #                 '2022-03-22_14-12-20',
+    #                 '2022-03-22_14-12-20',
+    #                 '2022-03-22_14-12-20',
+    #                 '2022-03-22_14-12-20',
+    #                 '2022-03-22_16-08-09',
+    #                 '2022-03-22_16-08-09',
+    #                 '2022-03-22_16-08-09',
+    #                 '2022-03-22_16-08-09']
+    # all_wanted_f = [360,
+    #                 380,
+    #                 842,
+    #                 885,
+    #                 34,
+    #                 523,
+    #                 551,
+    #                 664,
+    #                 868,
+    #                 917,
+    #                 1144,
+    #                 1367,
+    #                 1390,
+    #                 1459,
+    #                 1478,
+    #                 532,
+    #                 668,
+    #                 948,
+    #                 1204,
+    #                 470,
+    #                 620,
+    #                 999,
+    #                 1550]
 
 
     logs_names = np.array(logs_names[:len(logs)])
