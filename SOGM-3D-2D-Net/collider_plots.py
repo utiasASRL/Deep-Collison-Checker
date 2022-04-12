@@ -2165,6 +2165,7 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
         sim_plotsA = []
         sim_preA = []
         sim_recA = []
+
         for i, name in enumerate(list_of_names):
 
             # log_n * [chkp_n, frames_n, T, nt, 3] => [frames_n, T, nt, 3]

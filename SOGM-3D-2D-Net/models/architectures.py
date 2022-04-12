@@ -1238,8 +1238,17 @@ class KPCollider(nn.Module):
         self.train_only_3D = config.pretrained_3D == 'todo'
 
         # Loss coefficient for each timestamp and each class [T_2D, 3]
-        self.future_coeffs = torch.nn.Parameter(torch.ones((config.n_2D_layers, 3)), requires_grad=False)
-        self.total_coeff = float(torch.sum(self.future_coeffs))
+        layer_factors = np.linspace(1.0, config.factor_2D_prop_loss, config.n_2D_layers)
+        if len(config.power_2D_class_loss) == 3:
+            class_factors = np.array(config.power_2D_class_loss, dtype=np.float32)
+        else:
+            class_factors = np.ones((3,), dtype=np.float32)
+
+        np_coeffs = np.expand_dims(class_factors, 0) * np.expand_dims(layer_factors, 1)
+        np_coeffs = np_coeffs / np.sum(np_coeffs)
+
+        self.future_coeffs = torch.nn.Parameter(torch.from_numpy(np_coeffs), requires_grad=False)
+        # self.total_coeff = float(torch.sum(self.future_coeffs))
 
         return
 
@@ -1565,7 +1574,7 @@ class KPCollider(nn.Module):
                 future_errors = future_errors / (future_sums + 1e-9)
             
             # Here multiply with coefficients
-            future_loss = torch.sum(future_errors * self.future_coeffs) / self.total_coeff
+            future_loss = torch.sum(future_errors * self.future_coeffs)
 
             # Save prop loss
             self.prop_2D_loss = self.power_2D_prop_loss * future_loss

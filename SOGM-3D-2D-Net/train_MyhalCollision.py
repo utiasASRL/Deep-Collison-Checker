@@ -118,6 +118,13 @@ class MyhalCollisionConfig(Config):
     power_2D_prop_loss = 50.0
     neg_pos_ratio = 0.5
     loss2D_version = 2
+
+    # Power of the 2d future predictions loss for each class [permanent, movable, dynamic]
+    power_2D_class_loss = [1.0, 1.0, 5.0]
+
+    # Mutliplying factor between loss on the last and the first layer of future prediction
+    # factor is interpolated linearly between (1.0 and factor_2D_prop_loss) / sum_total at each layer
+    factor_2D_prop_loss = 1.0
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
@@ -137,7 +144,7 @@ class MyhalCollisionConfig(Config):
 
     # Share weights for 2D network TODO: see if not sharing makes a difference
     shared_2D = False
-    skipcut_2D = True
+    skipcut_2D = False
 
     # Trainable backend 3D network
     apply_3D_loss = True

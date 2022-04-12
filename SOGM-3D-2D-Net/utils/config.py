@@ -62,6 +62,13 @@ class Config:
     power_2D_prop_loss = 0.5
     neg_pos_ratio = 3.0
     loss2D_version = 0
+    
+    # Power of the 2d future predictions loss for each class [permanent, movable, dynamic]
+    power_2D_class_loss = []
+
+    # Mutliplying factor between loss on the last and the first layer of future prediction
+    # factor is interpolated linearly between (1.0 and factor_2D_prop_loss) / sum_total at each layer
+    factor_2D_prop_loss = 1.0
 
     
     # Specification of the 2D networks composition
@@ -329,6 +336,9 @@ class Config:
                 elif line_info[0] == 'class_w':
                     self.class_w = [float(w) for w in line_info[2:]]
 
+                elif line_info[0] == 'power_2D_class_loss':
+                    self.power_2D_class_loss = [float(w) for w in line_info[2:]]
+
                 elif line_info[0] == 'balance_proportions':
                     self.balance_proportions = [float(w) for w in line_info[2:]]
 
@@ -360,6 +370,8 @@ class Config:
                                'dl_2D',
                                'power_2D_init_loss',
                                'power_2D_prop_loss',
+                               'factor_2D_prop_loss',
+                               'power_2D_class_loss',
                                'neg_pos_ratio',
                                'loss2D_version',
                                'pretrained_3D',
@@ -372,6 +384,7 @@ class Config:
                                'init_2D_resnets',
                                'prop_2D_resnets',
                                'frozen_layers']
+
 
             for param in parameters_list:
                 if hasattr(self, param):
