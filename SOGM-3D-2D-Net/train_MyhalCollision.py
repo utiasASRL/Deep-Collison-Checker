@@ -121,7 +121,7 @@ class MyhalCollisionConfig(Config):
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
-    balance_proportions = [0, 0, 1, 1, 20, 0.0]
+    balance_proportions = [0, 0, 1, 1, 20, 0.4]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -206,7 +206,7 @@ class MyhalCollisionConfig(Config):
     #####################
 
     # Maximal number of epochs
-    max_epoch = 1000
+    max_epoch = 450
 
     # Learning rate management
     learning_rate = 1e-2

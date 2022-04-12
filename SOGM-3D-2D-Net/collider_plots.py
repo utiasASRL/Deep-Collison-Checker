@@ -3316,7 +3316,7 @@ def Myhal1_v2_logs():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-03-23_21-06-42'
-    end = 'Log_2022-03-25_21-06-42'
+    end = 'Log_2022-04-08_10-07-48'
 
     # Path to the results logs
     res_path = 'results'
@@ -3331,6 +3331,8 @@ def Myhal1_v2_logs():
     # Give names to the logs (for legends). These logs were all done with e500 and rot augment
     logs_names = ['70/30_4s/40',
                   'Real_4s/40',
+                  'same_v3data',
+                  'v3_skipcut',
                   'etc']
 
     # Copy here the indices you selected with gui
@@ -3411,6 +3413,7 @@ def Myhal1_v3_logs():
     # Give names to the logs (for legends). These logs were all done with e500 and rot augment
     logs_names = ['Real_4s/40',
                   'Real_4s/40-skipcut',
+                  '60/40_4s/40-skipcut',
                   'etc']
 
     # Copy here the indices you selected with gui
@@ -3500,9 +3503,9 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    # plotting = 'PR'  # Comparison of the performances with good metrics
+    plotting = 'PR'  # Comparison of the performances with good metrics
 
     # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
