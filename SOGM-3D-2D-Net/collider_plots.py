@@ -3415,6 +3415,8 @@ def Myhal1_v3_logs():
     logs_names = ['Real_4s/40',
                   'Real_4s/40-skipcut',
                   '60/40_4s/40-skipcut',
+                  'Real_4s/40+classfactor',
+                  'same+layerfactor',
                   'etc']
 
     # Copy here the indices you selected with gui

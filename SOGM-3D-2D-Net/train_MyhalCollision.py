@@ -120,15 +120,15 @@ class MyhalCollisionConfig(Config):
     loss2D_version = 2
 
     # Power of the 2d future predictions loss for each class [permanent, movable, dynamic]
-    power_2D_class_loss = [1.0, 1.0, 5.0]
+    power_2D_class_loss = [1.0, 1.0, 4.0]
 
     # Mutliplying factor between loss on the last and the first layer of future prediction
     # factor is interpolated linearly between (1.0 and factor_2D_prop_loss) / sum_total at each layer
-    factor_2D_prop_loss = 1.0
+    factor_2D_prop_loss = 10.0
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
-    balance_proportions = [0, 0, 1, 1, 20, 0.4]
+    balance_proportions = [0, 0, 1, 1, 20, 0.0]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
