@@ -1758,7 +1758,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     return
 
 
-def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days, dataset_path='RealMyhal', sim_path='Simulation', wanted_chkps=[], plt_chkp=-1):
+def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days, dataset_path='RealMyhal', sim_path='Simulation', plt_chkp=-1):
 
     ############
     # Parameters
@@ -1805,14 +1805,15 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
         chkps = np.sort([join(chkp_path, f) for f in listdir(chkp_path) if f[:4] == 'chkp'])
 
         # Find which chkp we want to use
-        if plt_chkp < 0:
+        if plt_chkp < -1:
+            chosen_chkp_i = [i for i in range(len(chkps))]
+        elif plt_chkp < 0:
             chosen_chkp_i = -1
         else:
             chkp_inds = np.array([int(f[:-4].split('_')[-1]) for f in chkps])
             chosen_chkp_i = np.argmin(np.abs(chkp_inds - plt_chkp))
 
         # Reduce checkpoint list to the wanted one
-        chkps = chkps[np.array([chosen_chkp_i])]
         chkps = chkps[np.array([chosen_chkp_i])]
 
         # Save checkpoints
@@ -1925,16 +1926,13 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
             ###########################
 
             # Specific sampler with pred inds
-            wanted_inds = np.arange(0, test_dataset.all_inds.shape[0], 10)
-            test_sampler = MyhalCollisionSamplerTest(test_dataset, wanted_inds)
+            test_sampler = MyhalCollisionSamplerTest(test_dataset, test_ratio=0.1)
             test_loader = DataLoader(test_dataset,
                                      batch_size=1,
                                      sampler=test_sampler,
                                      collate_fn=MyhalCollisionCollate,
                                      num_workers=config.input_threads,
                                      pin_memory=True)
-
-                                
 
             # Calibrate samplers
             if config.max_val_points < 0:
@@ -1959,7 +1957,11 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
             # Start predictions with ckpts weights
             ######################################
 
+
             for chkp_i, chkp in enumerate(chkps):
+                
+                print('Starting Deep predictions')
+                t0 = time.time()
 
                 if chkp_inds[chkp_i] not in todo_inds:
                     continue
@@ -2048,7 +2050,16 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                             p_flat = np.reshape(x, (config.n_2D_layers, -1))
 
                             # Get the result metrics [T, n_thresh, 3]
+                            print('fast_threshold_stats')
+                            t0 = time.time()
+
+                            print(gt_flat.shape)
+                            print(p_flat.shape)
+                            print(PR_resolution)
+
                             res_TP_FP_FN = fast_threshold_stats(gt_flat, p_flat, n_thresh=PR_resolution)
+                            t1 = time.time()
+                            print('Done in {:.1f}ms\n'.format(1000 * (t1 - t0)))
 
                             # Get the mse result [T]
                             res_MSE = np.mean(np.square(x - gx.astype(np.float32)), axis=(1, 2))
@@ -2072,6 +2083,13 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                 all_TP_FP_FN[chkp_i] = chkp_TP_FP_FN
                 all_MSE[chkp_i] = chkp_MSE
                 
+
+                t1 = time.time()
+                print('Done in {:.1f}s\n'.format(t1 - t0))
+
+                print('Saving to files')
+                t0 = time.time()
+                
                 # Save preds for this chkp
                 chkp_stat_file = join(visu_path, 'metrics_chkp_{:04d}.pkl'.format(chkp_inds[chkp_i]))
                 with open(chkp_stat_file, 'wb') as wfile:
@@ -2080,6 +2098,10 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                 chkp_mse_file = join(visu_path, 'mse_chkp_{:04d}.pkl'.format(chkp_inds[chkp_i]))
                 with open(chkp_mse_file, 'wb') as wfile:
                     pickle.dump(np.copy(chkp_MSE), wfile)
+
+
+                t1 = time.time()
+                print('Done in {:.1f}s\n'.format(t1 - t0))
 
             # Free cuda memory
             torch.cuda.empty_cache()
@@ -3524,7 +3546,7 @@ if __name__ == '__main__':
     plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################

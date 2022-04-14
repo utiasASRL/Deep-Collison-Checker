@@ -3912,6 +3912,10 @@ class MyhalCollisionDataset(PointCloudDataset):
         return np.vstack((data['x'], data['y'], data['z'])).T
 
 
+
+
+
+
 class MyhalCollisionSampler(Sampler):
     """Sampler for MyhalCollision"""
 
@@ -3929,77 +3933,25 @@ class MyhalCollisionSampler(Sampler):
 
         # Choose training frames with specific manual rules
         if (manual_training_frames):
-
-            # convertion from labels to colors
+            
             im_lim = self.dataset.config.radius_2D / np.sqrt(2)
-            colormap = np.array([[209, 209, 209],
-                                [122, 122, 122],
-                                [255, 255, 0],
-                                [0, 98, 255],
-                                [255, 0, 0]], dtype=np.float32) / 255
 
             for i_l, ll in enumerate(self.dataset.label_values):
                 if ll == 4:
+                    
+                    print('\nTraining frame selection:\n')
 
                     # Variable containg the selected inds for this class (will replace self.dataset.class_frames[i_l])
                     selected_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
 
-                    # Advanced display
-                    N = self.dataset.all_inds.shape[0]
-                    progress_n = 50
-                    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
-                    print('\nGetting custom training inds')
+                    # Get 2D data
+                    all_pts, all_colors, all_labels = self.get_2D_data(im_lim)
 
-                    all_pts = [[] for frames in self.dataset.frames]
-                    all_colors = [[] for frames in self.dataset.frames]
-                    all_labels = [[] for frames in self.dataset.frames]
-                    tot_i = 0
+                    print('\nSelecting blobs of frames containing dynamic points:')
+
                     for s_ind, seq in enumerate(self.dataset.sequences):
-                        for f_ind, frame in enumerate(self.dataset.frames[s_ind]):
 
-                            # Get groundtruth in 2D points format
-                            gt_file = join(self.dataset.colli_path[s_ind], frame + '_2D.ply')
-
-                            # Read points
-                            data = read_ply(gt_file)
-                            pts_2D = np.vstack((data['x'], data['y'])).T
-                            labels_2D = data['classif']
-                                
-                            # Special treatment to old simulation annotations
-                            if self.dataset.sim_sequences[s_ind]:
-                                times_2D = data['t']
-                                time_mask = np.logical_and(times_2D > -0.001, times_2D < 0.001)
-                                pts_2D = pts_2D[time_mask]
-                                labels_2D = labels_2D[time_mask]
-
-                            # Recenter
-                            p0 = self.dataset.poses[s_ind][f_ind][:2, 3]
-                            centered_2D = (pts_2D - p0).astype(np.float32)
-
-                            # Remove outside boundaries of images
-                            img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
-                            img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
-                            centered_2D = centered_2D[img_mask]
-                            labels_2D = labels_2D[img_mask]
-
-                            # Get the number of points per label (only present in image)
-                            label_v, label_n = np.unique(labels_2D, return_counts=True)
-                            label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
-                            label_count[label_v] = label_n
-
-                            # Do not count dynamic points if we are not in interesting area
-                            # Only for Myhal 5th floor
-                            # if not self.dataset.sim_sequences[s_ind]:
-                            #     if p0[1] < 6 and p0[0] < 4:
-                            #         label_count[-1] = 0
-
-                            all_pts[s_ind].append(centered_2D)
-                            all_colors[s_ind].append(colormap[labels_2D])
-                            all_labels[s_ind].append(label_count)
-
-                            print('', end='\r')
-                            print(fmt_str.format('#' * (((tot_i + 1) * progress_n) // N), 100 * (tot_i + 1) / N), end='', flush=True)
-                            tot_i += 1
+                        t0 = time.time()
 
                         # Get the wanted indices
                         class_mask = np.vstack(all_labels[s_ind]).T
@@ -4017,6 +3969,9 @@ class MyhalCollisionSampler(Sampler):
                         # Update selected inds for all sequences
                         seq_mask = self.dataset.all_inds[:, 0] == s_ind
                         selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
+
+                        t1 = time.time()
+                        print('Sequence {:s} done in {:.1f}s'.format(seq, t1 - t0))
 
                         if debug_custom_inds:
                             
@@ -4097,11 +4052,6 @@ class MyhalCollisionSampler(Sampler):
 
                     selected_inds = np.where(selected_mask)[0]
                     self.dataset.class_frames[i_l] = torch.from_numpy(selected_inds.astype(np.int64))
-
-                    # Show a nice 100% progress bar
-                    print('', end='\r')
-                    print(fmt_str.format('#' * progress_n, 100), flush=True)
-                    print('\n')
 
                     if debug_custom_inds:
                         a = 1/0
@@ -4652,15 +4602,151 @@ class MyhalCollisionSampler(Sampler):
         print('Calibration done in {:.1f}s\n'.format(time.time() - t0))
         return
 
+    def get_2D_data(self, im_lim, verbose=True, only_labels=False, stride=1):
+
+        # Parameters
+        colormap = np.array([[209, 209, 209],
+                            [122, 122, 122],
+                            [255, 255, 0],
+                            [0, 98, 255],
+                            [255, 0, 0]], dtype=np.float32) / 255
+
+        # Advanced display
+        N = self.dataset.all_inds.shape[0]
+        progress_n = 50
+        fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+        if verbose:
+            print('\nGetting dataset class stats')
+
+        # Get 2D points colors and labels
+        all_pts = [[] for _ in self.dataset.frames]
+        all_colors = [[] for _ in self.dataset.frames]
+        all_labels = [[] for _ in self.dataset.frames]
+        tot_i = 0
+        for s_ind, seq in enumerate(self.dataset.sequences):
+            for f_ind, frame in enumerate(self.dataset.frames[s_ind]):
+                if f_ind % stride == 0:
+
+                    # Get groundtruth in 2D points format
+                    gt_file = join(self.dataset.colli_path[s_ind], frame + '_2D.ply')
+
+                    # Read points
+                    data = read_ply(gt_file)
+                    pts_2D = np.vstack((data['x'], data['y'])).T
+                    labels_2D = data['classif']
+                        
+                    # Special treatment to old simulation annotations
+                    if self.dataset.sim_sequences[s_ind]:
+                        times_2D = data['t']
+                        time_mask = np.logical_and(times_2D > -0.001, times_2D < 0.001)
+                        pts_2D = pts_2D[time_mask]
+                        labels_2D = labels_2D[time_mask]
+
+                    # Recenter
+                    p0 = self.dataset.poses[s_ind][f_ind][:2, 3]
+                    centered_2D = (pts_2D - p0).astype(np.float32)
+
+                    # Remove outside boundaries of images
+                    img_mask = np.logical_and(centered_2D < im_lim, centered_2D > -im_lim)
+                    img_mask = np.logical_and(img_mask[:, 0], img_mask[:, 1])
+                    labels_2D = labels_2D[img_mask]
+                    if not only_labels:
+                        centered_2D = centered_2D[img_mask]
+
+                    # Get the number of points per label (only present in image)
+                    label_v, label_n = np.unique(labels_2D, return_counts=True)
+                    label_count = np.zeros((colormap.shape[0],), dtype=np.int32)
+                    label_count[label_v] = label_n
+
+                    # Do not count dynamic points if we are not in interesting area
+                    # Only for Myhal 5th floor
+                    # if not self.dataset.sim_sequences[s_ind]:
+                    #     if p0[1] < 6 and p0[0] < 4:
+                    #         label_count[-1] = 0
+
+                    if not only_labels:
+                        all_pts[s_ind].append(centered_2D)
+                        all_colors[s_ind].append(colormap[labels_2D])
+                    all_labels[s_ind].append(label_count)
+
+                    if verbose:
+                        print('', end='\r')
+                        print(fmt_str.format('#' * (((tot_i + 1) * progress_n) // N), 100 * (tot_i + 1) / N), end='', flush=True)
+
+                tot_i += 1
+                
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+        return all_pts, all_colors, all_labels
+
 
 class MyhalCollisionSamplerTest(MyhalCollisionSampler):
     """Specific Sampler for MyhalCollision Tests which limits the predicted frame indices to certain ones"""
 
-    def __init__(self, dataset: MyhalCollisionDataset, wanted_frame_inds):
+    def __init__(self, dataset: MyhalCollisionDataset, test_ratio=0.1):
         MyhalCollisionSampler.__init__(self, dataset)
 
-        # Dataset used by the sampler (no copy is made in memory)
-        self.frame_inds = torch.from_numpy(np.array(wanted_frame_inds, dtype=np.int64))
+        # we chose         test_ratio * N  frames with dynamic obst
+        #      and  (test_ratio / 10) * N  frames with no dynamic obstacles
+
+            
+        im_lim = self.dataset.config.radius_2D / np.sqrt(2)
+
+        for i_l, ll in enumerate(self.dataset.label_values):
+            if ll == 4:
+
+                print('\nSelection of the test frames:')
+                # Variable containg the selected inds for this class (will replace self.dataset.class_frames[i_l])
+                selected_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
+
+                all_pts, all_colors, all_labels = self.get_2D_data(im_lim, only_labels=True)
+
+                print('Selecting blobs of frames containing dynamic points:')
+                t0 = time.time()
+
+                for s_ind, seq in enumerate(self.dataset.sequences):
+
+
+                    # Get the wanted indices
+                    class_mask = np.vstack(all_labels[s_ind]).T
+                    class_mask = class_mask[i_l:i_l + 1] > 10
+
+                    # Remove isolated inds with opening
+                    open_struct = np.ones((1, 31))
+                    class_mask_opened = ndimage.binary_opening(class_mask, structure=open_struct)
+                    
+                    # Remove the one where the person is disappearing or reappearing
+                    erode_struct = np.ones((1, 31))
+                    erode_struct[:, :13] = 0
+                    class_mask_eroded = ndimage.binary_erosion(class_mask_opened, structure=erode_struct)
+
+                    # Update selected inds for all sequences
+                    seq_mask = self.dataset.all_inds[:, 0] == s_ind
+                    selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
+
+                t1 = time.time()
+                print('Done in {:.1f}s\n'.format(t1 - t0))
+
+        # Get stride for frame selection
+        stride1 = int(np.ceil(1 / test_ratio))
+        stride2 = 10 * stride1
+
+        # Get more frame containing dynamic points
+        wanted_mask = np.zeros_like(selected_mask)
+        wanted_mask[::stride1] = True
+        wanted_mask = np.logical_and(wanted_mask, selected_mask)
+
+        # Get fewer of all other frames
+        wanted_mask[::stride2] = True
+
+        # Transorm mask to indices
+        selected_inds = np.where(wanted_mask)[0]
+
+        # Dataset indices used by the sampler
+        self.frame_inds = torch.from_numpy(selected_inds.astype(np.int64))
 
         return
 
@@ -4692,6 +4778,7 @@ class MyhalCollisionSamplerTest(MyhalCollisionSampler):
 
         # Generator loop
         for i in range(self.frame_inds.shape[0]):
+            print(i)
             yield i
 
 
