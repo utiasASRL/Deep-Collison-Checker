@@ -1520,7 +1520,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     # Visualizations
     ################
 
-    # Choose a  checkpoint for each log 
+    # Choose a  checkpoint for each log
     chosen_chkp = -1
     comparison_preds = [cp[chosen_chkp] for cp in comparison_preds]
 
@@ -1758,7 +1758,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
     return
 
 
-def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days, dataset_path='RealMyhal', sim_path='Simulation', wanted_chkps=[]):
+def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days, dataset_path='RealMyhal', sim_path='Simulation', wanted_chkps=[], plt_chkp=-1):
 
     ############
     # Parameters
@@ -1804,12 +1804,18 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
         chkp_path = join(chosen_log, 'checkpoints')
         chkps = np.sort([join(chkp_path, f) for f in listdir(chkp_path) if f[:4] == 'chkp'])
 
-        # Only deal with one checkpoint (for faster computations)
-        if len(wanted_chkps) < 1:
-            chkps = chkps[-2:-1]
+        # Find which chkp we want to use
+        if plt_chkp < 0:
+            chosen_chkp_i = -1
         else:
-            chkps = chkps[wanted_chkps]
-            
+            chkp_inds = np.array([int(f[:-4].split('_')[-1]) for f in chkps])
+            chosen_chkp_i = np.argmin(np.abs(chkp_inds - plt_chkp))
+
+        # Reduce checkpoint list to the wanted one
+        chkps = chkps[np.array([chosen_chkp_i])]
+        chkps = chkps[np.array([chosen_chkp_i])]
+
+        # Save checkpoints
         all_chkps.append(chkps)
 
         # Get the chkp_inds
@@ -1877,7 +1883,7 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                 with open(chkp_mse_file, 'rb') as rfile:
                     chkp_MSE = pickle.load(rfile)
                    
-                # Store all predictions 
+                # Store all predictions
                 all_TP_FP_FN[chkp_i] = chkp_TP_FP_FN
                 all_MSE[chkp_i] = chkp_MSE
 
@@ -2047,7 +2053,7 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                             # Get the mse result [T]
                             res_MSE = np.mean(np.square(x - gx.astype(np.float32)), axis=(1, 2))
 
-                            # Store result in container [seqs][frames, T, n_thresh, 3] 
+                            # Store result in container [seqs][frames, T, n_thresh, 3]
                             chkp_TP_FP_FN[s_ind][f_ind, :, :, :] = res_TP_FP_FN
                             chkp_MSE[s_ind][f_ind, :] = res_MSE
                             chkp_done[s_ind][f_ind] = True
@@ -3419,6 +3425,12 @@ def Myhal1_v3_logs():
                   'same+layerfactor',
                   'etc']
 
+    logs_names = np.array(logs_names[:len(logs)])
+
+    # Temp remove uselesss log
+    logs = logs[[0, 1, 3, 4]]
+    logs_names = logs_names[[0, 1, 3, 4]]
+
     # Copy here the indices you selected with gui
     all_wanted_s = []
     all_wanted_f = []
@@ -3509,6 +3521,7 @@ if __name__ == '__main__':
     # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
     plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
     # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
@@ -3518,7 +3531,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v2_logs()
+    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v3_logs()
 
 
     # Check that all logs are of the same dataset. Different object can be compared
@@ -3608,14 +3621,19 @@ if __name__ == '__main__':
         comparison_gifs(logs, logs_names, wanted_inds=wanted_inds, dataset_path=dataset_path, sim_path=sim_path, redo=True)
         #comparison_gifs(logs[[2]])
 
-    elif plotting == 'PR':
+    elif plotting.startswith('PR'):
+
+        if plotting == 'PR':
+            plt_chkp = -1
+        else:
+            plt_chkp = int(plotting.split('-')[-1])
+    
+
         # Comparison of the performances with good metrics
         comparison_metrics(logs, logs_names, all_val_days, sim_val_days,
                            dataset_path=dataset_path,
                            sim_path=sim_path,
-                           wanted_chkps=[])
-        #                  wanted_chkps=[])
-        #comparison_metrics(logs[[1, 8]], logs_names[[1, 8]])
+                           plt_chkp=plt_chkp)
 
     else:
 

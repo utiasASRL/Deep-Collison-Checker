@@ -115,12 +115,12 @@ class MyhalCollisionConfig(Config):
 
     # Power of the loss for the 2d predictions (use smaller prop loss when shared weights)
     power_2D_init_loss = 1.0
-    power_2D_prop_loss = 50.0
+    power_2D_prop_loss = 5.0
     neg_pos_ratio = 0.5
     loss2D_version = 2
 
     # Power of the 2d future predictions loss for each class [permanent, movable, dynamic]
-    power_2D_class_loss = [1.0, 1.0, 4.0]
+    power_2D_class_loss = [1.0, 1.0, 2.0]
 
     # Mutliplying factor between loss on the last and the first layer of future prediction
     # factor is interpolated linearly between (1.0 and factor_2D_prop_loss) / sum_total at each layer
@@ -218,7 +218,7 @@ class MyhalCollisionConfig(Config):
     # Learning rate management
     learning_rate = 1e-2
     momentum = 0.98
-    lr_decays = {i: 0.1 ** (1 / 60) for i in range(1, max_epoch)}
+    lr_decays = {i: 0.1 ** (1 / 120) for i in range(1, max_epoch)}
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
