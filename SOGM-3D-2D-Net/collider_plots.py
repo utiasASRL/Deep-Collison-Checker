@@ -3423,13 +3423,14 @@ def Myhal1_v3_logs():
                   '60/40_4s/40-skipcut',
                   'Real_4s/40+classfactor',
                   'same+layerfactor',
+                  'same+smallerproppower',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
 
     # Temp remove uselesss log
-    logs = logs[[0, 1, 3, 4]]
-    logs_names = logs_names[[0, 1, 3, 4]]
+    logs = logs[[0, 1, 3, 4, 5]]
+    logs_names = logs_names[[0, 1, 3, 4, 5]]
 
     # Copy here the indices you selected with gui
     all_wanted_s = []
@@ -3523,7 +3524,7 @@ if __name__ == '__main__':
     plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
