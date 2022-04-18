@@ -2052,7 +2052,11 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                             p_flat = np.reshape(x, (config.n_2D_layers, -1))
 
                             # Get the result metrics [T, n_thresh, 3]
+                            t00 = time.time()
                             res_TP_FP_FN = fast_threshold_stats(gt_flat, p_flat, n_thresh=PR_resolution)
+                            t11 = time.time()
+                            if (t11 - t00 > 1.0):
+                                print('WARNING: SLOW TEST', gt_flat.shape, p_flat.shape, PR_resolution, t11 - t00)
 
                             # Get the mse result [T]
                             res_MSE = np.mean(np.square(x - gx.astype(np.float32)), axis=(1, 2))
