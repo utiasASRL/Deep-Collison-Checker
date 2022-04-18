@@ -4778,7 +4778,6 @@ class MyhalCollisionSamplerTest(MyhalCollisionSampler):
 
         # Generator loop
         for i in range(self.frame_inds.shape[0]):
-            print(i)
             yield i
 
 

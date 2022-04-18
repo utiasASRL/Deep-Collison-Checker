@@ -115,7 +115,7 @@ class MyhalCollisionConfig(Config):
 
     # Power of the loss for the 2d predictions (use smaller prop loss when shared weights)
     power_2D_init_loss = 1.0
-    power_2D_prop_loss = 5.0
+    power_2D_prop_loss = 50.0
     neg_pos_ratio = 0.5
     loss2D_version = 2
 
@@ -124,7 +124,7 @@ class MyhalCollisionConfig(Config):
 
     # Mutliplying factor between loss on the last and the first layer of future prediction
     # factor is interpolated linearly between (1.0 and factor_2D_prop_loss) / sum_total at each layer
-    factor_2D_prop_loss = 10.0
+    factor_2D_prop_loss = 2.0
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
@@ -176,7 +176,7 @@ class MyhalCollisionConfig(Config):
     num_kernel_points = 15
 
     # Size of the first subsampling grid in meter
-    first_subsampling_dl = 0.06
+    first_subsampling_dl = 0.12
 
     # Radius of convolution in "number grid cell". (2.5 is the standard value)
     conv_radius = 2.5
@@ -218,7 +218,8 @@ class MyhalCollisionConfig(Config):
     # Learning rate management
     learning_rate = 1e-2
     momentum = 0.98
-    lr_decays = {i: 0.1 ** (1 / 120) for i in range(1, max_epoch)}
+    # lr_decays = {i: 0.1 ** (1 / 60) for i in range(1, max_epoch)}
+    lr_decays = {150: 0.1, 200: 0.1, 250: 0.1}
     grad_clip_norm = 100.0
 
     # Number of steps per epochs
