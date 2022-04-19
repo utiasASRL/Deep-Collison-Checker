@@ -4686,67 +4686,74 @@ class MyhalCollisionSampler(Sampler):
 class MyhalCollisionSamplerTest(MyhalCollisionSampler):
     """Specific Sampler for MyhalCollision Tests which limits the predicted frame indices to certain ones"""
 
-    def __init__(self, dataset: MyhalCollisionDataset, test_ratio=0.1):
+    def __init__(self, dataset: MyhalCollisionDataset, test_ratio=0.1, wanted_frame_inds=[]):
         MyhalCollisionSampler.__init__(self, dataset)
 
-        # we chose         test_ratio * N  frames with dynamic obst
-        #      and  (test_ratio / 10) * N  frames with no dynamic obstacles
+        if len(wanted_frame_inds) > 0:
+                
+            # Dataset used by the sampler (no copy is made in memory)
+            self.frame_inds = torch.from_numpy(np.array(wanted_frame_inds, dtype=np.int64))
 
-            
-        im_lim = self.dataset.config.radius_2D / np.sqrt(2)
+        else:
 
-        for i_l, ll in enumerate(self.dataset.label_values):
-            if ll == 4:
+            # we chose         test_ratio * N  frames with dynamic obst
+            #      and  (test_ratio / 10) * N  frames with no dynamic obstacles
 
-                print('\nSelection of the test frames:')
-                # Variable containg the selected inds for this class (will replace self.dataset.class_frames[i_l])
-                selected_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
+                
+            im_lim = self.dataset.config.radius_2D / np.sqrt(2)
 
-                all_pts, all_colors, all_labels = self.get_2D_data(im_lim, only_labels=True)
+            for i_l, ll in enumerate(self.dataset.label_values):
+                if ll == 4:
 
-                print('Selecting blobs of frames containing dynamic points:')
-                t0 = time.time()
+                    print('\nSelection of the test frames:')
+                    # Variable containg the selected inds for this class (will replace self.dataset.class_frames[i_l])
+                    selected_mask = np.zeros_like(self.dataset.all_inds[:, 0], dtype=bool)
 
-                for s_ind, seq in enumerate(self.dataset.sequences):
+                    all_pts, all_colors, all_labels = self.get_2D_data(im_lim, only_labels=True)
+
+                    print('Selecting blobs of frames containing dynamic points:')
+                    t0 = time.time()
+
+                    for s_ind, seq in enumerate(self.dataset.sequences):
 
 
-                    # Get the wanted indices
-                    class_mask = np.vstack(all_labels[s_ind]).T
-                    class_mask = class_mask[i_l:i_l + 1] > 10
+                        # Get the wanted indices
+                        class_mask = np.vstack(all_labels[s_ind]).T
+                        class_mask = class_mask[i_l:i_l + 1] > 10
 
-                    # Remove isolated inds with opening
-                    open_struct = np.ones((1, 31))
-                    class_mask_opened = ndimage.binary_opening(class_mask, structure=open_struct)
-                    
-                    # Remove the one where the person is disappearing or reappearing
-                    erode_struct = np.ones((1, 31))
-                    erode_struct[:, :13] = 0
-                    class_mask_eroded = ndimage.binary_erosion(class_mask_opened, structure=erode_struct)
+                        # Remove isolated inds with opening
+                        open_struct = np.ones((1, 31))
+                        class_mask_opened = ndimage.binary_opening(class_mask, structure=open_struct)
+                        
+                        # Remove the one where the person is disappearing or reappearing
+                        erode_struct = np.ones((1, 31))
+                        erode_struct[:, :13] = 0
+                        class_mask_eroded = ndimage.binary_erosion(class_mask_opened, structure=erode_struct)
 
-                    # Update selected inds for all sequences
-                    seq_mask = self.dataset.all_inds[:, 0] == s_ind
-                    selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
+                        # Update selected inds for all sequences
+                        seq_mask = self.dataset.all_inds[:, 0] == s_ind
+                        selected_mask[seq_mask] = np.squeeze(class_mask_eroded)
 
-                t1 = time.time()
-                print('Done in {:.1f}s\n'.format(t1 - t0))
+                    t1 = time.time()
+                    print('Done in {:.1f}s\n'.format(t1 - t0))
 
-        # Get stride for frame selection
-        stride1 = int(np.ceil(1 / test_ratio))
-        stride2 = 10 * stride1
+            # Get stride for frame selection
+            stride1 = int(np.ceil(1 / test_ratio))
+            stride2 = 10 * stride1
 
-        # Get more frame containing dynamic points
-        wanted_mask = np.zeros_like(selected_mask)
-        wanted_mask[::stride1] = True
-        wanted_mask = np.logical_and(wanted_mask, selected_mask)
+            # Get more frame containing dynamic points
+            wanted_mask = np.zeros_like(selected_mask)
+            wanted_mask[::stride1] = True
+            wanted_mask = np.logical_and(wanted_mask, selected_mask)
 
-        # Get fewer of all other frames
-        wanted_mask[::stride2] = True
+            # Get fewer of all other frames
+            wanted_mask[::stride2] = True
 
-        # Transorm mask to indices
-        selected_inds = np.where(wanted_mask)[0]
+            # Transorm mask to indices
+            selected_inds = np.where(wanted_mask)[0]
 
-        # Dataset indices used by the sampler
-        self.frame_inds = torch.from_numpy(selected_inds.astype(np.int64))
+            # Dataset indices used by the sampler
+            self.frame_inds = torch.from_numpy(selected_inds.astype(np.int64))
 
         return
 

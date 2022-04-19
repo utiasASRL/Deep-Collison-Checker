@@ -1315,7 +1315,7 @@ def comparison_gifs(list_of_paths, list_of_names, real_val_days, sim_val_days, d
                 ###########################
 
                 # Specific sampler with pred inds
-                test_sampler = MyhalCollisionSamplerTest(test_dataset, wanted_inds)
+                test_sampler = MyhalCollisionSamplerTest(test_dataset, wanted_frame_inds=wanted_inds)
                 test_loader = DataLoader(test_dataset,
                                          batch_size=1,
                                          sampler=test_sampler,
@@ -3526,6 +3526,7 @@ def Myhal1_v4_logs():
     logs_names = ['Real_decay60',
                   'Real_step_decay',
                   'Real_sequential_2D_loss',
+                  'Real_decay60_seq_loss',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
@@ -3533,52 +3534,52 @@ def Myhal1_v4_logs():
     # Copy here the indices you selected with gui
     all_wanted_s = []
     all_wanted_f = []
-    # all_wanted_s = ['2022-03-09_15-58-56',
-    #                 '2022-03-09_15-58-56',
-    #                 '2022-03-09_15-58-56',
-    #                 '2022-03-09_15-58-56',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-09_16-03-21',
-    #                 '2022-03-22_14-12-20',
-    #                 '2022-03-22_14-12-20',
-    #                 '2022-03-22_14-12-20',
-    #                 '2022-03-22_14-12-20',
-    #                 '2022-03-22_16-08-09',
-    #                 '2022-03-22_16-08-09',
-    #                 '2022-03-22_16-08-09',
-    #                 '2022-03-22_16-08-09']
-    # all_wanted_f = [360,
-    #                 380,
-    #                 842,
-    #                 885,
-    #                 34,
-    #                 523,
-    #                 551,
-    #                 664,
-    #                 868,
-    #                 917,
-    #                 1144,
-    #                 1367,
-    #                 1390,
-    #                 1459,
-    #                 1478,
-    #                 532,
-    #                 668,
-    #                 948,
-    #                 1204,
-    #                 470,
-    #                 620,
-    #                 999,
-    #                 1550]
+    all_wanted_s = ['2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_15-58-56',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-09_16-03-21',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_14-12-20',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09',
+                    '2022-03-22_16-08-09']
+    all_wanted_f = [360,
+                    380,
+                    842,
+                    885,
+                    34,
+                    523,
+                    551,
+                    664,
+                    868,
+                    917,
+                    1144,
+                    1367,
+                    1390,
+                    1459,
+                    1478,
+                    532,
+                    668,
+                    948,
+                    1204,
+                    470,
+                    620,
+                    999,
+                    1550]
 
     logs_names = np.array(logs_names[:len(logs)])
 
@@ -3617,10 +3618,10 @@ if __name__ == '__main__':
 
     # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
