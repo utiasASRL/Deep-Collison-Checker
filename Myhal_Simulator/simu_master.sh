@@ -51,35 +51,6 @@ echo "Min step size: $MINSTEP"
 echo -e "TOUR: $TOUR\nGUI: $GUI\nLOADWORLD: $LOADWORLD\nFILTER: $FILTER\nGTCLASS: $GTCLASS"
 echo -e " "
 
-
-
-
-
-
-# TODO:
-#
-#   > use frame_dl = 0.06 in simu_ptslam.launch !!!!!!!!!!!!!
-#   > Exp in simu to find the right parameters for navigation
-#   > blur in t dimension
-#
-# Runs to debug:
-#       04/01-10h52 => debug run to replay in rviz. Avoiding me, and going in the stairs at the end
-#       04/01-10h56 => run with sogm, not much happening
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Handle the choice between gt and predictions
 c_method="none"
 if [ "$GTCLASS" = false ] ; then
@@ -137,7 +108,7 @@ rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 
 #    0.05 => for videos    /    0.2 => for fast exps
-rosparam set real_time_factor 0.05
+rosparam set real_time_factor 0.125
 
 
 ##################

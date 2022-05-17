@@ -2685,7 +2685,7 @@ class MyhalCollisionSlam:
 
 
             ##############################
-            # Step 3: Collisions per frame
+            # Step 2: Collisions per frame
             ##############################
             
 
