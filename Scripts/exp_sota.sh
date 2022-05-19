@@ -5,11 +5,8 @@ easy="2022-05-18-21-23-50"
 med="2022-05-18-22-22-02"
 hard="2022-05-18-23-24-51"
 
-
-
-
 # for LOADED_WORLD in $easy $med $hard
-for LOADED_WORLD in $easy
+for LOADED_WORLD in $easy $hard
 do
 
     for ARGS in "-g | -b" "-fg | -bl" "-fg | -bs"

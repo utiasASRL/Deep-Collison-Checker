@@ -32,10 +32,12 @@ XTERM=false     # -x
 SOGM=false      # -s
 TEB=false       # -b
 MAPPING=2       # -m (arg)
-LOADTRAJ=false  # -l
+GTSOGM=false    # -l
+INTERP=false    # -i
+IGNORE=false    # -o
 
 # Parse arguments
-while getopts xsbm:l option
+while getopts xsbm:lio option
 do
 case "${option}"
 in
@@ -43,12 +45,26 @@ x) XTERM=true;;             # are we using TEB planner
 s) SOGM=true;;              # are we using SOGMs
 b) TEB=true;;               # are we using TEB planner
 m) MAPPING=${OPTARG};;      # use gmapping, AMCL or PointSLAM? (respectively 0, 1, 2)
-l) LOADTRAJ=true;;          # are we using loaded traj for GroundTruth predictions
+l) GTSOGM=true;;            # are we using loaded traj for GroundTruth predictions
+i) INTERP=true;;            # are we using loaded traj for linear interpolated SOGM
+o) IGNORE=true;;            # are we igmoring dynamic obstacles
 esac
 done
 
 echo ""
-echo "Waiting for Robot initialization ..."
+echo "Verify option incompatibility."
+if [ "$GTSOGM" = true ] ; then
+    if [ "$INTERP" = true ] || [ "$IGNORE" = true ] ; then
+        echo "ERROR: options -l -i and -o are incompatible."
+        return
+    fi
+elif [ "$INTERP" = true ] ; then
+    if [ "$IGNORE" = true ] ; then
+        echo "ERROR: options -l -i and -o are incompatible."
+        return
+    fi
+fi
+echo ""
 
 # Wait until rosmaster has started 
 until [[ -n "$rostopics" ]]
@@ -80,6 +96,10 @@ echo -e "\033[1;4;34mReading parameters from ros\033[0m"
 
 rosparam set using_teb $TEB
 rosparam set loc_method $MAPPING
+rosparam set use_gt_sogm $GTSOGM
+rosparam set interp_linear $INTERP
+rosparam set ignore_dynamic $IGNORE
+
 
 GTCLASS=$(rosparam get gt_class)
 c_method=$(rosparam get class_method)
@@ -177,7 +197,7 @@ fi
 
 # Chose parameters for local planner
 if [ "$TEB" = true ] ; then
-    if [ "$SOGM" = true ] || [ "$LOADTRAJ" = true ] ; then
+    if [ "$SOGM" = true ] || [ "$GTSOGM" = true ] || [ "$INTERP" = true ] || [ "$IGNORE" = true ] ; then
         local_planner_params="teb_params_sogm.yaml"
     else
         local_planner_params="teb_params_normal.yaml"
@@ -233,22 +253,21 @@ if [ "$SOGM" = true ] ; then
     echo " "
     echo " "
     echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
-
+    
     cd onboard_deep_sogm/scripts
-    ./simu_collider.sh
+
+    t=$(rosparam get start_time)
+    NOHUP_SOGM_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_sogm.txt"
+    nohup ./simu_collider.sh > "$NOHUP_SOGM_FILE" 2>&1 &
+
+    echo "OK"
+    echo " "
+    echo " "
+        
 
 else
 
-    echo " "
-    echo " "
-    echo -e "\033[1;4;34mStarting with groundtruth SOGM\033[0m"
-
-    if [ "$LOADTRAJ" = true ] ; then
-
-        # Get the loaded world
-        LOADPATH=$(rosparam get load_path)
-        LOADWORLD=$(rosparam get load_world)
-
+    if [ "$GTSOGM" = true ] || [ "$INTERP" = true ]  || [ "$IGNORE" = true ] ; then
         if [ "$LOADWORLD" = "" ] || [ "$LOADWORLD" = "none" ] ; then
             echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             echo "X  Error no world loaded that we can use for gt sogm  X"  
@@ -257,32 +276,43 @@ else
             echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
         else
 
+            if [ "$GTSOGM" = true ] ; then
+                echo " "
+                echo " "
+                echo -e "\033[1;4;34mStarting with groundtruth SOGM\033[0m"
+            
+            elif [ "$INTERP" = true ] ; then
+                echo " "
+                echo " "
+                echo -e "\033[1;4;34mStarting with linear interp SOGM\033[0m"
+            
+            elif [ "$IGNORE" = true ] ; then
+                echo " "
+                echo " "
+                echo -e "\033[1;4;34mStarting with ignoring dynamic SOGM\033[0m"
+
+            fi
+
             t=$(rosparam get start_time)
             NOHUP_GTSOGM_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gtsogm.txt"
             nohup rosrun teb_local_planner gt_sogm.py > "$NOHUP_GTSOGM_FILE" 2>&1 &
-            
-            # Wait for eveyrthing to end before killing the docker container
-            velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
-            until [[ ! -n "$velo_state_msg" ]]
-            do 
-                sleep 0.5
-                velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
-                echo "Recieved velodyne message, continue navigation"
-            done 
+                    
+            echo "OK"
+            echo " "
+            echo " "
 
         fi
-
-    else
-        # Wait for eveyrthing to end before killing the docker container
-        velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
-        until [[ ! -n "$velo_state_msg" ]]
-        do 
-            sleep 0.5
-            velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
-            echo "Recieved velodyne message, continue navigation"
-        done 
     fi
 fi
+
+# Wait for eveyrthing to end before killing the docker container
+velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+until [[ ! -n "$velo_state_msg" ]]
+do 
+    sleep 0.5
+    velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+    echo "Recieved velodyne message, continue navigation"
+done 
 
 
 echo "OK"

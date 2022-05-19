@@ -182,6 +182,22 @@ def get_actors_plot_data(actors_t, actors_xy, t0, duration=1.0):
     return act_xy, act_color, act_alpha
 
 
+def interp_actor_xy(actor_times, actor_xy, sorted_times):
+
+    # Relevant actor times
+    fut_i = np.searchsorted(actor_times, sorted_times)
+
+    # Actor xy positions interpolated (T, n_actors, 2)
+    prev_xy = actor_xy[:, fut_i - 1, :]
+    next_xy = actor_xy[:, fut_i, :]
+    prev_t = actor_times[fut_i - 1]
+    next_t = actor_times[fut_i]
+    alpha = (sorted_times - prev_t) / (next_t - prev_t)
+    alpha = np.expand_dims(alpha, (0, 2))
+    interp_xy = (1-alpha) * prev_xy + alpha * next_xy
+
+    return interp_xy
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Plot Func
@@ -304,6 +320,11 @@ def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, 
 
     # Plot traj
     for i, run in enumerate(selected_runs):
+        
+        vid_name = os.path.join(runs_path, run, "logs-{:s}/videos/traj_{:s}.mp4".format(run, run))
+
+        if exists(vid_name):
+            continue
 
         # Set variables
         # times = gt_t[i]
@@ -377,7 +398,6 @@ def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, 
             print(fmt_str.format('#' * ((current_frame * progress_n) // total_frames), 100 * current_frame / total_frames), end='', flush=True)
             return
                              
-        vid_name = os.path.join(runs_path, run, "logs-{:s}/videos/traj_{:s}.mp4".format(run, run))
         anim.save(vid_name, fps=fps, progress_callback=progress_vid)
 
         # Show a nice 100% progress bar
@@ -390,6 +410,63 @@ def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, 
 
         plt.close(figA)
 
+
+    return
+
+
+def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy):
+    
+
+
+    print('Plot distance from robot to closest actor')
+    # Threshold
+    high_d = 2.0
+    risky_d = 1.0
+    collision_d = 0.4
+
+
+    # Get distances
+    all_min_dists = []
+    for i, run in enumerate(selected_runs):
+
+        gt_xy = gt_H[i][:, :2, 3]  # [T2, 2]
+
+        # Get interpolatted actor positions at gt_times
+        interp_xy = interp_actor_xy(actor_times[i], actor_xy[i], gt_t[i])
+
+        # Get distances
+        diffs = np.expand_dims(gt_xy, 0) - interp_xy
+        dists = np.linalg.norm(diffs, axis=2)
+        min_dists = np.min(dists, axis=0)
+
+        # Threshold
+        colli_mask = min_dists < collision_d
+        risky_mask = np.logical_and(min_dists > collision_d, min_dists < risky_d)
+        colli_index = np.sum(colli_mask.astype(np.int32)) / colli_mask.shape[0]
+        risky_index = np.sum(risky_mask.astype(np.int32)) / risky_mask.shape[0]
+
+        print('{:s} | {:7.1f}% {:7.2f}% '.format(run, 100*risky_index, 100*colli_index))
+
+        # For visu do not show higher distances
+        min_dists = np.minimum(min_dists, high_d)
+        all_min_dists.append(min_dists)
+        
+
+
+    figA, axA = plt.subplots(1, 1, figsize=(14, 3))
+    for i, run in enumerate(selected_runs):
+        plt.plot(gt_t[i], all_min_dists[i])
+        
+    
+    longest_run = np.argmax([len(_) for _ in gt_t])
+    plt.plot(gt_t[longest_run], gt_t[longest_run]*0+risky_d, 'r--', linewidth=0.5)
+    plt.plot(gt_t[longest_run], gt_t[longest_run]*0+collision_d, 'r-', linewidth=0.5)
+
+    plt.ylim(0, 1.95)
+    plt.show()
+
+    print('OK')
+    print()
 
     return
 
@@ -414,11 +491,15 @@ def main():
     runs_path = join(root_path, 'simulated_runs')
     
     # Manually select runs
-    selected_runs = []
+    # selected_runs = []
+    selected_runs = ['2022-05-19-02-16-58',     # Standard TEB
+                     '2022-05-19-12-38-14',     # Predicted SOGM
+                     '2022-05-19-03-46-31', ]   # Groundtruth SOGM
+
 
     # Automatic run selection [-2, -1] for the last two runs
-    runs_ids = [-3, -2, -1]
     if len(selected_runs) < 1:
+        runs_ids = [-2, -1]
         run_folders = np.sort([f for f in listdir(runs_path)])
         selected_runs = run_folders[runs_ids]
 
@@ -519,6 +600,8 @@ def main():
     # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
     save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
+
+    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
 
     return
