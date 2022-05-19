@@ -41,6 +41,7 @@ from utils import bag_tools as bt
 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
+from matplotlib.animation import FuncAnimation
 
 from datasets.common import grid_subsampling
 
@@ -115,7 +116,7 @@ def load_gt_poses(days_folder, days):
     return gt_t, gt_H
 
 
-def get_gt_plot_data(gt_t, gt_H, time_ind, duration=1.0):
+def get_gt_plot_data(gt_t, gt_H, t0, duration=1.0):
 
     # Get speeds accross the run
     gt_xy = gt_H[:, :2, 3]
@@ -125,7 +126,6 @@ def get_gt_plot_data(gt_t, gt_H, time_ind, duration=1.0):
     gt_speeds = gt_speeds / np.max(gt_speeds)
 
     # Get alpha relative to plot duration
-    t0 = gt_t[time_ind]
     gt_alpha = tukey(gt_t, t0, duration)
     mask = gt_alpha > 0.001
 
@@ -136,9 +136,9 @@ def get_gt_plot_data(gt_t, gt_H, time_ind, duration=1.0):
 
     # Define colormap
     resolution = 256
-    slow_c = np.array([0.0, 1.0, 0.0], dtype=np.float64)
-    med_c = np.array([1.0, 1.0, 0.0], dtype=np.float64)
-    fast_c = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+    slow_c = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+    med_c = np.array([0.0, 1.0, 1.0], dtype=np.float64)
+    fast_c = np.array([0.0, 1.0, 0.0], dtype=np.float64)
     cmap_speed = np.vstack((np.linspace(slow_c, med_c, resolution), np.linspace(med_c, fast_c, resolution)))
 
     # Get color relative to speed
@@ -180,6 +180,218 @@ def get_actors_plot_data(actors_t, actors_xy, t0, duration=1.0):
     act_color = np.reshape(act_color, (-1, 3))
     act_alpha = np.reshape(act_alpha, (-1,))
     return act_xy, act_color, act_alpha
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#
+#           Plot Func
+#       \***************/
+#
+
+
+def plot_complete_traj(selected_runs, gt_t, gt_H, footprint):
+    
+    ###############################
+    # Plot complete traj on the map
+    ###############################
+
+    print('Plot complete traj on the map')
+
+    # Plot traj
+    for i, run in enumerate(selected_runs):
+        plt.scatter(gt_H[i][:, 0, 3], gt_H[i][:, 1, 3], s=1, c=gt_t[i])
+        plt.scatter(footprint[:, 0], footprint[:, 1], s=1, c=[0, 0, 0])
+        # plt.xlim(-3, 3)
+        # plt.ylim(-3, 3)
+        plt.axis('equal')
+        plt.show()
+
+    print('OK')
+    print()
+
+    return
+
+
+def plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy):
+    
+    ######################
+    # Slider for positions
+    ######################
+
+
+    print('Plot slider traj in actors')
+
+    # Plot traj
+    for i, run in enumerate(selected_runs):
+
+        # Set variables
+        times = gt_t[i]
+
+        # Figure
+        figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+        plt.subplots_adjust(bottom=0.15)
+
+        # Plot the map
+        plt.scatter(footprint[:, 0], footprint[:, 1], s=1, c=[[0, 0, 0]])
+
+        # Plot the positions
+        gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], 0)
+        gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
+        plotsA = [axA.scatter(gt_xy[:, 0],
+                              gt_xy[:, 1],
+                              s=1.0,
+                              color=gt_color)]
+
+        # Plot the actors
+        act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], 0)
+        act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
+        plotsB = [axA.scatter(act_xy[:, 0],
+                              act_xy[:, 1],
+                              s=1.0,
+                              color=act_color)]
+
+        # Adjust plot
+        plt.axis('equal')
+        plt.xlim(-21, 21)
+        plt.ylim(-21, 21)
+
+        # Make a horizontal slider to control the time.
+        axcolor = 'lightgoldenrodyellow'
+        axtime = plt.axes([0.1, 0.06, 0.8, 0.03], facecolor=axcolor)
+        time_slider = Slider(ax=axtime,
+                             label='ind',
+                             valmin=0,
+                             valmax=len(times) - 1,
+                             valinit=0,
+                             valstep=1)
+
+        # The function to be called anytime a slider's value changes
+        def update_time(val):
+            time_ind = (int)(val)
+
+            gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], gt_t[i][time_ind])
+            gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
+
+            act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], gt_t[i][time_ind])
+            act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
+
+            for plot_i, plot_obj in enumerate(plotsA):
+                plot_obj.set_offsets(gt_xy)
+                plot_obj.set_color(gt_color)
+
+            for plot_i, plot_obj in enumerate(plotsB):
+                plot_obj.set_offsets(act_xy)
+                plot_obj.set_color(act_color)
+
+        # register the update function with each slider
+        time_slider.on_changed(update_time)
+
+        plt.show()
+
+    print('OK')
+    print()
+
+    return
+
+
+def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, fps=60, speed=10, following=False):
+    
+    ####################################
+    # Video of robot and actor positions
+    ####################################
+
+    print('Make video of traj and actors')
+
+    # Plot traj
+    for i, run in enumerate(selected_runs):
+
+        # Set variables
+        # times = gt_t[i]
+        # t0 = gt_t[i][0]
+        # t1 = gt_t[i][-1]
+        vid_times = np.arange(gt_t[i][0], gt_t[i][-1], speed / fps)
+
+        # Figure
+        figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+
+        # Plot the map
+        plt.scatter(footprint[:, 0], footprint[:, 1], s=1, c=[[0, 0, 0]])
+
+        # Plot the positions
+        gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], 0)
+        gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
+        plotsA = [axA.scatter(gt_xy[:, 0],
+                              gt_xy[:, 1],
+                              s=1.0,
+                              color=gt_color)]
+
+        # Plot the actors
+        act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], 0)
+        act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
+        plotsB = [axA.scatter(act_xy[:, 0],
+                              act_xy[:, 1],
+                              s=1.0,
+                              color=act_color)]
+
+        # Adjust plot
+        plt.axis('equal')
+        plt.xlim(-21, 21)
+        plt.ylim(-21, 21)
+
+        # Animation function
+        def animate(ti):
+
+            frame_t = vid_times[(int)(ti)]
+
+            gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], frame_t)
+            gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
+
+            act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], frame_t)
+            act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
+
+            for plot_i, plot_obj in enumerate(plotsA):
+                plot_obj.set_offsets(gt_xy)
+                plot_obj.set_color(gt_color)
+
+            for plot_i, plot_obj in enumerate(plotsB):
+                plot_obj.set_offsets(act_xy)
+                plot_obj.set_color(act_color)
+            
+            return plotsA + plotsB
+
+        anim = FuncAnimation(figA, animate,
+                             frames=np.arange(vid_times.shape[0]),
+                             interval=1000 / fps,
+                             blit=True)
+
+
+        # Advanced display
+        print('\nProcessing {:s}'.format(run))
+        progress_n = 50
+        fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+        tt1 = time.time()
+        
+        # Progress display
+        def progress_vid(current_frame: int, total_frames: int):
+            print('', end='\r')
+            print(fmt_str.format('#' * ((current_frame * progress_n) // total_frames), 100 * current_frame / total_frames), end='', flush=True)
+            return
+                             
+        vid_name = os.path.join(runs_path, run, "logs-{:s}/videos/traj_{:s}.mp4".format(run, run))
+        anim.save(vid_name, fps=fps, progress_callback=progress_vid)
+
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+        
+        tt2 = time.time()
+        print('Done in {:.1f}s'.format(tt2 - tt1))
+
+        plt.close(figA)
+
+
+    return
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -269,106 +481,44 @@ def main():
         print('Loaded {:s} in {:.1f}s'.format(run, t2 - t1))
 
 
-    ###############################
-    # Plot complete traj on the map
-    ###############################
+    #################
+    # Get time metric
+    #################
+    
+    for i, run in enumerate(selected_runs):
+        
+        # Read log file
+        log_path = os.path.join(runs_path, run, "logs-{:s}/log.txt".format(run))
+        with open(log_path) as log_f:
+            lines = log_f.readlines()
+        lines = [line.rstrip() for line in lines]
 
-    plot1 = False
-    if plot1:
+        # Get interesting lines
+        lines = [line for line in lines if line.startswith('Reached') or line.startswith('Failed')]
+        success = [line.startswith('Reached') for line in lines]
 
-        print('Plot complete traj on the map')
+        # First verify that tour is successful
+        success_n = np.sum(np.array(success, dtype=np.int32))
 
-        # Plot traj
-        for i, run in enumerate(selected_runs):
-            plt.scatter(gt_H[i][:, 0, 3], gt_H[i][:, 1, 3], s=1, c=gt_t[i])
-            plt.scatter(footprint[:, 0], footprint[:, 1], s=1, c=[0, 0, 0])
-            # plt.xlim(-3, 3)
-            # plt.ylim(-3, 3)
-            plt.axis('equal')
-            plt.show()
+        # Get goal timing
+        times = [float(line.split('time: ')[-1][:-1]) for line in lines]
+        
+        print('\n-----------------------------------------')
+        print('             Tour: ', run)
+        print('  Targets Reached:  {:d}/{:d}'.format(success_n, len(success)))
+        print('  Total Tour Time:  {:.1f} seconds'.format(times[-1]))
 
-        print('OK')
-        print()
+    print('\n------------------------------------------\n')
 
+    ################
+    # Plot functions
+    ################
 
-    ######################
-    # Slider for positions
-    ######################
+    # plot_complete_traj(selected_runs, gt_t, gt_H, footprint)
 
-    plot2 = True
-    if plot2:
+    # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-        print('Plot complete traj on the map')
-
-        # Plot traj
-        for i, run in enumerate(selected_runs):
-
-            # Set variables
-            times = gt_t[i]
-                
-            # Figure
-            figA, axA = plt.subplots(1, 1, figsize=(10, 7))
-            plt.subplots_adjust(bottom=0.15)
-
-            # Plot the map
-            plt.scatter(footprint[:, 0], footprint[:, 1], s=1, c=[[0, 0, 0]])
-
-            # Plot the positions
-            gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], 0)
-            gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
-            plotsA = [axA.scatter(gt_xy[:, 0],
-                                  gt_xy[:, 1],
-                                  s=1.0,
-                                  color=gt_color)]
-
-            # Plot the actors
-            act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], 0)
-            act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
-            plotsB = [axA.scatter(act_xy[:, 0],
-                                  act_xy[:, 1],
-                                  s=1.0,
-                                  color=act_color)]
-
-
-            # Adjust plot
-            plt.axis('equal')
-
-            # Make a horizontal slider to control the time.
-            axcolor = 'lightgoldenrodyellow'
-            axtime = plt.axes([0.1, 0.06, 0.8, 0.03], facecolor=axcolor)
-            time_slider = Slider(ax=axtime,
-                                 label='ind',
-                                 valmin=0,
-                                 valmax=len(times) - 1,
-                                 valinit=0,
-                                 valstep=1)
-
-            # The function to be called anytime a slider's value changes
-            def update_time(val):
-                print('OLe')
-                time_ind = (int)(val)
-
-                gt_xy, gt_color, gt_alpha = get_gt_plot_data(gt_t[i], gt_H[i], time_ind)
-                gt_color = np.hstack((gt_color, np.expand_dims(gt_alpha, 1)))
-                
-                act_xy, act_color, act_alpha = get_actors_plot_data(actor_times[i], actor_xy[i], gt_t[i][time_ind])
-                act_color = np.hstack((act_color, np.expand_dims(act_alpha, 1)))
-
-                for plot_i, plot_obj in enumerate(plotsA):
-                    plot_obj.set_offsets(gt_xy)
-                    plot_obj.set_color(gt_color)
-
-                for plot_i, plot_obj in enumerate(plotsB):
-                    plot_obj.set_offsets(act_xy)
-                    plot_obj.set_color(act_color)
-
-            # register the update function with each slider
-            time_slider.on_changed(update_time)
-
-            plt.show()
-
-        print('OK')
-        print()
+    save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
 
     return

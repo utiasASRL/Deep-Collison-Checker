@@ -115,7 +115,7 @@ rosparam set viz_gaz $VIZ_GAZ
 rosparam set real_time_factor 0.04
 
 # 300 for gen run, 20 for normal run
-rosparam set min_time_before_end 100
+rosparam set min_time_before_end 20
 
 
 ##################

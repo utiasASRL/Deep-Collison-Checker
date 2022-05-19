@@ -5,63 +5,38 @@ easy="2022-05-18-21-23-50"
 med="2022-05-18-22-22-02"
 hard="2022-05-18-23-24-51"
 
-##############################################################################################
 
-# Simple exp to start
-# *******************
 
-# Simulation witohut filtering activated
-./run_in_melodic.sh -d -c "./simu_master.sh -g -t 2022-A -p FlowCorners_params -l $med"
 
-# Navigation with normal TEB
-./run_in_foxy.sh -d -c "./nav_master.sh -b -m 2"
+# for LOADED_WORLD in $easy $med $hard
+for LOADED_WORLD in $easy
+do
 
-# Wait for the docker containers to be stopped
-sleep 2.0
-docker_msg=$(docker ps | grep "hth-foxy")
-until [[ ! -n "$docker_msg" ]]
-do 
-    sleep 5.0
-    docker_msg=$(docker ps | grep "hth-foxy")
-    echo "Recieved docker message, continue experiment"
-done 
+    for ARGS in "-g | -b" "-fg | -bl" "-fg | -bs"
+    do
 
-# Sleep a bit to be sure  
-echo "Experiment finished"
-sleep 2.0
+        # Read simu and nav params
+        IFS="|" read SIMU_ARGS NAV_ARGS <<< $ARGS
 
-##############################################################################################
+        # Start exp
+        ./run_in_melodic.sh -d -c "./simu_master.sh $SIMU_ARGS -t 2022-A -p FlowCorners_params -l $med"
+        sleep 2.0
+        ./run_in_foxy.sh -d -c "./nav_master.sh $NAV_ARGS -m 2"
+                
+        # Wait for the docker containers to be stopped
+        sleep 2.0
+        docker_msg=$(docker ps | grep "hth-foxy")
+        until [[ ! -n "$docker_msg" ]]
+        do 
+            sleep 5.0
+            docker_msg=$(docker ps | grep "hth-foxy")
+            echo "Recieved docker message, continue experiment"
+        done 
 
-# Second exp to start
-# *******************
+        # Sleep a bit to be sure  
+        echo "Experiment finished"
+        sleep 2.0
 
-# Simulation with filtering activated
-./run_in_melodic.sh -d -c "./simu_master.sh -fg -t 2022-A -p FlowCorners_params -l $med"
 
-# Navigation with Groundtruth SOGM
-./run_in_foxy.sh -d -c "./nav_master.sh -bl -m 2"
-
-# Wait for the docker containers to be stopped
-sleep 2.0
-docker_msg=$(docker ps | grep "hth-foxy")
-until [[ ! -n "$docker_msg" ]]
-do 
-    sleep 5.0
-    docker_msg=$(docker ps | grep "hth-foxy")
-    echo "Recieved docker message, continue experiment"
-done 
-
-# Sleep a bit to be sure  
-echo "Experiment finished"
-sleep 2.0
-
-##############################################################################################
-
-# Third exp to start
-# ******************
-
-# Simulation with filtering activated
-./run_in_melodic.sh -d -c "./simu_master.sh -fg -t 2022-A -p FlowCorners_params -l $med"
-
-# Navigation with predicted SOGM
-./run_in_foxy.sh -d -c "./nav_master.sh -bs -m 2"
+    done
+done
