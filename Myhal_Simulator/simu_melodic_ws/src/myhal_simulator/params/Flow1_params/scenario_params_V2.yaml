@@ -1,6 +1,8 @@
 scenario_names:
   - empty
-  - flow_follower_low_density
+  - gen_flowfollowers_tables
+  - gen_flowfollowers
+  - gen_flowfollowers_small
  
 
 # TODO: Change table_percentagge by table_number for more clarity? Same for pop density?
@@ -10,10 +12,28 @@ empty:
   table_percentage: "0"
   actor: actor_basic_wanderer
   table_group_list: mixed_group
-  
-flow_follower_low_density:
-  pop_density: "0.03"
-  table_percentage: "0.2"
+
+gen_flowfollowers_tables:
+  pop_rand_range: "0.001"   
+  pop_density: "0.08"           # 0.08 - 0.14 - 0.2
+  table_rand_range: "0.001"    
+  table_percentage: "0.5"     
+  actor: actor_flow_follower
+  table_group_list: all_group
+
+gen_flowfollowers:
+  pop_rand_range: "0.001"   
+  pop_density: "0.08"           # 0.08 - 0.14 - 0.2
+  table_rand_range: "0.0"    
+  table_percentage: "0.0"     
+  actor: actor_flow_follower
+  table_group_list: all_group
+
+gen_flowfollowers_small:
+  pop_rand_range: "0.001"   
+  pop_density: "0.24"           # 0.24 - 0.42 - 0.6
+  table_rand_range: "0.0"    
+  table_percentage: "0.0"     
   actor: actor_flow_follower
   table_group_list: all_group
 

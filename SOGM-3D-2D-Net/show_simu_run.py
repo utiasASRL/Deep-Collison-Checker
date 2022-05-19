@@ -494,10 +494,7 @@ def main():
     # selected_runs = []
     runs_and_comments = [['2022-05-19-02-16-58', 'med | 2D obst TEB'],
                          ['2022-05-19-03-46-31', 'med | Groundtruth SOGM'],
-                         ['2022-05-19-12-38-14', 'med | Predicted SOGM'],
-                         ['2022-05-19-17-04-41', 'easy | 2D obst TEB'],
-                         ['2022-05-19-18-10-24', 'easy | Groundtruth SOGM'],
-                         ['2022-05-19-19-17-13', 'easy | Predicted SOGM'], ]
+                         ['2022-05-19-12-38-14', 'med | Predicted SOGM'], ]
 
     selected_runs = [r_c[0] for r_c in runs_and_comments]
 

@@ -34,39 +34,54 @@ room_names:
 
 # specify the geometry, position of tables, whether or not the room is enclosed, and the room scenario here  
 # note: the gXXX and pXXX refer to variables below
+
 lounge_532:
   geometry: g532
   positions: p532
   enclosed: "0"
-  scenario: flow_follower_low_density
+  scenario: gen_flowfollowers_tables
 
 study_space_546:
   geometry: g546
   positions: p546
   enclosed: "0"
-  scenario: flow_follower_low_density
+  scenario: gen_flowfollowers_tables
 
 irm_lab_580:
   geometry: g580
   positions: p580
   enclosed: "0"
-  scenario: flow_follower_low_density
+  scenario: empty
 
 admin_off_514:
   geometry: g514
   positions: p514
   enclosed: "0"
-  scenario: flow_follower_low_density
+  scenario: gen_flowfollowers
 
-pace_533:
-  geometry: g533
-  positions: p533
+inter_teaching_lab_570:
+  geometry: g570
+  positions: p570
   enclosed: "0"
-  scenario: empty
+  scenario: gen_flowfollowers
 
 study_space_545:
   geometry: g545
   positions: p545
+  enclosed: "0"
+  scenario: empty
+
+proj_rm_556:
+  geometry: g556
+  positions: p556
+  enclosed: "0"
+  scenario: gen_flowfollowers_small
+
+# Unused rooms
+
+pace_533:
+  geometry: g533
+  positions: p533
   enclosed: "0"
   scenario: empty
 
@@ -76,21 +91,9 @@ proj_rm_564:
   enclosed: "0"
   scenario: empty
 
-inter_teaching_lab_570:
-  geometry: g570
-  positions: p570
-  enclosed: "0"
-  scenario: empty
-
 proj_rm_552:
   geometry: g552
   positions: p552
-  enclosed: "0"
-  scenario: empty
-
-proj_rm_556:
-  geometry: g556
-  positions: p556
   enclosed: "0"
   scenario: empty
 
@@ -99,6 +102,7 @@ hallway1:
   positions: p1
   enclosed: "0"
   scenario: empty
+
 
 # Specify the contents of each geometry and position here 
 # note the geometries are specifying the square dimensions of the room, and the positions are a flattened list of (x,y) table points
@@ -255,7 +259,7 @@ p556:
   - -18.5
   - -15 
   - -18.5
-  - -18 
+  - -18
 
 g1:
   x_min: -7

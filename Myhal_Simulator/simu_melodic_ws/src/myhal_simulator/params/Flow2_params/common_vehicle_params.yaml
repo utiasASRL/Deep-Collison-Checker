@@ -1,15 +1,19 @@
 common_vehicle_params:
-  mass: 0.1
-  max_force: 5
-  slowing_distance: 1
-  arrival_distance: 1
+  mass: 0.2
+  max_force: 10
+  max_speed_std: 0.2
+  slowing_distance: 1.5
+  arrival_distance: 0.8
   obstacle_margin: 0.25
   actor_margin: 3.0
   blocking: 1
-  start_mode: 0 #2 for random, 1 for walking, 0 for standing
-  parse_digits: 1 # boolean: 0=false, 1=true. Set to true to parse digits objectives in map.txt.
-  flow_obstacle_range: 0.8 # Range of the influence of obstacle on the flow (in meters)
-  flow_obstacle_strength: 0.2 # Strength of the influence of obstacle on the flow (1.0 is the standard travel so th cost near an obstacle is = 1.0 + flow_obstacle_strength)
+  start_mode: 0                 # 2 for random, 1 for walking, 0 for standing
+  parse_digits: 1               # boolean: 0=false, 1=true. Set to true to parse digits objectives in map.txt.
+  flow_obstacle_range: 0.8      # Range of the influence of obstacle on the flow (in meters)
+  flow_obstacle_strength: 0.25  # Strength of the influence of obstacle on the flow (1.0 is the standard travel so th cost near an obstacle is = 1.0 + flow_obstacle_strength)
+  robot_margin: 2.0             # Margin of influence of the robot on the actors (negative for the actors to ignore the robot) ONLY FOR FLOW FOLLOWERS FOR NOW
+  robot_slow_flow: 1            # Do the FlowFollowers slow when in range of the robot ONLY FOR FLOW FOLLOWERS FOR NOW
+
 
 common_boid_params:
   alignement: 0.1

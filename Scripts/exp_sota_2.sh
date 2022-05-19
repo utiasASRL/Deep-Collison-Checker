@@ -3,18 +3,17 @@
 # Should we do low weight experiments(only save lidar points and low weight files)
 low_weight_exp=true
 
-# # World names in folder /home/hth/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/
-# easy="2022-05-18-21-23-50"
-# med="2022-05-18-22-22-02"
-# hard="2022-05-18-23-24-51"
+# World names in folder /home/hth/Deep-Collison-Checker/Data/Simulation_v2/simulated_runs/
+easy="2022-05-18-21-23-50"
+med="2022-05-18-22-22-02"
+hard="2022-05-18-23-24-51"
 
-for i in {1..20}
+for i in {1..1}
 do
-    # for PARAMS in "Flow1_params" "Flow2_params" "Flow3_params"
-    for PARAMS in "Flow2_params"
+    for LOADED_WORLD in $easy $med  $hard
     do
 
-        for ARGS in "-g | -b" "-fg | -bs" "-fg | -bi"
+        for ARGS in "-g | -b" "-fg | -bl" "-fg | -bs"
         # for ARGS in "-fg | -bl" "-fg | -bs"
         do
 
@@ -22,7 +21,7 @@ do
             IFS="|" read SIMU_ARGS NAV_ARGS <<< $ARGS
 
             # Start exp
-            ./run_in_melodic.sh -d -c "./simu_master.sh $SIMU_ARGS -t 2022-A -p $PARAMS"
+            ./run_in_melodic.sh -d -c "./simu_master.sh $SIMU_ARGS -t 2022-A -p FlowCorners_params -l $LOADED_WORLD"
             sleep 2.0
             ./run_in_foxy.sh -d -c "./nav_master.sh $NAV_ARGS -m 2"
                     

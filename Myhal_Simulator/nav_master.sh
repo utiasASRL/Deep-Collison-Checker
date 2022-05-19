@@ -32,12 +32,12 @@ XTERM=false     # -x
 SOGM=false      # -s
 TEB=false       # -b
 MAPPING=2       # -m (arg)
-GTSOGM=false    # -l
-INTERP=false    # -i
-IGNORE=false    # -o
+GTSOGM=false    # -g
+EXTRAPO=false   # -l
+IGNORE=false    # -i
 
 # Parse arguments
-while getopts xsbm:lio option
+while getopts xsbm:gli option
 do
 case "${option}"
 in
@@ -45,26 +45,30 @@ x) XTERM=true;;             # are we using TEB planner
 s) SOGM=true;;              # are we using SOGMs
 b) TEB=true;;               # are we using TEB planner
 m) MAPPING=${OPTARG};;      # use gmapping, AMCL or PointSLAM? (respectively 0, 1, 2)
-l) GTSOGM=true;;            # are we using loaded traj for GroundTruth predictions
-i) INTERP=true;;            # are we using loaded traj for linear interpolated SOGM
-o) IGNORE=true;;            # are we igmoring dynamic obstacles
+g) GTSOGM=true;;            # are we using loaded traj for GroundTruth predictions
+l) EXTRAPO=true;;           # are we using loaded traj for linear interpolated SOGM
+i) IGNORE=true;;            # are we igmoring dynamic obstacles
 esac
 done
 
 echo ""
 echo "Verify option incompatibility."
 if [ "$GTSOGM" = true ] ; then
-    if [ "$INTERP" = true ] || [ "$IGNORE" = true ] ; then
+    if [ "$EXTRAPO" = true ] || [ "$IGNORE" = true ] ; then
         echo "ERROR: options -l -i and -o are incompatible."
         return
     fi
-elif [ "$INTERP" = true ] ; then
+elif [ "$EXTRAPO" = true ] ; then
     if [ "$IGNORE" = true ] ; then
         echo "ERROR: options -l -i and -o are incompatible."
         return
     fi
 fi
 echo ""
+
+if [ "$IGNORE" = true ] ; then
+    SOGM=true
+fi
 
 # Wait until rosmaster has started 
 until [[ -n "$rostopics" ]]
@@ -97,7 +101,7 @@ echo -e "\033[1;4;34mReading parameters from ros\033[0m"
 rosparam set using_teb $TEB
 rosparam set loc_method $MAPPING
 rosparam set use_gt_sogm $GTSOGM
-rosparam set interp_linear $INTERP
+rosparam set extrapo_linear $EXTRAPO
 rosparam set ignore_dynamic $IGNORE
 
 
@@ -199,7 +203,7 @@ fi
 
 # Chose parameters for local planner
 if [ "$TEB" = true ] ; then
-    if [ "$SOGM" = true ] || [ "$GTSOGM" = true ] || [ "$INTERP" = true ] || [ "$IGNORE" = true ] ; then
+    if [ "$SOGM" = true ] || [ "$GTSOGM" = true ] || [ "$EXTRAPO" = true ] || [ "$IGNORE" = true ] ; then
         local_planner_params="teb_params_sogm.yaml"
     else
         local_planner_params="teb_params_normal.yaml"
@@ -252,15 +256,22 @@ fi
 
 if [ "$SOGM" = true ] ; then
 
-    echo " "
-    echo " "
-    echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
+    if [ "$IGNORE" = true ] ; then
+        echo " "
+        echo " "
+        echo -e "\033[1;4;34mStarting with ignoring dynamic SOGM\033[0m"
+    else
+        echo " "
+        echo " "
+        echo -e "\033[1;4;34mStarting SOGM prediction\033[0m"
+    fi
     
-    cd onboard_deep_sogm/scripts
 
     t=$(rosparam get start_time)
     NOHUP_SOGM_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_sogm.txt"
+    cd onboard_deep_sogm/scripts
     nohup ./simu_collider.sh > "$NOHUP_SOGM_FILE" 2>&1 &
+    
 
     echo "OK"
     echo " "
@@ -269,7 +280,7 @@ if [ "$SOGM" = true ] ; then
 
 else
 
-    if [ "$GTSOGM" = true ] || [ "$INTERP" = true ]  || [ "$IGNORE" = true ] ; then
+    if [ "$GTSOGM" = true ] || [ "$EXTRAPO" = true ] ; then
     
         LOADWORLD=$(rosparam get load_world)
         LOADPATH=$(rosparam get load_path)
@@ -286,16 +297,10 @@ else
                 echo " "
                 echo -e "\033[1;4;34mStarting with groundtruth SOGM\033[0m"
             
-            elif [ "$INTERP" = true ] ; then
+            elif [ "$EXTRAPO" = true ] ; then
                 echo " "
                 echo " "
                 echo -e "\033[1;4;34mStarting with linear interp SOGM\033[0m"
-            
-            elif [ "$IGNORE" = true ] ; then
-                echo " "
-                echo " "
-                echo -e "\033[1;4;34mStarting with ignoring dynamic SOGM\033[0m"
-
             fi
 
             t=$(rosparam get start_time)
@@ -317,6 +322,10 @@ do
     sleep 0.5
     velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
     echo "Recieved velodyne message, continue navigation"
+    
+    if [ "$IGNORE" = true ] ; then
+        rosparam set /move_base/TebLocalPlannerROS/weight_predicted_costmap 0.0001
+    fi
 done 
 
 
