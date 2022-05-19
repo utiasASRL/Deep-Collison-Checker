@@ -36,6 +36,8 @@ class Assessor(object):
         self.avg_speed = 0
         self.first_stuck_t = -1
         self.stuck_time_limit = 20.0
+        self.min_time_before_end = rospy.get_param("/min_time_before_end", 20.0)
+        self.min_time_before_stuck = max(20.0, self.min_time_before_end) 
         timeout = 1.0
         self.max_samples = int(timeout/0.1)
         self.last_msg = np.array((0, 0, 0, 0), dtype=[("x", np.float), ("y", np.float),
@@ -106,7 +108,7 @@ class Assessor(object):
         upper_lim_drift = 2
 
 
-        if (pos["t"] > self.stuck_time_limit):
+        if (pos["t"] > self.min_time_before_stuck):
 
             if self.first_stuck_t < 0:
                 if (self.avg_speed < lower_lim_speed) or (drift > upper_lim_drift):

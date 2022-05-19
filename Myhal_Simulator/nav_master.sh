@@ -256,18 +256,33 @@ else
             echo "X  load_world = $LOADWORLD                            X"
             echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
         else
-            rosrun teb_local_planner gt_sogm.py
+
+            t=$(rosparam get start_time)
+            NOHUP_GTSOGM_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/nohup_gtsogm.txt"
+            nohup rosrun teb_local_planner gt_sogm.py > "$NOHUP_GTSOGM_FILE" 2>&1 &
+            
+            # Wait for eveyrthing to end before killing the docker container
+            velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+            until [[ ! -n "$velo_state_msg" ]]
+            do 
+                sleep 0.5
+                velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+                echo "Recieved velodyne message, continue navigation"
+            done 
+
         fi
 
     else
         # Wait for eveyrthing to end before killing the docker container
-        sleep 10000
-        sleep 10000
-        sleep 10000
-        sleep 10000
+        velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+        until [[ ! -n "$velo_state_msg" ]]
+        do 
+            sleep 0.5
+            velo_state_msg=$(timeout 10 rostopic echo -n 1 /velodyne_points | grep "header")
+            echo "Recieved velodyne message, continue navigation"
+        done 
     fi
 fi
-
 
 
 echo "OK"

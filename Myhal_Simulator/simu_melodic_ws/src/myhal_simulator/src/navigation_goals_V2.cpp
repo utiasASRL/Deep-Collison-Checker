@@ -74,6 +74,11 @@ int main(int argc, char ** argv){
         std::cout << "ERROR READING TOUR NAME\n";
     }
 
+    double min_time_before_end;
+    if (!nh.getParam("min_time_before_end", min_time_before_end)){
+        min_time_before_end = 20.0;
+    }
+
     TourParser parser(tour_name);
     std::vector<ignition::math::Pose3d> route = parser.GetRoute();
     
@@ -92,6 +97,7 @@ int main(int argc, char ** argv){
     log_file.open(filepath + "/logs-" + start_time + "/log.txt", std::ios_base::app);
 
     ROS_WARN("USING TOUR %s\n", tour_name.c_str());
+    ROS_WARN_STREAM("min_time_before_end = " << min_time_before_end);
 
 	// Subscribe to the topic "velodyne_points".
 	// Second number in a queue in which the messages are stored
@@ -185,6 +191,16 @@ int main(int argc, char ** argv){
             }
         }  
  
+    }
+
+    // Wait the required minimum amount of time before shutdown
+    double current_time = ros::Time::now().toSec();
+
+    while (current_time < min_time_before_end)
+    {
+        current_time = ros::Time::now().toSec();
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        ROS_WARN_THROTTLE(0.6, "Waiting for min_time_before_end");
     }
 
     

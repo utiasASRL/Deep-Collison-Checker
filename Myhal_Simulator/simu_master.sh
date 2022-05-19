@@ -107,8 +107,15 @@ rosparam set gmapping_status true
 rosparam set min_step $MINSTEP
 rosparam set viz_gaz $VIZ_GAZ
 
+###################
+# Manual parameters
+###################
+
 #    0.05 => for videos    /    0.2 => for fast exps
-rosparam set real_time_factor 0.125
+rosparam set real_time_factor 0.04
+
+# 300 for gen run, 20 for normal run
+rosparam set min_time_before_end 100
 
 
 ##################

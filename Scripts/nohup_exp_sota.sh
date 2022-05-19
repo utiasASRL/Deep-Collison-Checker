@@ -1,0 +1,5 @@
+#!/bin/bash
+
+now=`date +%Y-%m-%d_%H-%M-%S`
+NOHUP_FILE="$PWD/../Data/Simulation_v2/nohup_logs/log-exp_$now.txt"
+nohup ./exp_sota.sh > "$NOHUP_FILE" 2>&1 &

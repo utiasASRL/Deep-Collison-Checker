@@ -15,7 +15,7 @@ empty:
 
 gen_flowfollowers_tables:
   pop_rand_range: "0.001"   
-  pop_density: "0.14"           # 0.08 - 0.14 - 0.2
+  pop_density: "0.2"           # 0.08 - 0.14 - 0.2
   table_rand_range: "0.001"    
   table_percentage: "0.5"     
   actor: actor_flow_follower
@@ -23,7 +23,7 @@ gen_flowfollowers_tables:
 
 gen_flowfollowers:
   pop_rand_range: "0.001"   
-  pop_density: "0.14"           # 0.08 - 0.14 - 0.2
+  pop_density: "0.2"           # 0.08 - 0.14 - 0.2
   table_rand_range: "0.0"    
   table_percentage: "0.0"     
   actor: actor_flow_follower
@@ -31,7 +31,7 @@ gen_flowfollowers:
 
 gen_flowfollowers_small:
   pop_rand_range: "0.001"   
-  pop_density: "0.42"           # 0.24 - 0.42 - 0.6
+  pop_density: "0.6"           # 0.24 - 0.42 - 0.6
   table_rand_range: "0.0"    
   table_percentage: "0.0"     
   actor: actor_flow_follower
