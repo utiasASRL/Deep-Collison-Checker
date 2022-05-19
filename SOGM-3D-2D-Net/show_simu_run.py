@@ -492,9 +492,14 @@ def main():
     
     # Manually select runs
     # selected_runs = []
-    selected_runs = ['2022-05-19-02-16-58',     # Standard TEB
-                     '2022-05-19-12-38-14',     # Predicted SOGM
-                     '2022-05-19-03-46-31', ]   # Groundtruth SOGM
+    runs_and_comments = [['2022-05-19-02-16-58', 'med | 2D obst TEB'],
+                         ['2022-05-19-03-46-31', 'med | Groundtruth SOGM'],
+                         ['2022-05-19-12-38-14', 'med | Predicted SOGM'],
+                         ['2022-05-19-17-04-41', 'easy | 2D obst TEB'],
+                         ['2022-05-19-18-10-24', 'easy | Groundtruth SOGM'],
+                         ['2022-05-19-19-17-13', 'easy | Predicted SOGM'], ]
+
+    selected_runs = [r_c[0] for r_c in runs_and_comments]
 
 
     # Automatic run selection [-2, -1] for the last two runs
@@ -599,9 +604,9 @@ def main():
 
     # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
+    # save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
+    # plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
 
     return

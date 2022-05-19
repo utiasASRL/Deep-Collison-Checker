@@ -107,6 +107,8 @@ TOUR=$(rosparam get tour_name)
 t=$(rosparam get start_time)
 FILTER=$(rosparam get filter_status)
 
+
+
 echo " "
 echo "START TIME: $t"
 echo "TOUR: $TOUR"
@@ -268,6 +270,9 @@ if [ "$SOGM" = true ] ; then
 else
 
     if [ "$GTSOGM" = true ] || [ "$INTERP" = true ]  || [ "$IGNORE" = true ] ; then
+    
+        LOADWORLD=$(rosparam get load_world)
+        LOADPATH=$(rosparam get load_path)
         if [ "$LOADWORLD" = "" ] || [ "$LOADWORLD" = "none" ] ; then
             echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             echo "X  Error no world loaded that we can use for gt sogm  X"  
