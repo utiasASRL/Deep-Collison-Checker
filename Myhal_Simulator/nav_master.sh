@@ -112,14 +112,32 @@ t=$(rosparam get start_time)
 FILTER=$(rosparam get filter_status)
 
 
-
 echo " "
 echo "START TIME: $t"
 echo "TOUR: $TOUR"
 echo "MAPPING: $MAPPING"
 echo "FILTER: $FILTER"
+echo "SOGM: $SOGM"
 echo "GTCLASS: $GTCLASS"
 echo "TEB: $TEB"
+echo "GTSOGM: $GTSOGM"
+echo "EXTRAPO: $EXTRAPO"
+echo "IGNORE: $IGNORE"
+echo " "
+
+
+# Save Nav info to a log file
+NAV_INFO_FILE="$PWD/../Data/Simulation_v2/simulated_runs/$t/logs-$t/log_nav.txt"
+echo "Navigation params" >> $NAV_INFO_FILE
+echo "START TIME: $t" >> $NAV_INFO_FILE
+echo "TOUR: $TOUR" >> $NAV_INFO_FILE
+echo "MAPPING: $MAPPING" >> $NAV_INFO_FILE
+echo "FILTER: $FILTER" >> $NAV_INFO_FILE
+echo "GTCLASS: $GTCLASS" >> $NAV_INFO_FILE
+echo "TEB: $TEB" >> $NAV_INFO_FILE
+echo "GTSOGM: $GTSOGM" >> $NAV_INFO_FILE
+echo "EXTRAPO: $EXTRAPO" >> $NAV_INFO_FILE
+echo "IGNORE: $IGNORE" >> $NAV_INFO_FILE
 
 ####################
 # Start Localization

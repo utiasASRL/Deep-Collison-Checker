@@ -414,7 +414,7 @@ def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, 
     return
 
 
-def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy):
+def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success):
     
 
 
@@ -445,12 +445,17 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         colli_index = np.sum(colli_mask.astype(np.int32)) / colli_mask.shape[0]
         risky_index = np.sum(risky_mask.astype(np.int32)) / risky_mask.shape[0]
 
-        print('{:s} | {:7.1f}% {:7.2f}% '.format(run, 100*risky_index, 100*colli_index))
+        print('{:s} | {:7.1f}% {:7.2f}% {:5.0f}s {:5d}/{:d}'.format(run,
+                                                                    100 * risky_index,
+                                                                    100 * colli_index,
+                                                                    all_times[i][-1],
+                                                                    np.sum(np.array(all_success[i], dtype=np.int32)),
+                                                                    len(all_success[i])))
 
         # For visu do not show higher distances
         min_dists = np.minimum(min_dists, high_d)
         all_min_dists.append(min_dists)
-        
+
 
 
     figA, axA = plt.subplots(1, 1, figsize=(14, 3))
@@ -491,17 +496,16 @@ def main():
     runs_path = join(root_path, 'simulated_runs')
     
     # Manually select runs
-    # selected_runs = []
-    runs_and_comments = [['2022-05-19-02-16-58', 'med | 2D obst TEB'],
-                         ['2022-05-19-03-46-31', 'med | Groundtruth SOGM'],
-                         ['2022-05-19-12-38-14', 'med | Predicted SOGM'], ]
-
-    selected_runs = [r_c[0] for r_c in runs_and_comments]
+    selected_runs = []
+    # runs_and_comments = [['2022-05-19-02-16-58', 'med | 2D obst TEB'],
+    #                      ['2022-05-19-03-46-31', 'med | Groundtruth SOGM'],
+    #                      ['2022-05-19-12-38-14', 'med | Predicted SOGM'], ]
+    # selected_runs = [r_c[0] for r_c in runs_and_comments]
 
 
     # Automatic run selection [-2, -1] for the last two runs
     if len(selected_runs) < 1:
-        runs_ids = [-2, -1]
+        runs_ids = [i for i in range(-9, -6, 1)]
         run_folders = np.sort([f for f in listdir(runs_path)])
         selected_runs = run_folders[runs_ids]
 
@@ -568,6 +572,8 @@ def main():
     # Get time metric
     #################
     
+    all_times = []
+    all_success = []
     for i, run in enumerate(selected_runs):
         
         # Read log file
@@ -585,6 +591,8 @@ def main():
 
         # Get goal timing
         times = [float(line.split('time: ')[-1][:-1]) for line in lines]
+        all_times.append(times)
+        all_success.append(success)
         
         print('\n-----------------------------------------')
         print('             Tour: ', run)
@@ -599,11 +607,11 @@ def main():
 
     # plot_complete_traj(selected_runs, gt_t, gt_H, footprint)
 
-    # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
-
     # save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    # plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
+    # plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success)
+
+    plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
 
     return

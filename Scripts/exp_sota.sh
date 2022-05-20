@@ -41,8 +41,10 @@ do
             sleep 2.0
 
             if [ "$low_weight_exp" = true ] ; then
-                ./run_in_pytorch.sh -c "./ros_python.sh clean_last_simu.py"
+                ./run_in_pytorch.sh -d -c "./ros_python.sh clean_last_simu.py"
             fi
+            
+            sleep 5.0
 
         done
     done
