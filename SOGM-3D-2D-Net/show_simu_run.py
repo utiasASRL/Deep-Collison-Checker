@@ -505,7 +505,7 @@ def main():
 
     # Automatic run selection [-2, -1] for the last two runs
     if len(selected_runs) < 1:
-        runs_ids = [i for i in range(-9, -6, 1)]
+        runs_ids = [i for i in range(-26, 0, 1)]
         run_folders = np.sort([f for f in listdir(runs_path)])
         selected_runs = run_folders[runs_ids]
 
@@ -609,9 +609,9 @@ def main():
 
     # save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    # plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success)
+    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success)
 
-    plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
+    # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
 
     return

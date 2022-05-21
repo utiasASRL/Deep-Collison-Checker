@@ -8,7 +8,7 @@ low_weight_exp=true
 # med="2022-05-18-22-22-02"
 # hard="2022-05-18-23-24-51"
 
-for i in {1..20}
+for i in {1..10}
 do
     # for PARAMS in "Flow1_params" "Flow2_params" "Flow3_params"
     for PARAMS in "Flow2_params"
@@ -23,11 +23,11 @@ do
 
             # Start exp
             ./run_in_melodic.sh -d -c "./simu_master.sh $SIMU_ARGS -t 2022-A -p $PARAMS"
-            sleep 2.0
+            sleep 5.0
             ./run_in_foxy.sh -d -c "./nav_master.sh $NAV_ARGS -m 2"
                     
             # Wait for the docker containers to be stopped
-            sleep 2.0
+            sleep 5.0
             docker_msg=$(docker ps | grep "hth-foxy")
             until [[ ! -n "$docker_msg" ]]
             do 
@@ -38,7 +38,7 @@ do
 
             # Sleep a bit to be sure  
             echo "Experiment finished"
-            sleep 2.0
+            sleep 5.0
 
             if [ "$low_weight_exp" = true ] ; then
                 ./run_in_pytorch.sh -d -c "./ros_python.sh clean_last_simu.py"

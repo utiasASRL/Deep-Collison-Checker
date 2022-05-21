@@ -50,7 +50,7 @@ def main():
     # List sessions
     run_folders = np.sort([f for f in listdir(runs_path)])
 
-    for run in run_folders[-1:]:
+    for run in run_folders[-2:]:
 
         last_run = join(runs_path, run)
         log_path = join(last_run, "logs-{:s}".format(run))

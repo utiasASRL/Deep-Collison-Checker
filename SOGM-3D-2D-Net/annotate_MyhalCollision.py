@@ -38,7 +38,7 @@ os.environ.update(OMP_NUM_THREADS='1',
                   MKL_NUM_THREADS='1',)
 
 # Dataset
-from MyhalCollision_sessions import Myhal1_sessions, Myhal55_sessions
+from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, Myhal55_sessions
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     # dataset_path, map_day, refine_sessions, train_sessions = Myhal5_sessions()
 
     # Sessions from Myhal first floor
-    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal55_sessions()
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions()
 
     # Start Annotation
     # ****************

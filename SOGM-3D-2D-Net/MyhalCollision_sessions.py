@@ -23,8 +23,8 @@ def Myhal5_sessions():
 
     # Mapping sessions
     # ****************
-
-    dataset_path = '../Data/RealMyhal'
+    
+    dataset_path = '../Data/old_Myhal5'
     train_sessions = ['2021-12-06_08-12-39',    # - \
                       '2021-12-06_08-38-16',    # -  \
                       '2021-12-06_08-44-07',    # -   > First runs with controller for mapping of the environment
@@ -60,6 +60,12 @@ def Myhal5_sessions():
                        '2022-03-01_22-19-41',   # -   > face to face and crossings
                        '2022-03-01_22-25-19']   # -  /
 
+    train_sessions += ['2022-05-20_11-46-11',   # 31    > Refinement run
+                       '2022-05-20_12-47-48',   # -     > movers moving tables
+                       '2022-05-20_12-54-23',   # -     > movers moving tables
+                       '2022-05-20_12-58-26',   # -     > movers moving tables
+                       '2022-05-20_13-04-19']   # -     > Refinement run
+
     # Notes for myself: number of dynamic people emcoutered in each run
     #
     # '2021-12-10_12-53-37',    1 driver / 3 people
@@ -74,14 +80,15 @@ def Myhal5_sessions():
 
 
     map_i = 3
-    refine_i = np.array([0, 6, 7, 8, 14, 20, 24, 27])
-    train_i = np.arange(len(train_sessions))[5:]
+    refine_i = np.array([0, 6, 7, 8, 31, 35])
+    train_i = np.arange(len(train_sessions))[5:-5]
+    train_i = np.hstack((train_i, np.array([32, 33, 34])))
 
     map_day = train_sessions[map_i]
     refine_sessions = np.array(train_sessions)[refine_i]
     train_sessions = np.sort(np.array(train_sessions)[train_i])
 
-    return dataset_path, map_day, refine_sessions, train_sessions
+    return dataset_path, map_day, refine_sessions, train_sessions, ['' for _ in train_sessions]
 
 
 def Myhal1_sessions():
