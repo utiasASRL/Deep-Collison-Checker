@@ -57,7 +57,6 @@ def Myhal5_sessions():
 
     train_sessions += ['2022-03-01_22-01-13',   # 27 \
                        '2022-03-01_22-06-28',   # -   > More data (loop_2inv and loop8)
-                       '2022-03-01_22-19-41',   # -   > face to face and crossings
                        '2022-03-01_22-25-19']   # -  /
 
     train_sessions += ['2022-05-20_11-46-11',   # 31    > Refinement run
@@ -236,7 +235,7 @@ def Myhal55_sessions():
     # The list contains tuple (name, comments), so that we do not reinspect things we already did
 
     # # Tuesday 4pm
-    sessions_and_comments += [['2022-03-01_22-19-41', 'old run for debug purposes'],
+    sessions_and_comments += [['2022-03-01_22-06-28', 'old run for debug purposes'],
                               ['2022-03-01_22-25-19', 'old run for debug purposes']]
                           
 

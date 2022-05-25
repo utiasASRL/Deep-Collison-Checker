@@ -503,6 +503,12 @@ def main():
     # selected_runs = [r_c[0] for r_c in runs_and_comments]
 
 
+    # Select runs betweemn two dates
+    from_date = '2022-05-19-22-26-08'
+    to_date = '2022-05-25-12-22-12'
+    if len(selected_runs) < 1:
+        selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
+
     # Automatic run selection [-2, -1] for the last two runs
     if len(selected_runs) < 1:
         runs_ids = [i for i in range(-26, 0, 1)]
@@ -554,15 +560,27 @@ def main():
 
         # Load actor poses
         t1 = time.time()
-        poses_path = os.path.join(runs_path, run, "vehicles.txt")
-        actor_poses = np.loadtxt(poses_path)
+        poses_pkl_path = os.path.join(runs_path, run, "vehicles.pkl")
+        if exists(poses_pkl_path):
+            with open(poses_pkl_path, 'rb') as f:
+                xy = pickle.load(f)
 
-        # Extract xy positions and times
-        actor_times.append(actor_poses[:, 0])
-        actor_x = actor_poses[:, 1::7]
-        actor_y = actor_poses[:, 2::7]
-        xy = np.stack((actor_x, actor_y), axis=2)
-        actor_xy.append(np.transpose(xy, (1, 0, 2)))
+        else:
+            # Load sklow txt file actor poses
+            poses_path = os.path.join(runs_path, run, "vehicles.txt")
+            actor_poses = np.loadtxt(poses_path)
+
+            # Extract xy positions and times
+            actor_times.append(actor_poses[:, 0])
+            actor_x = actor_poses[:, 1::7]
+            actor_y = actor_poses[:, 2::7]
+            xy = np.stack((actor_x, actor_y), axis=2)
+            xy = np.transpose(xy, (1, 0, 2))
+            
+            with open(poses_pkl_path, 'wb') as f:
+                pickle.dump(xy, f)
+
+        actor_xy.append(xy)
         
         t2 = time.time()
         print('Loaded {:s} in {:.1f}s'.format(run, t2 - t1))
@@ -574,6 +592,15 @@ def main():
     
     all_times = []
     all_success = []
+    all_nav_info = {'TOUR': [],
+                    'MAPPING': [],
+                    'FILTER': [],
+                    'GTCLASS': [],
+                    'TEB': [],
+                    'SOGM': [],
+                    'GTSOGM': [],
+                    'EXTRAPO': [],
+                    'IGNORE': []}
     for i, run in enumerate(selected_runs):
         
         # Read log file
@@ -593,12 +620,30 @@ def main():
         times = [float(line.split('time: ')[-1][:-1]) for line in lines]
         all_times.append(times)
         all_success.append(success)
-        
-        print('\n-----------------------------------------')
-        print('             Tour: ', run)
-        print('  Targets Reached:  {:d}/{:d}'.format(success_n, len(success)))
-        print('  Total Tour Time:  {:.1f} seconds'.format(times[-1]))
 
+        # Get the nav info
+        log_path = os.path.join(runs_path, run, "logs-{:s}/log_nav.txt".format(run))
+        with open(log_path) as log_f:
+            lines = log_f.readlines()
+        lines = [line.rstrip() for line in lines]
+        run_info = {line.split(': ')[0]: line.split(': ')[1] for line in lines if ': ' in line}
+
+        for k, _ in all_nav_info.items():
+            if k in run_info:
+                all_nav_info[k].append(run_info[k])
+            else:
+                all_nav_info[k].append('false')
+
+        s = run
+        for k, v in all_nav_info.items():
+            s += '  |  {:^10s}'.format(v[-1])
+
+        print(s)
+
+    s = run
+    for k, v in all_nav_info.items():
+        s += '  |  {:^10s}'.format(k)
+    print(s)
     print('\n------------------------------------------\n')
 
     ################

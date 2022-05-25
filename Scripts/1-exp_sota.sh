@@ -8,7 +8,7 @@ low_weight_exp=true
 # med="2022-05-18-22-22-02"
 # hard="2022-05-18-23-24-51"
 
-for i in {1..10}
+for i in {1..50}
 do
     # for PARAMS in "Flow1_params" "Flow2_params" "Flow3_params"
     for PARAMS in "Flow2_params"
