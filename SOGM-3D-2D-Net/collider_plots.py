@@ -3585,6 +3585,41 @@ def Myhal1_v4_logs():
 
     return logs, logs_names, all_wanted_s, all_wanted_f
 
+
+def Myhal5_retrain():
+    """
+    Here we did not change the data but compare models with dl=0.12
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-05-25_14-47-09'
+    end = 'Log_2022-05-25_14-48-09'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['40/60_decay60',
+                  'etc']
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    # Copy here the indices you selected with gui
+    all_wanted_s = []
+    all_wanted_f = []
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main call
@@ -3618,10 +3653,10 @@ if __name__ == '__main__':
 
     # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
 
     ##################################################
@@ -3629,12 +3664,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Myhal1_v4_logs()
-
-
-
-
-                        
+    logs, logs_names, all_wanted_s, all_wanted_f = Myhal5_retrain()
 
 
     # Check that all logs are of the same dataset. Different object can be compared

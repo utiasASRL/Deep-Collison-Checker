@@ -414,16 +414,18 @@ def save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, 
     return
 
 
-def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success):
+def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info):
     
-
-
     print('Plot distance from robot to closest actor')
     # Threshold
     high_d = 2.0
     risky_d = 1.0
     collision_d = 0.4
 
+
+    ########################
+    # Measure risk distances
+    ########################
 
     # Get distances
     all_min_dists = []
@@ -439,36 +441,109 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         dists = np.linalg.norm(diffs, axis=2)
         min_dists = np.min(dists, axis=0)
 
-        # Threshold
-        colli_mask = min_dists < collision_d
-        risky_mask = np.logical_and(min_dists > collision_d, min_dists < risky_d)
-        colli_index = np.sum(colli_mask.astype(np.int32)) / colli_mask.shape[0]
-        risky_index = np.sum(risky_mask.astype(np.int32)) / risky_mask.shape[0]
+        # # Threshold
+        # colli_mask = min_dists < collision_d
+        # risky_mask = np.logical_and(min_dists > collision_d, min_dists < risky_d)
+        # colli_index = np.sum(colli_mask.astype(np.int32)) / colli_mask.shape[0]
+        # risky_index = np.sum(risky_mask.astype(np.int32)) / risky_mask.shape[0]
 
-        print('{:s} | {:7.1f}% {:7.2f}% {:5.0f}s {:5d}/{:d}'.format(run,
-                                                                    100 * risky_index,
-                                                                    100 * colli_index,
-                                                                    all_times[i][-1],
-                                                                    np.sum(np.array(all_success[i], dtype=np.int32)),
-                                                                    len(all_success[i])))
+        # print('{:s} | {:7.1f}% {:7.2f}% {:5.0f}s {:5d} /{:d}'.format(run,
+        #                                                              100 * risky_index,
+        #                                                              100 * colli_index,
+        #                                                              all_times[i][-1],
+        #                                                              np.sum(np.array(all_success[i], dtype=np.int32)),
+        #                                                              len(all_success[i])))
 
         # For visu do not show higher distances
         min_dists = np.minimum(min_dists, high_d)
         all_min_dists.append(min_dists)
 
 
+    ###############
+    # Result tables
+    ###############
 
-    figA, axA = plt.subplots(1, 1, figsize=(14, 3))
-    for i, run in enumerate(selected_runs):
-        plt.plot(gt_t[i], all_min_dists[i])
+    SOGM = np.array(all_nav_info['SOGM']) == 'true'
+    GTSOGM = np.array(all_nav_info['GTSOGM']) == 'true'
+    EXTRAPO = np.array(all_nav_info['EXTRAPO']) == 'true'
+    IGNORE = np.array(all_nav_info['IGNORE']) == 'true'
+
+    NOPRED = np.logical_and(np.logical_not(SOGM), np.logical_not(GTSOGM))
+    NOPRED = np.logical_and(NOPRED, np.logical_not(EXTRAPO))
+
+    SOGM = np.logical_and(SOGM, np.logical_not(IGNORE))
+
+    # Verify that there is no problem with masks
+    test_v = np.sum(NOPRED.astype(np.int32))
+    test_v += np.sum(SOGM.astype(np.int32))
+    test_v += np.sum(IGNORE.astype(np.int32))
+    test_v += np.sum(GTSOGM.astype(np.int32))
+    test_v += np.sum(EXTRAPO.astype(np.int32))
+
+    if (test_v != len(SOGM)):
+        raise ValueError('Problem with result masks')
+
+
+    res_names = ['NOPRED', 'SOGM', 'IGNORE', 'GTSOGM', 'EXTRAPO']
+    res_masks = [NOPRED, SOGM, IGNORE, GTSOGM, EXTRAPO]
+
+    for r_i, res_name in enumerate(res_names):
+
+        print('\n{:s}'.format(res_name))
+
+        res_risky_index = []
+        res_colli_index = []
+        res_times = []
+
+        for i, run in enumerate(selected_runs):
+
+            if res_masks[r_i][i]:
+
+                # Threshold
+                min_dists = all_min_dists[i]
+                colli_mask = min_dists < collision_d
+                risky_mask = np.logical_and(min_dists > collision_d, min_dists < risky_d)
+                colli_index = np.sum(colli_mask.astype(np.int32)) / colli_mask.shape[0]
+                risky_index = np.sum(risky_mask.astype(np.int32)) / risky_mask.shape[0]
+
+                print('{:s} | {:7.1f}% {:7.2f}% {:5.0f}s {:5d} /{:d}'.format(run,
+                                                                             100 * risky_index,
+                                                                             100 * colli_index,
+                                                                             all_times[i][-1],
+                                                                             np.sum(np.array(all_success[i], dtype=np.int32)),
+                                                                             len(all_success[i])))
+                                                                                    
+                res_risky_index += [risky_index]
+                res_colli_index += [colli_index]
+                res_times += [all_times[i][-1]]
+
+        print('-' * 56)
+        print('  Avg on {:4d} runs  | {:7.1f}% {:7.2f}% {:5.0f}s'.format(len(res_risky_index),
+                                                                         100 * np.mean(res_risky_index),
+                                                                         100 * np.mean(res_colli_index),
+                                                                         np.mean(res_times)))
+        print('  Std on {:4d} runs  | {:7.1f}% {:7.2f}% {:5.0f}s'.format(len(res_risky_index),
+                                                                         100 * np.std(res_risky_index),
+                                                                         100 * np.std(res_colli_index),
+                                                                         np.std(res_times)))
+
+
+
+    ##############
+    # Result plots
+    ##############
+
+    # figA, axA = plt.subplots(1, 1, figsize=(14, 3))
+    # for i, run in enumerate(selected_runs):
+    #     plt.plot(gt_t[i], all_min_dists[i])
         
     
-    longest_run = np.argmax([len(_) for _ in gt_t])
-    plt.plot(gt_t[longest_run], gt_t[longest_run]*0+risky_d, 'r--', linewidth=0.5)
-    plt.plot(gt_t[longest_run], gt_t[longest_run]*0+collision_d, 'r-', linewidth=0.5)
+    # longest_run = np.argmax([len(_) for _ in gt_t])
+    # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+risky_d, 'r--', linewidth=0.5)
+    # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+collision_d, 'r-', linewidth=0.5)
 
-    plt.ylim(0, 1.95)
-    plt.show()
+    # plt.ylim(0, 1.95)
+    # plt.show()
 
     print('OK')
     print()
@@ -505,7 +580,7 @@ def main():
 
     # Select runs betweemn two dates
     from_date = '2022-05-19-22-26-08'
-    to_date = '2022-05-25-12-22-12'
+    to_date = '2022-05-27-18-18-13'
     if len(selected_runs) < 1:
         selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
 
@@ -561,9 +636,10 @@ def main():
         # Load actor poses
         t1 = time.time()
         poses_pkl_path = os.path.join(runs_path, run, "vehicles.pkl")
+        xy = None
         if exists(poses_pkl_path):
             with open(poses_pkl_path, 'rb') as f:
-                xy = pickle.load(f)
+                actor_t, xy = pickle.load(f)
 
         else:
             # Load sklow txt file actor poses
@@ -571,15 +647,16 @@ def main():
             actor_poses = np.loadtxt(poses_path)
 
             # Extract xy positions and times
-            actor_times.append(actor_poses[:, 0])
+            actor_t = actor_poses[:, 0]
             actor_x = actor_poses[:, 1::7]
             actor_y = actor_poses[:, 2::7]
             xy = np.stack((actor_x, actor_y), axis=2)
             xy = np.transpose(xy, (1, 0, 2))
             
             with open(poses_pkl_path, 'wb') as f:
-                pickle.dump(xy, f)
+                pickle.dump((actor_t, xy), f)
 
+        actor_times.append(actor_t)
         actor_xy.append(xy)
         
         t2 = time.time()
@@ -654,7 +731,7 @@ def main():
 
     # save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success)
+    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info)
 
     # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
