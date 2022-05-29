@@ -23,10 +23,6 @@ low_weight_exp=true
 # "2022-05-25-14-24-59" \
 # "2022-05-25-18-01-16")
 
-worlds=("2022-05-25-07-23-35" \
-"2022-05-25-09-58-12" \
-"2022-05-25-14-24-59" \
-"2022-05-25-18-01-16")
 
 for i in {1..1}
 do
@@ -36,7 +32,7 @@ do
         echo $LOADED_WORLD
 
         # for ARGS in "-fg | -bl" "-fg | -bg"
-        for ARGS in "-fg | -bg"
+        for ARGS in "-fg | -bl"
         do
 
             # Read simu and nav params

@@ -3593,7 +3593,7 @@ def Myhal5_retrain():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-05-25_14-47-09'
-    end = 'Log_2022-05-25_14-48-09'
+    end = 'Log_2022-05-27_16-46-35'
 
     # Path to the results logs
     res_path = 'results'
@@ -3607,6 +3607,7 @@ def Myhal5_retrain():
 
     # Give names to the logs (for legends). These logs were all done with e500 and rot augment
     logs_names = ['40/60_decay60',
+                  'real_decay60',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
@@ -3614,6 +3615,37 @@ def Myhal5_retrain():
     # Copy here the indices you selected with gui
     all_wanted_s = []
     all_wanted_f = []
+    all_wanted_s = ['2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48']
+    all_wanted_f = [1672,
+                    1694,
+                    1727,
+                    248,
+                    280,
+                    343,
+                    548,
+                    623,
+                    668,
+                    712,
+                    787,
+                    910,
+                    1028,
+                    1187,
+                    1253]
+
 
     logs_names = np.array(logs_names[:len(logs)])
 
@@ -3653,10 +3685,16 @@ if __name__ == '__main__':
 
     # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    # plotting = 'PR'  # Comparison of the performances with good metrics
+    plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+
+    # Todo new metric where we measure the prediction blob and ground truth blob:
+    #   1. diffure gt and do recall
+    #   2. diffure pred and do precision
+
+    #   3. other metric idea: get local maxima of predictions, and cmpute distance to cosest groundtruth pixel
 
 
     ##################################################
