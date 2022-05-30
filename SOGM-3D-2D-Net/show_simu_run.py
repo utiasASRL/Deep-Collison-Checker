@@ -465,27 +465,29 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
 
     SOGM = np.array(all_nav_info['SOGM']) == 'true'
     GTSOGM = np.array(all_nav_info['GTSOGM']) == 'true'
-    EXTRAPO = np.array(all_nav_info['EXTRAPO']) == 'true'
+    LINEAR = np.array(all_nav_info['EXTRAPO']) == 'true'
     IGNORE = np.array(all_nav_info['IGNORE']) == 'true'
 
-    NOPRED = np.logical_and(np.logical_not(SOGM), np.logical_not(GTSOGM))
-    NOPRED = np.logical_and(NOPRED, np.logical_not(EXTRAPO))
+    REGULAR = np.logical_and(np.logical_not(SOGM), np.logical_not(GTSOGM))
+    REGULAR = np.logical_and(REGULAR, np.logical_not(LINEAR))
 
     SOGM = np.logical_and(SOGM, np.logical_not(IGNORE))
 
     # Verify that there is no problem with masks
-    test_v = np.sum(NOPRED.astype(np.int32))
+    test_v = np.sum(REGULAR.astype(np.int32))
     test_v += np.sum(SOGM.astype(np.int32))
     test_v += np.sum(IGNORE.astype(np.int32))
     test_v += np.sum(GTSOGM.astype(np.int32))
-    test_v += np.sum(EXTRAPO.astype(np.int32))
+    test_v += np.sum(LINEAR.astype(np.int32))
 
     if (test_v != len(SOGM)):
         raise ValueError('Problem with result masks')
 
 
-    res_names = ['NOPRED', 'SOGM', 'IGNORE', 'GTSOGM', 'EXTRAPO']
-    res_masks = [NOPRED, SOGM, IGNORE, GTSOGM, EXTRAPO]
+    res_names = ['REGULAR', 'IGNORE', 'LINEAR', 'SOGM', 'GTSOGM']
+    res_masks = [REGULAR, IGNORE, LINEAR, SOGM, GTSOGM]
+
+    packed_results = {r_name: [] for r_name in res_names}
 
     for r_i, res_name in enumerate(res_names):
 
@@ -513,31 +515,105 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
                                                                              np.sum(np.array(all_success[i], dtype=np.int32)),
                                                                              len(all_success[i])))
                                                                                     
-                res_risky_index += [risky_index]
-                res_colli_index += [colli_index]
+                res_risky_index += [100 * risky_index]
+                res_colli_index += [100 * colli_index]
                 res_times += [all_times[i][-1]]
 
         print('-' * 56)
         print('  Avg on {:4d} runs  | {:7.1f}% {:7.2f}% {:5.0f}s'.format(len(res_risky_index),
-                                                                         100 * np.mean(res_risky_index),
-                                                                         100 * np.mean(res_colli_index),
+                                                                         np.mean(res_risky_index),
+                                                                         np.mean(res_colli_index),
                                                                          np.mean(res_times)))
         print('  Std on {:4d} runs  | {:7.1f}% {:7.2f}% {:5.0f}s'.format(len(res_risky_index),
-                                                                         100 * np.std(res_risky_index),
-                                                                         100 * np.std(res_colli_index),
+                                                                         np.std(res_risky_index),
+                                                                         np.std(res_colli_index),
                                                                          np.std(res_times)))
 
+        packed_results[res_name].append(res_risky_index)
+        packed_results[res_name].append(res_colli_index)
+        packed_results[res_name].append(res_times)
 
 
     ##############
     # Result plots
     ##############
 
-    # figA, axA = plt.subplots(1, 1, figsize=(14, 3))
-    # for i, run in enumerate(selected_runs):
-    #     plt.plot(gt_t[i], all_min_dists[i])
+    # Colors for the box plots
+    res_col = ['dimgrey', 'firebrick', 'darkorange', 'mediumblue', 'palegreen']
+
+    fig, axs = plt.subplots(1, 3, figsize=(8, 3.2), sharex=False, sharey=False)
+    fig.subplots_adjust(left=0.11, right=0.95, top=0.95, bottom=0.11)
+    axs = list(axs.ravel())
+
+    for ax_i, metric_name in enumerate(['% of Time in Risky Area', '% of Time in Collision Area', 'Time to Finish in seconds']):
+
+        y_data = [[]]
+        x_data = ['']
+        colors = ['black']
+
+
+        for res_i, res_name in enumerate(res_names):
+
+            if res_i in [4, ]:
+                x_data.append('')
+                y_data.append([])
+                colors.append('black')
+
+            y_data.append(packed_results[res_name][ax_i])
+            if res_i == 2:
+                x_data.append(metric_name)
+            else:
+                x_data.append('')
+            colors.append(res_col[res_i])
+
+            # x_data.append('')
+            # y_data.append([])
+            # colors.append('black')
+
+        x_data.append('')
+        y_data.append([])
+        colors.append('black')
+
+        # Add a horizontal grid to the plot, but make it very light in color
+        # so we can use it for reading data values but not be distracting
+        axs[ax_i].yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
+
+        # Axes range
+        if ax_i in [1, ]:
+            axs[ax_i].set_ylim(bottom=-6.9/20, top=6.9)
+
+        # Title
+        # axs[ax_i].set_title(loc_meth)
+        # axs[ax_i].text(0.8, .93, metric_name,
+        #                transform=axs[ax_i].get_xaxis_transform(),
+        #                horizontalalignment='left', fontsize='medium',
+        #                weight='roman',
+        #                color='k')
+
+
+        # Hide the grid behind plot objects
+        axs[ax_i].set_axisbelow(True)
+
+        bp = axs[ax_i].boxplot(y_data, labels=x_data,
+                               patch_artist=True, showfliers=False, widths=0.8)
+        plt.setp(bp['medians'], color='k')
+
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # Legend
+        if ax_i == 1:
+            my_legends = axs[ax_i].legend(np.array(bp['boxes'])[[1, 2, 3, 4, 6]], tuple(res_names), fontsize='small')
+            plt.setp(my_legends.legendHandles[-1], ls='--')
         
-    
+            
+        # Dashed line for GT
+        plt.setp(bp['boxes'][5:], ls='--')
+        plt.setp(bp['whiskers'][10:], ls='--')
+
+    # plt.savefig('Exp3.pdf')
+    plt.show()
+
     # longest_run = np.argmax([len(_) for _ in gt_t])
     # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+risky_d, 'r--', linewidth=0.5)
     # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+collision_d, 'r-', linewidth=0.5)
@@ -580,7 +656,7 @@ def main():
 
     # Select runs betweemn two dates
     from_date = '2022-05-19-22-26-08'
-    to_date = '2022-05-27-18-18-13'
+    to_date = '2022-05-30-12-30-29'
     if len(selected_runs) < 1:
         selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
 
