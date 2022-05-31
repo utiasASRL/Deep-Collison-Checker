@@ -8,14 +8,14 @@ low_weight_exp=true
 # med="2022-05-18-22-22-02"
 # hard="2022-05-18-23-24-51"
 
-for i in {1..50}
+for i in {1..20}
 do
     # for PARAMS in "Flow1_params" "Flow2_params" "Flow3_params"
     for PARAMS in "Flow2_params"
     do
 
         for ARGS in "-g | -b" "-fg | -bs" "-fg | -bi"
-        # for ARGS in "-fg | -bl" "-fg | -bs"
+        # for ARGS in "-fg | -bs"
         do
 
             # Read simu and nav params

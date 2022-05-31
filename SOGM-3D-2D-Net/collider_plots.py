@@ -3675,7 +3675,7 @@ if __name__ == '__main__':
     cleaning = False
     if cleaning:
         res_path = 'results'
-        max_clean_date = 'Log_2022-01-26_18-47-27'
+        max_clean_date = 'Log_2022-05-31_08-09-47'
         cleanup(res_path, max_clean_date, remove_tmp_test=False)
     
 
@@ -3716,7 +3716,10 @@ if __name__ == '__main__':
         config.load(log)
         this_dataset = config.dataset
         val_path = join(log, 'val_preds')
-        this_val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
+        if exists(val_path):
+            this_val_days = np.unique([f[:19] for f in listdir(val_path) if f.endswith('pots.ply')])
+        else:
+            this_val_days = np.array([])
         log_val_days += [this_val_days]
         if plot_dataset:
             if plot_dataset != this_dataset:
@@ -3729,7 +3732,7 @@ if __name__ == '__main__':
             val_days = this_val_days
             all_val_days = this_val_days
 
-    # Get simulatio nvalidation clouds first
+    # Get simulation validation clouds first
     sim_path = '../Data/Simulation'
     sim_val_days = [val_day for val_day in all_val_days
                     if exists(join(sim_path, 'simulated_runs', val_day))]
@@ -3737,8 +3740,12 @@ if __name__ == '__main__':
                     if not exists(join(sim_path, 'simulated_runs', val_day))]
 
     # Get dataset path
-    dataset_candidates = [join('../Data', path) for path in listdir('../Data')
-                          if exists(join('../Data', path, 'runs', all_val_days[0]))]
+    if len(all_val_days) > 0:
+        dataset_candidates = [join('../Data', path) for path in listdir('../Data')
+                              if exists(join('../Data', path, 'runs', all_val_days[0]))]
+    else:
+        dataset_candidates = []
+
     if len(dataset_candidates) > 1:
         raise ValueError('Error: Run ' + all_val_days[0] + ' was found in multiple datasets')
     if len(dataset_candidates) < 1:

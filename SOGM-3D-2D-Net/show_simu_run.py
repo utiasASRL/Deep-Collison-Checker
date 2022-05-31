@@ -656,7 +656,7 @@ def main():
 
     # Select runs betweemn two dates
     from_date = '2022-05-19-22-26-08'
-    to_date = '2022-05-30-12-30-29'
+    to_date = '2022-05-31-11-02-02'
     if len(selected_runs) < 1:
         selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
 
