@@ -44,7 +44,7 @@ from models.architectures import KPCollider
 from os.path import exists, join
 from os import makedirs
 
-from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions
+from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, Myhal5_sessions_v2
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -160,7 +160,7 @@ class MyhalCollisionConfig(Config):
     # Radius of the input sphere
     in_radius = 8.0
     val_radius = 8.0
-    n_frames = 3
+    n_frames = 1
     in_features_dim = n_frames
     max_in_points = -1
     max_val_points = -1
@@ -213,7 +213,7 @@ class MyhalCollisionConfig(Config):
     #####################
 
     # Maximal number of epochs
-    max_epoch = 450
+    max_epoch = 250
 
     # Learning rate management
     learning_rate = 1e-2
@@ -229,7 +229,7 @@ class MyhalCollisionConfig(Config):
     validation_size = 15
 
     # Number of epoch between each checkpoint
-    checkpoint_gap = 20
+    checkpoint_gap = 40
 
     # Augmentations
     augment_scale_anisotropic = False
@@ -364,14 +364,14 @@ if __name__ == '__main__':
 
     # Disable simulation HERE
     # sim_path = ''
-    
+
 
     ###################
     # Training sessions
     ###################
 
     # Get sessions from the annotation script
-    dataset_path, map_day, refine_sessions, train_days, train_comments = Myhal5_sessions()
+    dataset_path, map_day, refine_sessions, train_days, train_comments = Myhal5_sessions_v2()
 
     # Get training and validation sets
     val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])

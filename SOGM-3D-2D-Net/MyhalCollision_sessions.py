@@ -19,6 +19,157 @@
 import numpy as np
 
 
+def oldMyhal5_sessions():
+
+    # Mapping sessions
+    # ****************
+    
+    # Notes for myself: number of dynamic people emcoutered in each run
+    #
+    # '2021-12-10_12-53-37',    1 driver / 3 people
+    # '2021-12-10_13-06-09',    1 person
+    # '2021-12-10_13-17-29',    Nobody
+    # '2021-12-10_13-26-07',    1 follower / 9 people or more
+    # '2021-12-10_13-32-10',    9 people or more (groups), '']
+    # '2021-12-13_18-16-27',    1 blocker
+    # '2021-12-13_18-22-11',    1 blocker / 3 people
+    # '2021-12-15_19-09-57',    4 people
+    # '2021-12-15_19-13-03']    3 people
+    #
+    
+    dataset_path = '../Data/old_Myhal5'
+    sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
+                             ['2021-12-06_08-38-16', ' mapping > '],    # -  \
+                             ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
+                             ['2021-12-06_08-51-29', ' mapping > '],    # -  /
+                             ['2021-12-06_08-54-58', ' mapping > '],    # - /
+                             ['2021-12-10_13-32-10', ' train > '],      # 5 \
+                             ['2021-12-10_13-26-07', ' train > '],      # 6  \
+                             ['2021-12-10_13-17-29', '  val  > '],      # 7   > Session with normal TEB planner
+                             ['2021-12-10_13-06-09', '  val  > '],      # 8  /
+                             ['2021-12-10_12-53-37', ' train > '],      # - /
+                             ['2021-12-13_18-16-27', '  val  > '],      # - \
+                             ['2021-12-13_18-22-11', ' train > '],      # -  \
+                             ['2021-12-15_19-09-57', '  val  > '],      # -   > Session with normal TEB planner Tour A and B
+                             ['2021-12-15_19-13-03', ' train > ']]      # -  /
+
+    sessions_and_comments += [['2022-01-18_10-38-28', ' train > '],     # 14 \
+                              ['2022-01-18_10-42-54', ' train > '],     # -   \
+                              ['2022-01-18_10-47-07', '  val  > '],     # -    \
+                              ['2022-01-18_10-48-42', ' train > '],     # -     \
+                              ['2022-01-18_10-53-28', ' train > '],     # -      > Sessions with normal TEB planner on loop_3
+                              ['2022-01-18_10-58-05', ' train > '],     # -      > Simple scenarios for experiment
+                              ['2022-01-18_11-02-28', ' train > '],     # 20    /
+                              ['2022-01-18_11-11-03', ' train > '],     # -    /
+                              ['2022-01-18_11-15-40', '  val  > '],     # -   /
+                              ['2022-01-18_11-20-21', '  val  > ']]     # -  /
+
+    sessions_and_comments += [['2022-02-25_18-19-12', ' train > '],     # 24 \
+                              ['2022-02-25_18-24-30', ' train > '],     # -   > Face to face scenario on (loop_2)
+                              ['2022-02-25_18-29-18', ' train > ']]     # -  /
+
+    sessions = [s_c[0] for s_c in sessions_and_comments]
+    comments = [s_c[1] for s_c in sessions_and_comments]
+
+    map_i = 3
+    refine_i = np.array([0, 6, 7, 8])
+    train_i = np.arange(len(sessions))[5:]
+
+    map_day = sessions[map_i]
+    refine_sessions = np.array(sessions)[refine_i]
+    train_sessions = np.array(sessions)[train_i]
+    train_comments = np.array(comments)[train_i]
+
+    train_order = np.argsort(train_sessions)
+    train_sessions = train_sessions[train_order]
+    train_comments = train_comments[train_order]
+
+    return dataset_path, map_day, refine_sessions, train_sessions, train_comments
+
+
+def oldMyhal5_sessions_v2():
+
+    # Mapping sessions
+    # ****************
+    
+    # Notes for myself: number of dynamic people emcoutered in each run
+    #
+    # '2021-12-10_12-53-37',    1 driver / 3 people
+    # '2021-12-10_13-06-09',    1 person
+    # '2021-12-10_13-17-29',    Nobody
+    # '2021-12-10_13-26-07',    1 follower / 9 people or more
+    # '2021-12-10_13-32-10',    9 people or more (groups), '']
+    # '2021-12-13_18-16-27',    1 blocker
+    # '2021-12-13_18-22-11',    1 blocker / 3 people
+    # '2021-12-15_19-09-57',    4 people
+    # '2021-12-15_19-13-03']    3 people
+    #
+    
+    dataset_path = '../Data/old_Myhal5'
+    sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
+                             ['2021-12-06_08-38-16', ' mapping > '],    # -  \
+                             ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
+                             ['2021-12-06_08-51-29', ' mapping > '],    # -  /
+                             ['2021-12-06_08-54-58', ' mapping > '],    # - /
+                             ['2021-12-10_13-32-10', ' train > '],      # 5 \
+                             ['2021-12-10_13-26-07', ' train > '],      # 6  \
+                             ['2021-12-10_13-17-29', '  val  > '],      # 7   > Session with normal TEB planner
+                             ['2021-12-10_13-06-09', '  val  > '],      # 8  /
+                             ['2021-12-10_12-53-37', ' train > '],      # - /
+                             ['2021-12-13_18-16-27', '  val  > '],      # - \
+                             ['2021-12-13_18-22-11', ' train > '],      # -  \
+                             ['2021-12-15_19-09-57', '  val  > '],      # -   > Session with normal TEB planner Tour A and B
+                             ['2021-12-15_19-13-03', ' train > ']]      # -  /
+
+    sessions_and_comments += [['2022-01-18_10-38-28', ' train > '],     # 14 \
+                              ['2022-01-18_10-42-54', ' train > '],     # -   \
+                              ['2022-01-18_10-47-07', '  val  > '],     # -    \
+                              ['2022-01-18_10-48-42', ' train > '],     # -     \
+                              ['2022-01-18_10-53-28', ' train > '],     # -      > Sessions with normal TEB planner on loop_3
+                              ['2022-01-18_10-58-05', ' train > '],     # -      > Simple scenarios for experiment
+                              ['2022-01-18_11-02-28', ' train > '],     # 20    /
+                              ['2022-01-18_11-11-03', ' train > '],     # -    /
+                              ['2022-01-18_11-15-40', '  val  > '],     # -   /
+                              ['2022-01-18_11-20-21', '  val  > ']]     # -  /
+
+    sessions_and_comments += [['2022-02-25_18-19-12', ' train > '],     # 24 \
+                              ['2022-02-25_18-24-30', ' train > '],     # -   > Face to face scenario on (loop_2)
+                              ['2022-02-25_18-29-18', ' train > ']]     # -  /
+
+    sessions_and_comments += [['2022-05-31_14-45-53', ' train > '],
+                              ['2022-05-31_16-25-23', ' train > '],
+                              ['2022-05-31_16-29-56', ' train > '],
+                              ['2022-05-31_16-35-32', ' train > '],
+                              ['2022-05-31_16-38-34', ' train > '],
+                              ['2022-05-31_16-56-04', ' train > '],
+                              ['2022-05-31_18-33-02', ' train > '],
+                              ['2022-05-31_18-36-31', ' train > '],
+                              ['2022-05-31_19-34-18', ' train > '],
+                              ['2022-05-31_19-37-08', ' train > '],
+                              ['2022-05-31_19-40-52', ' train > '],
+                              ['2022-05-31_19-44-52', ' train > '],
+                              ['2022-05-31_19-47-52', ' train > '],
+                              ['2022-05-31_19-51-14', ' train > '], ]
+
+    sessions = [s_c[0] for s_c in sessions_and_comments]
+    comments = [s_c[1] for s_c in sessions_and_comments]
+
+    map_i = 3
+    refine_i = np.array([0, 6, 7, 8])
+    train_i = np.arange(len(sessions))[5:]
+
+    map_day = sessions[map_i]
+    refine_sessions = np.array(sessions)[refine_i]
+    train_sessions = np.array(sessions)[train_i]
+    train_comments = np.array(comments)[train_i]
+
+    train_order = np.argsort(train_sessions)
+    train_sessions = train_sessions[train_order]
+    train_comments = train_comments[train_order]
+
+    return dataset_path, map_day, refine_sessions, train_sessions, train_comments
+
+
 def Myhal5_sessions():
 
     # Mapping sessions
@@ -96,6 +247,99 @@ def Myhal5_sessions():
 
 
 
+
+    return dataset_path, map_day, refine_sessions, train_sessions, train_comments
+
+
+def Myhal5_sessions_v2():
+
+    # Mapping sessions
+    # ****************
+    
+    # Notes for myself: number of dynamic people emcoutered in each run
+    #
+    # '2021-12-10_12-53-37',    1 driver / 3 people
+    # '2021-12-10_13-06-09',    1 person
+    # '2021-12-10_13-17-29',    Nobody
+    # '2021-12-10_13-26-07',    1 follower / 9 people or more
+    # '2021-12-10_13-32-10',    9 people or more (groups), '']
+    # '2021-12-13_18-16-27',    1 blocker
+    # '2021-12-13_18-22-11',    1 blocker / 3 people
+    # '2021-12-15_19-09-57',    4 people
+    # '2021-12-15_19-13-03']    3 people
+    
+    dataset_path = '../Data/old_Myhal5'
+    sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
+                             ['2021-12-06_08-38-16', ' mapping > '],    # -  \
+                             ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
+                             ['2021-12-06_08-51-29', ' mapping > '],    # -  /
+                             ['2021-12-06_08-54-58', ' mapping > '],    # - /
+                             ['2021-12-10_13-32-10', ' train > '],      # 5 \
+                             ['2021-12-10_13-26-07', ' train > '],      # 6  \
+                             ['2021-12-10_13-17-29', '  val  > '],      # 7   > Session with normal TEB planner
+                             ['2021-12-10_13-06-09', '  val  > '],      # 8  /
+                             ['2021-12-10_12-53-37', ' train > '],      # - /
+                             ['2021-12-13_18-16-27', ' train > '],      # - \
+                             ['2021-12-13_18-22-11', ' train > '],      # -  \
+                             ['2021-12-15_19-09-57', ' train > '],      # -   > Session with normal TEB planner Tour A and B
+                             ['2021-12-15_19-13-03', ' train > ']]      # -  /
+
+    sessions_and_comments += [['2022-01-18_10-38-28', ' train > '],     # 14 \
+                              ['2022-01-18_10-42-54', ' train > '],     # -   \
+                              ['2022-01-18_10-47-07', ' train > '],     # -    \
+                              ['2022-01-18_10-48-42', ' train > '],     # -     \
+                              ['2022-01-18_10-53-28', ' train > '],     # -      > Sessions with normal TEB planner on loop_3
+                              ['2022-01-18_10-58-05', ' train > '],     # -      > Simple scenarios for experiment
+                              ['2022-01-18_11-02-28', ' train > '],     # 20    /
+                              ['2022-01-18_11-11-03', ' train > '],     # -    /
+                              ['2022-01-18_11-15-40', ' train > '],     # -   /
+                              ['2022-01-18_11-20-21', ' train > ']]     # -  /
+
+    sessions_and_comments += [['2022-02-25_18-19-12', ' train > '],     # 24 \
+                              ['2022-02-25_18-24-30', ' train > '],     # -   > Face to face scenario on (loop_2)
+                              ['2022-02-25_18-29-18', ' train > ']]     # -  /
+
+    sessions_and_comments += [['2022-03-01_22-01-13', ' train > '],     # 27 \
+                              ['2022-03-01_22-06-28', ' train > '],     # -   > More data (loop_2inv and loop8)
+                              ['2022-03-01_22-25-19', ' train > ']]     # -  /
+
+    sessions_and_comments += [['2022-05-20_11-46-11', ' mapping > '],   # 30    > Refinement run
+                              ['2022-05-20_12-47-48', '  val  > '],     # -     > movers moving tables
+                              ['2022-05-20_12-54-23', ' train > '],     # -     > movers moving tables
+                              ['2022-05-20_12-58-26', ' train > '],     # -     > movers moving tables
+                              ['2022-05-20_13-04-19', ' mapping > ']]   # -     > Refinement run
+
+                              
+    sessions_and_comments += [['2022-05-31_14-45-53', ' train > '],
+                              ['2022-05-31_16-25-23', ' train > '],
+                              ['2022-05-31_16-29-56', ' train > '],
+                              ['2022-05-31_16-35-32', ' train > '],
+                              ['2022-05-31_16-38-34', ' train > '],
+                              ['2022-05-31_18-33-02', ' train > '],
+                              ['2022-05-31_19-34-18', '  val  > '],
+                              ['2022-05-31_19-37-08', ' train > '],
+                              ['2022-05-31_19-40-52', '  val  > '],
+                              ['2022-05-31_19-44-52', ' train > '],
+                              ['2022-05-31_19-47-52', ' train > '],
+                              ['2022-05-31_19-51-14', ' train > '], ]
+
+    sessions = [s_c[0] for s_c in sessions_and_comments]
+    comments = [s_c[1] for s_c in sessions_and_comments]
+
+    map_i = 3
+    refine_i = np.array([0, 6, 7, 8, 30, 34])
+    train_i = np.arange(len(sessions))[5:30]
+    train_i = np.hstack((train_i, np.array([31, 32, 33])))
+    train_i = np.hstack((train_i, np.arange(len(sessions))[35:]))
+
+    map_day = sessions[map_i]
+    refine_sessions = np.array(sessions)[refine_i]
+    train_sessions = np.array(sessions)[train_i]
+    train_comments = np.array(comments)[train_i]
+
+    train_order = np.argsort(train_sessions)
+    train_sessions = train_sessions[train_order]
+    train_comments = train_comments[train_order]
 
     return dataset_path, map_day, refine_sessions, train_sessions, train_comments
 

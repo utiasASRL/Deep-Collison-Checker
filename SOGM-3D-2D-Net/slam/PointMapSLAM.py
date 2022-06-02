@@ -402,6 +402,32 @@ def motion_rectified(points, times, H0, H1, normals=None):
     return world_pts
 
 
+def load_loc_poses(days_folder, day):
+
+    # Load loc from ply files
+    loc_ply_file = join(days_folder, day, 'loc_pose.ply')
+
+    if not exists(loc_ply_file):
+        raise ValueError('No localization poses found at ' + loc_ply_file)
+
+    data = read_ply(loc_ply_file)
+    loc_T = np.vstack([data['pos_x'], data['pos_y'], data['pos_z']]).T
+    loc_Q = np.vstack([data['rot_x'], data['rot_y'], data['rot_z'], data['rot_w']]).T
+
+    # Times
+    day_loc_t = data['time']
+
+    # Convert loc to homogenous rotation/translation matrix
+    loc_R = Rotation.from_quat(loc_Q)
+    loc_R = loc_R.as_matrix()
+    day_loc_H = np.zeros((len(day_loc_t), 4, 4))
+    day_loc_H[:, :3, :3] = loc_R
+    day_loc_H[:, :3, 3] = loc_T
+    day_loc_H[:, 3, 3] = 1
+
+    return day_loc_t, day_loc_H
+
+
 def get_frame_slices(points, phi0, last_H, new_H, n_slices):
 
     # Get the phi of the current transform
@@ -1944,6 +1970,21 @@ def annotation_process(dataset,
                                [0.0, 1.0, 0.0, 0.0],
                                [0.0, 0.0, 1.0, 0.7],
                                [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
+
+
+
+            if (day >= '2022-05-31_14-45-53'):
+
+                loc_t, loc_H = load_loc_poses(join(dataset.data_path, 'runs'), day)
+                print(loc_H.shape)
+                
+                # init_H = np.array([[0.0, -1.0, 0.0, 3.5],
+                #                    [1.0, 0.0, 0.0, 11.4],
+                #                    [0.0, 0.0, 1.0, 0.7],
+                #                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
+                init_H = loc_H[0]
+
+            print(init_H)
 
             odom_H = [np.linalg.inv(init_H) for _ in map_t]
             odom_H = np.stack(odom_H, 0)

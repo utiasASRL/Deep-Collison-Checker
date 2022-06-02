@@ -590,7 +590,6 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         #                weight='roman',
         #                color='k')
 
-
         # Hide the grid behind plot objects
         axs[ax_i].set_axisbelow(True)
 
@@ -656,7 +655,7 @@ def main():
 
     # Select runs betweemn two dates
     from_date = '2022-05-19-22-26-08'
-    to_date = '2022-05-31-11-02-02'
+    to_date = '2022-06-02-02-47-02'
     if len(selected_runs) < 1:
         selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
 

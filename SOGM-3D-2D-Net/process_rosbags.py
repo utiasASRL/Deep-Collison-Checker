@@ -80,10 +80,8 @@ def main(save_velo=True,
             run_path = '../Data/RealMyhal/runs'
         elif (file >= '2022-03-03_00-00-00.bag' and file <= '2022-05-00_00-00-00.bag'):
             run_path = '../Data/Myhal1/runs'
-        elif (file >= '2022-05-20_11-46-11.bag' and file <= '2022-05-20_13-04-19.bag'):
+        elif (file >= '2022-05-20_11-46-11.bag' and file <= '2022-06-05_13-04-19.bag'):
             run_path = '../Data/old_Myhal5/runs'
-        elif (file >= '2022-05-00_00-00-00.bag' and file <= '2022-06-00_00-00-00.bag'):
-            run_path = '../Data/new_Myhal5/runs'
         elif (file == '2021-12-05_18-04-51.bag'):
             run_path = '../Data/RealAlbany/runs'
         elif (file == 'only-map.bag'):

@@ -60,6 +60,7 @@ def main():
         pathes_to_remove += [join(last_run, 'raw_data.bag')]
         pathes_to_remove += [join(log_path, 'processed_data.pickle')]
         pathes_to_remove += [join(log_path, 'collider_data.pickle')]
+        pathes_to_remove += [join(log_path, 'pointmap_00000.ply')]
 
         print('Removing:')
         for rm_path in pathes_to_remove:

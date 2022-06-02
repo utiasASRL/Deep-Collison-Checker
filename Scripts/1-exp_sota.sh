@@ -14,8 +14,8 @@ do
     for PARAMS in "Flow2_params"
     do
 
-        for ARGS in "-g | -b" "-fg | -bs" "-fg | -bi"
-        # for ARGS in "-fg | -bs"
+        # for ARGS in "-g | -b" "-fg | -bs" "-fg | -bi"
+        for ARGS in "-fg | -bs"
         do
 
             # Read simu and nav params

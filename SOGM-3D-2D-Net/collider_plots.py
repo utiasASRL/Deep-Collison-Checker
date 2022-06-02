@@ -46,7 +46,7 @@ import imageio
 # My libs
 from utils.config import Config
 from utils.metrics import IoU_from_confusions, smooth_metrics, fast_confusion, fast_threshold_stats
-from utils.ply import read_ply
+from utils.ply import read_ply, write_ply
 from models.architectures import FakeColliderLoss, KPCollider
 from utils.tester import ModelTester
 from utils.mayavi_visu import fast_save_future_anim, save_zoom_img, colorize_collisions, zoom_collisions, superpose_gt, \
@@ -54,6 +54,7 @@ from utils.mayavi_visu import fast_save_future_anim, save_zoom_img, colorize_col
 
 # Datasets
 from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate, MyhalCollisionSamplerTest
+from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, oldMyhal5_sessions
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -3593,7 +3594,7 @@ def Myhal5_retrain():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-05-25_14-47-09'
-    end = 'Log_2022-05-27_16-46-35'
+    end = 'Log_2022-06-01_08-35-48'
 
     # Path to the results logs
     res_path = 'results'
@@ -3602,12 +3603,14 @@ def Myhal5_retrain():
     logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
 
     # Optinally add some specific folder that is not between start and end
-    #logs = np.insert(logs, 0, 'results/Log_2021-05-27_17-20-02')
+    logs = np.insert(logs, 0, 'results/Log_2022-03-01_16-47-49')
     logs = logs.astype('<U50')
 
     # Give names to the logs (for legends). These logs were all done with e500 and rot augment
-    logs_names = ['40/60_decay60',
+    logs_names = ['old',
+                  '40/60_decay60',
                   'real_decay60',
+                  'real_datav2'
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
@@ -3688,7 +3691,7 @@ if __name__ == '__main__':
     plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
     # Todo new metric where we measure the prediction blob and ground truth blob:
     #   1. diffure gt and do recall
@@ -3703,7 +3706,6 @@ if __name__ == '__main__':
 
     # Function returning the names of the log folders that we want to plot
     logs, logs_names, all_wanted_s, all_wanted_f = Myhal5_retrain()
-
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None
@@ -3772,6 +3774,12 @@ if __name__ == '__main__':
     print_logs_val_table(logs_names, sim_val_days, log_val_days)
 
     print('\n')
+
+
+    # Use validation days from last log
+    print('WARNING: using validation days from last log')
+    all_val_days = [day11 for day11 in all_val_days if day11 in log_val_days[-1]]
+
         
     # Function returning the a few specific frames to show as gif
     if 'gifs' in plotting:

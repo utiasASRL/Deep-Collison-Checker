@@ -25,6 +25,7 @@ worlds=("2022-05-19-23-17-31" \
 
 
 
+
 for i in {1..1}
 do
     for LOADED_WORLD in ${worlds[@]}
@@ -33,7 +34,7 @@ do
         echo $LOADED_WORLD
 
         # for ARGS in "-fg | -bl" "-fg | -bg"
-        for ARGS in "-fg | -bg"
+        for ARGS in "-fg | -bl"
         do
 
             # Read simu and nav params

@@ -762,6 +762,26 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
         print(' >', day)
     print('')
 
+    # Reduce number of runs to inspect
+    print('You can choose to inspect only the last X runs (enter nothing to inspect all runs)')
+    n_runs = input("Enter the number X of runs to inspect:\n")
+
+    if len(n_runs) > 0:
+        n_runs = int(n_runs)
+    else:
+        n_runs = len(train_days)
+    
+    print('You choose to inspect only the last X runs')
+    print(n_runs)
+
+    if n_runs < len(train_days):
+        train_days = train_days[-n_runs:]
+        train_comments = train_comments[-n_runs:]
+
+
+
+
+
     config = MyhalCollisionConfig()
 
     # Initialize datasets (dummy validation)
