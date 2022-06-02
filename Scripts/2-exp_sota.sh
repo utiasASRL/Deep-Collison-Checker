@@ -43,6 +43,8 @@ do
             # Start exp
             ./run_in_melodic.sh -d -c "./simu_master.sh $SIMU_ARGS -t 2022-A -p Flow2_params -l $LOADED_WORLD"
             sleep 5.0
+            sleep 5.0
+            sleep 5.0
             ./run_in_foxy.sh -d -c "./nav_master.sh $NAV_ARGS -m 2"
                
             # Wait for the docker containers to be stopped
