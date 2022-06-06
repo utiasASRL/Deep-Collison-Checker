@@ -3594,7 +3594,7 @@ def Myhal5_retrain():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-05-25_14-47-09'
-    end = 'Log_2022-06-01_08-35-48'
+    end = 'Log_2022-06-05_21-29-53'
 
     # Path to the results logs
     res_path = 'results'
@@ -3610,7 +3610,10 @@ def Myhal5_retrain():
     logs_names = ['old',
                   '40/60_decay60',
                   'real_decay60',
-                  'real_datav2'
+                  'real_datav2',
+                  'real_datav2_1frame',
+                  'real_datav2_6frame',
+                  'real_datav2_9frame',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])

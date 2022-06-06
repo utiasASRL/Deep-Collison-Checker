@@ -160,7 +160,7 @@ class MyhalCollisionConfig(Config):
     # Radius of the input sphere
     in_radius = 8.0
     val_radius = 8.0
-    n_frames = 1
+    n_frames = 9
     in_features_dim = n_frames
     max_in_points = -1
     max_val_points = -1

@@ -483,6 +483,31 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
     if (test_v != len(SOGM)):
         raise ValueError('Problem with result masks')
 
+    ####################################
+    # Specific results for SOGM ablation
+    ####################################
+
+    date0 = '2022-05-00-00-00-00'
+    date1 = '2022-06-02-00-00-00'
+    date2 = '2022-06-05-00-00-00'
+    date3 = '2022-06-08-00-00-00'
+
+    mask01 = np.logical_and(np.array(selected_runs) > date0, np.array(selected_runs) < date1)
+    mask12 = np.logical_and(np.array(selected_runs) > date1, np.array(selected_runs) < date2)
+    mask23 = np.logical_and(np.array(selected_runs) > date2, np.array(selected_runs) < date3)
+
+    SOGM_p1 = np.logical_and(SOGM, mask23)
+    SOGM_no_t = np.logical_and(SOGM, mask12)
+    SOGM = np.logical_and(SOGM, mask01)
+
+
+    ##############
+    # Print tables
+    ##############
+
+    # This for a quick plot of the ablation study, make a spcific plot for it or just a table???
+    # res_names = ['REGULAR', 'SOGM_p1', 'SOGM_no_t', 'SOGM', 'GTSOGM']
+    # res_masks = [REGULAR, SOGM_p1, SOGM_no_t, SOGM, GTSOGM]
 
     res_names = ['REGULAR', 'IGNORE', 'LINEAR', 'SOGM', 'GTSOGM']
     res_masks = [REGULAR, IGNORE, LINEAR, SOGM, GTSOGM]
@@ -611,14 +636,137 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         plt.setp(bp['whiskers'][10:], ls='--')
 
     # plt.savefig('Exp3.pdf')
+
+    ###################
+    # Alternative plots
+    ###################
+    
+    # # Get pointcloud distances
+    # measured_min_dists = []
+    # for i, run in enumerate(selected_runs):
+
+    #     # Load pickle file if already computed
+
+    #     # Read all annotated 2D colli pointcloud. And measure dist (need to annotate everything)
+    #     min_dists = np.zeros((1,))
+
+    #     # For visu do not show higher distances
+    #     min_dists = np.minimum(min_dists, high_d)
+    #     all_min_dists.append(min_dists)
+
+    print('\nCompute alternative metrics')
+    t1 = time.time()
+    
+    alt_results = {r_name: [] for r_name in res_names}
+    
+    for r_i, res_name in enumerate(res_names):
+
+        res_speeds = []
+        res_stops = []
+        res_lin_speeds = []
+        res_backs = []
+        for i, run in enumerate(selected_runs):
+            if res_masks[r_i][i]:
+                
+                # Speeds
+                gt_xy = gt_H[i][:, :2, 3]  # [T2, 2]
+                velocity = (gt_xy[1:] - gt_xy[:-1]) / np.expand_dims((gt_t[i][1:] - gt_t[i][:-1]), 1)
+                velocity = np.vstack((velocity[:1], velocity))
+                speeds = np.linalg.norm(velocity, axis=1)
+                stop_mask = speeds < 0.1
+                stop_index = np.sum(stop_mask.astype(np.int32)) / stop_mask.shape[0]
+                res_speeds += [np.mean(speeds)]
+                res_stops += [100 * stop_index]
+
+                # Linear speed (with respect to facing direction, can be negative)
+                gt_facing = gt_H[i][:, :2, 0]
+                gt_facing = gt_facing / np.expand_dims(np.linalg.norm(gt_facing, axis=1), 1)
+                linear_speeds = np.sum(gt_facing * velocity, axis=1)
+                back_mask = linear_speeds < -0.1
+                back_index = np.sum(back_mask.astype(np.int32)) / back_mask.shape[0]
+                res_lin_speeds += [np.mean(linear_speeds)]
+                res_backs += [100 * back_index]
+
+
+        alt_results[res_name].append(res_speeds)
+        alt_results[res_name].append(res_stops)
+        alt_results[res_name].append(res_lin_speeds)
+        alt_results[res_name].append(res_backs)
+
+    t2 = time.time()
+    print('Done in {:.1f}s'.format(t2 - t1))
+
+    fig2, axs2 = plt.subplots(1, 4, figsize=(8, 3.2), sharex=False, sharey=False)
+    fig2.subplots_adjust(left=0.11, right=0.95, top=0.95, bottom=0.11)
+    axs2 = list(axs2.ravel())
+
+    for ax_i, metric_name in enumerate(['Avg Speed (m/s)', '% of time stopped', 'Avg Linear Speed (m/s)', '% of time backwards']):
+
+        y_data = [[]]
+        x_data = ['']
+        colors = ['black']
+
+
+        for res_i, res_name in enumerate(res_names):
+
+            if res_i in [4, ]:
+                x_data.append('')
+                y_data.append([])
+                colors.append('black')
+
+            y_data.append(alt_results[res_name][ax_i])
+            if res_i == 2:
+                x_data.append(metric_name)
+            else:
+                x_data.append('')
+            colors.append(res_col[res_i])
+
+            # x_data.append('')
+            # y_data.append([])
+            # colors.append('black')
+
+        x_data.append('')
+        y_data.append([])
+        colors.append('black')
+
+        # Add a horizontal grid to the plot, but make it very light in color
+        # so we can use it for reading data values but not be distracting
+        axs2[ax_i].yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
+
+        # # Axes range
+        # if ax_i in [1, ]:
+        #     axs2[ax_i].set_ylim(bottom=-6.9/20, top=6.9)
+
+        # Title
+        # axs2[ax_i].set_title(loc_meth)
+        # axs2[ax_i].text(0.8, .93, metric_name,
+        #                transform=axs2[ax_i].get_xaxis_transform(),
+        #                horizontalalignment='left', fontsize='medium',
+        #                weight='roman',
+        #                color='k')
+
+        # Hide the grid behind plot objects
+        axs2[ax_i].set_axisbelow(True)
+
+        bp = axs2[ax_i].boxplot(y_data, labels=x_data,
+                                patch_artist=True, showfliers=False, widths=0.8)
+        plt.setp(bp['medians'], color='k')
+
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # Legend
+        if ax_i == 3:
+            my_legends = axs2[ax_i].legend(np.array(bp['boxes'])[[1, 2, 3, 4, 6]], tuple(res_names), fontsize='small')
+            plt.setp(my_legends.legendHandles[-1], ls='--')
+        
+            
+        # Dashed line for GT
+        plt.setp(bp['boxes'][5:], ls='--')
+        plt.setp(bp['whiskers'][10:], ls='--')
+
+    # plt.savefig('Exp3.pdf')
     plt.show()
-
-    # longest_run = np.argmax([len(_) for _ in gt_t])
-    # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+risky_d, 'r--', linewidth=0.5)
-    # plt.plot(gt_t[longest_run], gt_t[longest_run]*0+collision_d, 'r-', linewidth=0.5)
-
-    # plt.ylim(0, 1.95)
-    # plt.show()
 
     print('OK')
     print()
@@ -655,7 +803,7 @@ def main():
 
     # Select runs betweemn two dates
     from_date = '2022-05-19-22-26-08'
-    to_date = '2022-06-02-02-47-02'
+    to_date = '2022-06-06-13-22-16'
     if len(selected_runs) < 1:
         selected_runs = np.sort([f for f in listdir(runs_path) if from_date <= f <= to_date])
 
