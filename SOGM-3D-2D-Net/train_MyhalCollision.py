@@ -160,7 +160,7 @@ class MyhalCollisionConfig(Config):
     # Radius of the input sphere
     in_radius = 8.0
     val_radius = 8.0
-    n_frames = 9
+    n_frames = 3
     in_features_dim = n_frames
     max_in_points = -1
     max_val_points = -1
@@ -423,6 +423,18 @@ if __name__ == '__main__':
 
     # Validation sessions
     train_inds = [i for i in range(len(train_days)) if i not in val_inds]
+    
+
+
+    # TMP, lifelong learning exp. Use trains inds up to :7, :17, :25, :all
+    # train_inds = train_inds[:25]
+    # train_inds = train_inds[:17]
+    train_inds = train_inds[:7]
+
+
+    # Then, add simulation data
+
+
 
     # Initialize configuration class
     config = MyhalCollisionConfig()

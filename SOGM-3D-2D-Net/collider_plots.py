@@ -385,8 +385,7 @@ def cleanup(res_path, max_clean_date, remove_tmp_test=False):
             remove(chkp)
 
         # Remove unused folders
-        removed_folders = [join(res_path, res_folder, 'future_visu'),
-                           join(res_path, res_folder, 'val_preds')]
+        removed_folders = [join(res_path, res_folder, 'future_visu')]
 
         if remove_tmp_test:
             removed_folders += [join(res_path, res_folder, 'test_metrics'),
@@ -395,6 +394,15 @@ def cleanup(res_path, max_clean_date, remove_tmp_test=False):
         for removed_folder in removed_folders:
             if (os.path.isdir(removed_folder)):
                 shutil.rmtree(removed_folder)
+
+        # For val_preds, we need to keep at least one per validation folder
+        val_p_path = join(res_path, res_folder, 'val_preds')
+        val_ps = np.sort([f for f in listdir(val_p_path)])
+        val_days = np.unique([f.split('_')[0] for f in val_ps])
+        for val_day in val_days:
+            val_day_ps = [join(val_p_path, f) for f in val_ps if val_day in f]
+            for f_path in val_day_ps[:-1]:
+                remove(f_path)
 
     return
 
@@ -3594,7 +3602,7 @@ def Myhal5_retrain():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-05-25_14-47-09'
-    end = 'Log_2022-06-05_21-29-53'
+    end = 'Log_2022-06-07_17-21-21'
 
     # Path to the results logs
     res_path = 'results'
@@ -3612,8 +3620,77 @@ def Myhal5_retrain():
                   'real_decay60',
                   'real_datav2',
                   'real_datav2_1frame',
-                  'real_datav2_6frame',
                   'real_datav2_9frame',
+                  'real_datav2_6frame',
+                  'etc']
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    # Copy here the indices you selected with gui
+    all_wanted_s = []
+    all_wanted_f = []
+    all_wanted_s = ['2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2021-12-10_13-06-09',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48',
+                    '2022-05-20_12-47-48']
+    all_wanted_f = [1672,
+                    1694,
+                    1727,
+                    248,
+                    280,
+                    343,
+                    548,
+                    623,
+                    668,
+                    712,
+                    787,
+                    910,
+                    1028,
+                    1187,
+                    1253]
+
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
+def Myhal5_lifelong():
+    """
+    Here we did not change the data but compare models with dl=0.12
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-06-09_09-18-53'
+    end = 'Log_2022-06-17_17-21-21'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    logs = np.insert(logs, 0, 'results/Log_2022-06-01_08-35-48')
+    logs = np.insert(logs, 1, 'results/Log_2022-05-27_16-46-35')
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['all_train',
+                  'traini[:25]',
+                  'traini[:17]',
+                  'traini[:7]',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
@@ -3694,7 +3771,7 @@ if __name__ == '__main__':
     plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
-    plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
+    # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
 
     # Todo new metric where we measure the prediction blob and ground truth blob:
     #   1. diffure gt and do recall
@@ -3708,7 +3785,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = Myhal5_retrain()
+    logs, logs_names, all_wanted_s, all_wanted_f = Myhal5_lifelong()
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None
