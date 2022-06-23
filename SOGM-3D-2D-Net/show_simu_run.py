@@ -509,7 +509,7 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
     # res_names = ['REGULAR', 'SOGM_p1', 'SOGM_no_t', 'SOGM', 'GTSOGM']
     # res_masks = [REGULAR, SOGM_p1, SOGM_no_t, SOGM, GTSOGM]
 
-    res_names = ['REGULAR', 'IGNORE', 'LINEAR', 'SOGM', 'GTSOGM']
+    res_names = ['NoPreds', 'IgnoreDyn', 'LinSOGM', 'DeepSOGM', 'GtSOGM']
     res_masks = [REGULAR, IGNORE, LINEAR, SOGM, GTSOGM]
 
     packed_results = {r_name: [] for r_name in res_names}
@@ -566,11 +566,11 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
     # Colors for the box plots
     res_col = ['dimgrey', 'firebrick', 'darkorange', 'mediumblue', 'palegreen']
 
-    fig, axs = plt.subplots(1, 3, figsize=(8, 3.2), sharex=False, sharey=False)
+    fig, axs = plt.subplots(1, 3, figsize=(10, 4.1), sharex=False, sharey=False)
     fig.subplots_adjust(left=0.11, right=0.95, top=0.95, bottom=0.11)
     axs = list(axs.ravel())
 
-    for ax_i, metric_name in enumerate(['% of Time in Risky Area', '% of Time in Collision Area', 'Time to Finish in seconds']):
+    for ax_i, metric_name in enumerate(['Risk Ratio (%)', 'Collision Ratio (%)', 'Time to Finish (s)']):
 
         y_data = [[]]
         x_data = ['']
@@ -585,10 +585,7 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
                 colors.append('black')
 
             y_data.append(packed_results[res_name][ax_i])
-            if res_i == 2:
-                x_data.append(metric_name)
-            else:
-                x_data.append('')
+            x_data.append('')
             colors.append(res_col[res_i])
 
             # x_data.append('')
@@ -609,11 +606,11 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
 
         # Title
         # axs[ax_i].set_title(loc_meth)
-        # axs[ax_i].text(0.8, .93, metric_name,
-        #                transform=axs[ax_i].get_xaxis_transform(),
-        #                horizontalalignment='left', fontsize='medium',
-        #                weight='roman',
-        #                color='k')
+        axs[ax_i].text(4.5, -0.08, metric_name,
+                       transform=axs[ax_i].get_xaxis_transform(),
+                       horizontalalignment='center', fontsize='medium',
+                       weight='roman',
+                       color='k')
 
         # Hide the grid behind plot objects
         axs[ax_i].set_axisbelow(True)
@@ -635,7 +632,8 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         plt.setp(bp['boxes'][5:], ls='--')
         plt.setp(bp['whiskers'][10:], ls='--')
 
-    # plt.savefig('Exp3.pdf')
+    plt.savefig('Exp_comp.pdf',
+                bbox_inches='tight')
 
     ###################
     # Alternative plots
@@ -696,11 +694,13 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
     t2 = time.time()
     print('Done in {:.1f}s'.format(t2 - t1))
 
-    fig2, axs2 = plt.subplots(1, 4, figsize=(8, 3.2), sharex=False, sharey=False)
-    fig2.subplots_adjust(left=0.11, right=0.95, top=0.95, bottom=0.11)
+    fig2, axs2 = plt.subplots(2, 2, figsize=(8.9, 7.1), sharex=False, sharey=False)
+
+
+    fig2.subplots_adjust(left=0.21, right=0.85, top=0.95, bottom=0.11, wspace=0.4)
     axs2 = list(axs2.ravel())
 
-    for ax_i, metric_name in enumerate(['Avg Speed (m/s)', '% of time stopped', 'Avg Linear Speed (m/s)', '% of time backwards']):
+    for ax_i, metric_name in enumerate(['Avg Absolute Speed (m/s)', '% of time stopped', 'Avg Linear Speed (m/s)', '% of time backwards']):
 
         y_data = [[]]
         x_data = ['']
@@ -715,10 +715,7 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
                 colors.append('black')
 
             y_data.append(alt_results[res_name][ax_i])
-            if res_i == 2:
-                x_data.append(metric_name)
-            else:
-                x_data.append('')
+            x_data.append('')
             colors.append(res_col[res_i])
 
             # x_data.append('')
@@ -733,17 +730,17 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         # so we can use it for reading data values but not be distracting
         axs2[ax_i].yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
 
-        # # Axes range
-        # if ax_i in [1, ]:
-        #     axs2[ax_i].set_ylim(bottom=-6.9/20, top=6.9)
+        # Axes range
+        if ax_i in [1, ]:
+            axs2[ax_i].set_ylim(bottom=1.5, top=9.9)
 
         # Title
         # axs2[ax_i].set_title(loc_meth)
-        # axs2[ax_i].text(0.8, .93, metric_name,
-        #                transform=axs2[ax_i].get_xaxis_transform(),
-        #                horizontalalignment='left', fontsize='medium',
-        #                weight='roman',
-        #                color='k')
+        axs2[ax_i].text(4.5, -0.08, metric_name,
+                        transform=axs2[ax_i].get_xaxis_transform(),
+                        horizontalalignment='center', fontsize='medium',
+                        weight='roman',
+                        color='k')
 
         # Hide the grid behind plot objects
         axs2[ax_i].set_axisbelow(True)
@@ -756,7 +753,7 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
             patch.set_facecolor(color)
 
         # Legend
-        if ax_i == 3:
+        if ax_i == 1:
             my_legends = axs2[ax_i].legend(np.array(bp['boxes'])[[1, 2, 3, 4, 6]], tuple(res_names), fontsize='small')
             plt.setp(my_legends.legendHandles[-1], ls='--')
         
@@ -765,7 +762,8 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         plt.setp(bp['boxes'][5:], ls='--')
         plt.setp(bp['whiskers'][10:], ls='--')
 
-    # plt.savefig('Exp3.pdf')
+    plt.savefig('Exp_comp_add.pdf',
+                bbox_inches='tight')
     plt.show()
 
     print('OK')
@@ -922,30 +920,33 @@ def plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor
     # Colors for the box plots
     res_col = ['deeppink', 'blueviolet', 'mediumblue']
 
-    fig, axs = plt.subplots(1, 3, figsize=(8, 3.2), sharex=False, sharey=False)
+    fig, axs = plt.subplots(1, 3, figsize=(10, 4.1), sharex=False, sharey=False)
     fig.subplots_adjust(left=0.11, right=0.95, top=0.95, bottom=0.11)
     axs = list(axs.ravel())
 
-    for ax_i, metric_name in enumerate(['% of Time in Risky Area', '% of Time in Collision Area', 'Time to Finish in seconds']):
+    for ax_i, metric_name in enumerate(['Risk Ratio (%)', 'Collision Ratio (%)', 'Time to Finish (s)']):
 
         y_data = [[]]
         x_data = ['']
         colors = ['black']
+        x_data.append('')
+        y_data.append([])
+        colors.append('black')
 
 
         for res_i, res_name in enumerate(res_names):
 
             y_data.append(packed_results[res_name][ax_i])
-            if res_i == 1:
-                x_data.append(metric_name)
-            else:
-                x_data.append('')
+            x_data.append('')
             colors.append(res_col[res_i])
 
             # x_data.append('')
             # y_data.append([])
             # colors.append('black')
 
+        x_data.append('')
+        y_data.append([])
+        colors.append('black')
         x_data.append('')
         y_data.append([])
         colors.append('black')
@@ -960,11 +961,11 @@ def plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor
 
         # Title
         # axs[ax_i].set_title(loc_meth)
-        # axs[ax_i].text(0.8, .93, metric_name,
-        #                transform=axs[ax_i].get_xaxis_transform(),
-        #                horizontalalignment='left', fontsize='medium',
-        #                weight='roman',
-        #                color='k')
+        axs[ax_i].text(4, -0.08, metric_name,
+                       transform=axs[ax_i].get_xaxis_transform(),
+                       horizontalalignment='center', fontsize='medium',
+                       weight='roman',
+                       color='k')
 
         # Hide the grid behind plot objects
         axs[ax_i].set_axisbelow(True)
@@ -978,7 +979,7 @@ def plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor
 
         # Legend
         if ax_i == 1:
-            my_legends = axs[ax_i].legend(np.array(bp['boxes'])[[1, 2, 3]], tuple(res_names), fontsize='small')
+            my_legends = axs[ax_i].legend(np.array(bp['boxes'])[[2, 3, 4]], tuple(res_names), fontsize='small')
             # plt.setp(my_legends.legendHandles[-1], ls='--')
         
             
@@ -986,7 +987,8 @@ def plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         # plt.setp(bp['boxes'][5:], ls='--')
         # plt.setp(bp['whiskers'][10:], ls='--')
 
-    # plt.savefig('Exp3.pdf')
+    plt.savefig('Exp_ablation.pdf',
+                bbox_inches='tight')
 
     ###################
     # Alternative plots
@@ -1300,8 +1302,8 @@ def main():
 
     # save_vid_traj(runs_path, selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 
-    plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info)
-    # plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info)
+    # plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info)
+    plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy, all_times, all_success, all_nav_info)
 
     # plot_slider_traj(selected_runs, gt_t, gt_H, footprint, actor_times, actor_xy)
 

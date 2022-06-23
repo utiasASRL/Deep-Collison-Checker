@@ -7,7 +7,7 @@
 #
 # ----------------------------------------------------------------------------------------------------------------------
 #
-#      Callable script to start a training on MyhalCollision dataset
+#      Callable script to start a training on MultiCollision dataset
 #
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -35,7 +35,8 @@ import torch
 
 # Dataset
 from torch.utils.data import DataLoader
-from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate
+from datasets.MultiCollision import MultiCollisionDataset, MultiCollisionSampler, MultiCollisionCollate
+
 
 from utils.config import Config
 from utils.trainer import ModelTrainer
@@ -53,7 +54,7 @@ from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, Myhal5_ses
 #       \******************/
 #
 
-class MyhalCollisionConfig(Config):
+class MultiCollisionConfig(Config):
     """
     Override the parameters you want to modify for this dataset
     """
@@ -63,7 +64,7 @@ class MyhalCollisionConfig(Config):
     ####################
 
     # Dataset name
-    dataset = 'MyhalCollision'
+    dataset = 'MultiCollision'
 
     # Number of classes in the dataset (This value is overwritten by dataset class when Initializating dataset).
     num_classes = None
@@ -128,7 +129,7 @@ class MyhalCollisionConfig(Config):
     
     # Balance class in sampler, using custom proportions
     # It can have an additionnal value (one more than num_classes), to encode the proportion of simulated data we use for training
-    balance_proportions = [0, 0, 1, 1, 20, 1.0]
+    balance_proportions = [0, 0, 1, 1, 20, 0.8]
 
     # Specification of the 2D networks composition
     init_2D_levels = 3      # 3
@@ -253,6 +254,7 @@ class MyhalCollisionConfig(Config):
 
 if __name__ == '__main__':
 
+
     # NOT_NOW_TODO: Optimize online predictions
     #           > Try to parallelise the batch preprocessing for a single input frame.
     #           > Use OMP for neighbors processing
@@ -372,9 +374,11 @@ if __name__ == '__main__':
 
     # Get sessions from the annotation script
     dataset_path, map_day, refine_sessions, train_days, train_comments = Myhal5_sessions_v2()
+    dataset_path2, map_day2, refine_sessions2, train_days2, train_comments2 = Myhal1_sessions()
 
     # Get training and validation sets
     val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])
+    val_inds2 = np.array([i for i, c in enumerate(train_comments2) if 'val' in c.split('>')[0]])
 
     ######################
     # Automatic Annotation
@@ -423,6 +427,7 @@ if __name__ == '__main__':
 
     # Validation sessions
     train_inds = [i for i in range(len(train_days)) if i not in val_inds]
+    train_inds2 = [i for i in range(len(train_days2)) if i not in val_inds2]
     
 
     # TMP, lifelong learning exp. Use trains inds up to :7, :17, :25, :all
@@ -430,11 +435,9 @@ if __name__ == '__main__':
     # train_inds = train_inds[:17]
     # train_inds = train_inds[:7]
 
-    # Then, add simulation data
-
 
     # Initialize configuration class
-    config = MyhalCollisionConfig()
+    config = MultiCollisionConfig()
   
     # Override with configuration from previous 3D network if given
     if config.pretrained_3D and config.pretrained_3D != 'todo':
@@ -445,7 +448,7 @@ if __name__ == '__main__':
             raise ValueError('Given path for previous 3D network does not exist')
         
         # Load config
-        prev_config = MyhalCollisionConfig()
+        prev_config = MultiCollisionConfig()
         prev_config.load(previous_path)
 
         # List of params we should not overwrite:
@@ -513,37 +516,42 @@ if __name__ == '__main__':
     # Init input pipeline
     #####################
 
-    # Initialize datasets (dummy validation)
-    training_dataset = MyhalCollisionDataset(config,
-                                             train_days[train_inds],
+
+    train_days_lists = [train_days[train_inds],
+                        train_days2[train_inds2],
+                        sim_train_days[sim_train_inds]]
+    training_dataset = MultiCollisionDataset(config,
+                                             train_days_lists,
                                              chosen_set='training',
-                                             dataset_path=dataset_path,
-                                             balance_classes=True,
-                                             add_sim_path=sim_path,
-                                             add_sim_days=sim_train_days[sim_train_inds])
-    test_dataset = MyhalCollisionDataset(config,
-                                         train_days[val_inds],
+                                             dataset_paths=[dataset_path, dataset_path2, sim_path],
+                                             simulated=[False, False, True],
+                                             balance_classes=True)
+
+    val_days_lists = [train_days[val_inds],
+                      train_days2[val_inds2],
+                      sim_train_days[sim_val_inds]]
+    test_dataset = MultiCollisionDataset(config,
+                                         val_days_lists,
                                          chosen_set='validation',
-                                         dataset_path=dataset_path,
-                                         balance_classes=False,
-                                         add_sim_path=sim_path,
-                                         add_sim_days=sim_train_days[sim_val_inds])
+                                         dataset_paths=[dataset_path, dataset_path2, sim_path],
+                                         simulated=[False, False, True],
+                                         balance_classes=False,)
 
     # Initialize samplers
-    training_sampler = MyhalCollisionSampler(training_dataset, manual_training_frames=True)
-    test_sampler = MyhalCollisionSampler(test_dataset)
+    training_sampler = MultiCollisionSampler(training_dataset, manual_training_frames=True)
+    test_sampler = MultiCollisionSampler(test_dataset)
 
     # Initialize the dataloader
     training_loader = DataLoader(training_dataset,
                                  batch_size=1,
                                  sampler=training_sampler,
-                                 collate_fn=MyhalCollisionCollate,
+                                 collate_fn=MultiCollisionCollate,
                                  num_workers=config.input_threads,
                                  pin_memory=True)
     test_loader = DataLoader(test_dataset,
                              batch_size=1,
                              sampler=test_sampler,
-                             collate_fn=MyhalCollisionCollate,
+                             collate_fn=MultiCollisionCollate,
                              num_workers=config.input_threads,
                              pin_memory=True)
 

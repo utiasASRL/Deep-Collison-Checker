@@ -267,7 +267,8 @@ def Myhal5_sessions_v2():
     # '2021-12-13_18-22-11',    1 blocker / 3 people
     # '2021-12-15_19-09-57',    4 people
     # '2021-12-15_19-13-03']    3 people
-    
+
+    # batch 1: 9 sessions
     dataset_path = '../Data/old_Myhal5'
     sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
                              ['2021-12-06_08-38-16', ' mapping > '],    # -  \
@@ -284,6 +285,7 @@ def Myhal5_sessions_v2():
                              ['2021-12-15_19-09-57', ' train > '],      # -   > Session with normal TEB planner Tour A and B
                              ['2021-12-15_19-13-03', ' train > ']]      # -  /
 
+    # batch 2: 10 sessions
     sessions_and_comments += [['2022-01-18_10-38-28', ' train > '],     # 14 \
                               ['2022-01-18_10-42-54', ' train > '],     # -   \
                               ['2022-01-18_10-47-07', ' train > '],     # -    \
@@ -295,6 +297,7 @@ def Myhal5_sessions_v2():
                               ['2022-01-18_11-15-40', ' train > '],     # -   /
                               ['2022-01-18_11-20-21', ' train > ']]     # -  /
 
+    # batch 3: 6 sessions
     sessions_and_comments += [['2022-02-25_18-19-12', ' train > '],     # 24 \
                               ['2022-02-25_18-24-30', ' train > '],     # -   > Face to face scenario on (loop_2)
                               ['2022-02-25_18-29-18', ' train > ']]     # -  /
@@ -303,25 +306,25 @@ def Myhal5_sessions_v2():
                               ['2022-03-01_22-06-28', ' train > '],     # -   > More data (loop_2inv and loop8)
                               ['2022-03-01_22-25-19', ' train > ']]     # -  /
 
+    # batch 4: 15 sessions
     sessions_and_comments += [['2022-05-20_11-46-11', ' mapping > '],   # 30    > Refinement run
                               ['2022-05-20_12-47-48', '  val  > '],     # -     > movers moving tables
                               ['2022-05-20_12-54-23', ' train > '],     # -     > movers moving tables
                               ['2022-05-20_12-58-26', ' train > '],     # -     > movers moving tables
                               ['2022-05-20_13-04-19', ' mapping > ']]   # -     > Refinement run
 
-                              
-    sessions_and_comments += [['2022-05-31_14-45-53', ' train > '],
-                              ['2022-05-31_16-25-23', ' train > '],
-                              ['2022-05-31_16-29-56', ' train > '],
-                              ['2022-05-31_16-35-32', ' train > '],
-                              ['2022-05-31_16-38-34', ' train > '],
-                              ['2022-05-31_18-33-02', ' train > '],
-                              ['2022-05-31_19-34-18', '  val  > '],
-                              ['2022-05-31_19-37-08', ' train > '],
-                              ['2022-05-31_19-40-52', '  val  > '],
-                              ['2022-05-31_19-44-52', ' train > '],
-                              ['2022-05-31_19-47-52', ' train > '],
-                              ['2022-05-31_19-51-14', ' train > '], ]
+    sessions_and_comments += [['2022-05-31_14-45-53', ' train > '],     #
+                              ['2022-05-31_16-25-23', ' train > '],     #
+                              ['2022-05-31_16-29-56', ' train > '],     #
+                              ['2022-05-31_16-35-32', ' train > '],     #
+                              ['2022-05-31_16-38-34', ' train > '],     #
+                              ['2022-05-31_18-33-02', ' train > '],     # Conference collected data
+                              ['2022-05-31_19-34-18', '  val  > '],     # 
+                              ['2022-05-31_19-37-08', ' train > '],     #
+                              ['2022-05-31_19-40-52', '  val  > '],     #
+                              ['2022-05-31_19-44-52', ' train > '],     #
+                              ['2022-05-31_19-47-52', ' train > '],     #
+                              ['2022-05-31_19-51-14', ' train > '], ]   #
 
     sessions = [s_c[0] for s_c in sessions_and_comments]
     comments = [s_c[1] for s_c in sessions_and_comments]

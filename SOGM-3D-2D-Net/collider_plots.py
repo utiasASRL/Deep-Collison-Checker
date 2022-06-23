@@ -2419,24 +2419,33 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
 
         # Plot last PR curve for each log
         for i, name in enumerate(list_of_names):
+            
+            # Init x-axis values
+            times = log_times[i]
+
+            # MSE [T, frames]
+            real_MSE = comparison_MSE[i][-1, np.logical_not(is_sim), :]
+            sim_MSE = comparison_MSE[i][-1, is_sim, :]
+
+            # Mask of computed frames (we skip some during the testing)
+            real_done = np.sum(np.abs(real_MSE), axis=1) > 1e-9
+            sim_done = np.sum(np.abs(sim_MSE), axis=1) > 1e-9
+
+            # MSE [T]
+            real_MSE = np.mean(real_MSE[real_done], axis=0)
+            sim_MSE = np.mean(sim_MSE[sim_done], axis=0)
 
             # [frames_n, T, nt, 3]
             all_TP_FP_FN = comparison_TP_FP_FN[i][-1]
-
-            # Init x-axis values
-            times = log_times[i]
             
             # All stats from real and sim sequences [T, nt, 3]
-            real_TP_FP_FN = np.sum(all_TP_FP_FN[np.logical_not(is_sim)], axis=0)
-            sim_TP_FP_FN = np.sum(all_TP_FP_FN[is_sim], axis=0)
+            real_TP_FP_FN = np.sum(all_TP_FP_FN[np.logical_not(is_sim)][real_done], axis=0)
+            sim_TP_FP_FN = np.sum(all_TP_FP_FN[is_sim][sim_done], axis=0)
 
             # Chosen timestamps [nt, T, 3]
             real_TP_FP_FN = np.transpose(real_TP_FP_FN, (1, 0, 2))
             sim_TP_FP_FN = np.transpose(sim_TP_FP_FN, (1, 0, 2))
 
-            # MSE [T]
-            real_MSE = np.mean(comparison_MSE[i][-1, np.logical_not(is_sim), :], axis=0)
-            sim_MSE = np.mean(comparison_MSE[i][-1, is_sim, :], axis=0)
             
             s = ''
             for ax_i, (chosen_TP_FP_FN, MSE, ax) in enumerate(zip([real_TP_FP_FN, sim_TP_FP_FN], [real_MSE, sim_MSE], axesC)):
@@ -2478,7 +2487,7 @@ def comparison_metrics(list_of_paths, list_of_names, real_val_days, sim_val_days
                 s += '{:^10.5f}'.format(100*AP[ind1])
                 s += '{:^10.5f}'.format(100*AP[ind2])
                 s += '{:^10.5f}'.format(100*np.mean(AP[:ind3]))
-                s += '{:^12.5f}'.format(10000 * np.mean(MSE))
+                s += '{:^12.5f}'.format(1000 * np.mean(MSE))
 
                 ax.plot(times[:-1], AP[:-1], linewidth=1, label=name)
                 #ax.plot(times, f1s[best_mean], linewidth=1, label=name)
@@ -3673,7 +3682,11 @@ def Myhal5_lifelong():
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
     start = 'Log_2022-06-09_09-18-53'
-    end = 'Log_2022-06-17_17-21-21'
+    end = 'Log_2022-06-20_17-21-21'
+
+    end = 'Log_2022-06-13_22-02-50'
+
+    
 
     # Path to the results logs
     res_path = 'results'
@@ -3691,6 +3704,14 @@ def Myhal5_lifelong():
                   'traini[:25]',
                   'traini[:17]',
                   'traini[:7]',
+                  'all+simu_60/40',
+                  'all+simu_80/20',
+                  'all+simu_50/50',
+                  'all+simu_40/60',
+                  'all+simu_20/80',
+                  'simu',
+                  'NEXT_EXP_MyhalA+H(50/50)',
+                  'NEXT_EXP_MyhalA+H+Simu(25/25/50)',
                   'etc']
 
     logs_names = np.array(logs_names[:len(logs)])
@@ -3735,6 +3756,71 @@ def Myhal5_lifelong():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
+def Myhal51_combined():
+    """
+    Here we use both dataset combined
+    """
+
+    # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
+    start = 'Log_2022-06-21_14-28-14'
+    end = 'Log_2022-06-21_17-21-21'
+
+    # Path to the results logs
+    res_path = 'results'
+
+    # Gathering names
+    logs = np.sort([join(res_path, log) for log in listdir(res_path) if start <= log <= end])
+
+    # Optinally add some specific folder that is not between start and end
+    logs = logs.astype('<U50')
+
+    # Give names to the logs (for legends). These logs were all done with e500 and rot augment
+    logs_names = ['MyhalA+H(50/50/0)',
+                  'MyhalA+H+Simu(25/25/50)',
+                  'FOR NOW CANNOT HANDLE THIS WITH THIS SCRIPT'
+                  'etc']
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    # Copy here the indices you selected with gui
+    all_wanted_s = []
+    all_wanted_f = []
+    # all_wanted_s = ['2021-12-10_13-06-09',
+    #                 '2021-12-10_13-06-09',
+    #                 '2021-12-10_13-06-09',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48',
+    #                 '2022-05-20_12-47-48']
+    # all_wanted_f = [1672,
+    #                 1694,
+    #                 1727,
+    #                 248,
+    #                 280,
+    #                 343,
+    #                 548,
+    #                 623,
+    #                 668,
+    #                 712,
+    #                 787,
+    #                 910,
+    #                 1028,
+    #                 1187,
+    #                 1253]
+
+    logs_names = np.array(logs_names[:len(logs)])
+
+    return logs, logs_names, all_wanted_s, all_wanted_f
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Main call
@@ -3766,9 +3852,9 @@ if __name__ == '__main__':
     # Step 1: Choose what you want to plot
     ######################################
 
-    # plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
+    plotting = 'gifs'  # Comparison of last checkpoints of each logs as gif images
 
-    plotting = 'PR'  # Comparison of the performances with good metrics
+    # plotting = 'PR'  # Comparison of the performances with good metrics
     # plotting = 'PR-100'  # Comparison of the performances with good metrics
 
     # plotting = 'conv'  # Convergence of the training sessions (plotting training loss and validation results)
