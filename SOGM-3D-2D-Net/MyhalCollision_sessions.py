@@ -326,6 +326,16 @@ def Myhal5_sessions_v2():
                               ['2022-05-31_19-47-52', ' train > '],     #
                               ['2022-05-31_19-51-14', ' train > '], ]   #
 
+    # # Test sessions for controleld exp only comment this otherwise
+    # sessions_and_comments += [['2022-06-01_16-28-54', '  val  > Run made by Catherine, not much happening'],        #
+    #                           ['2022-06-01_18-11-37', '  val  > Controlled comparison:  AI-CRV-4 / SOGM ( ok )'],   #
+    #                           ['2022-06-01_18-15-07', '  val  > Controlled comparison:  AI-CRV-4 / TEB  ( ok )'],   #
+    #                           ['2022-06-01_18-20-40', '  val  > Controlled comparison:  AI-CRV-4 / SOGM ( ok )'],   # Controlled comparison
+    #                           ['2022-06-01_18-23-28', '  val  > Controlled comparison:  AI-CRV-4 / TEB  ( ok )'],   # Conference collected data
+    #                           ['2022-06-01_20-36-03', '  val  > Controlled comparison:  AI-CRV-4 / no_t ( ok )'],   # 
+    #                           ['2022-06-01_20-42-11', '  val  > Controlled comparison:  AI-CRV-4 / no_t ( ok )']]   #
+
+
     sessions = [s_c[0] for s_c in sessions_and_comments]
     comments = [s_c[1] for s_c in sessions_and_comments]
 

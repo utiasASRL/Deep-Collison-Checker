@@ -1976,7 +1976,7 @@ def annotation_process(dataset,
             if (day >= '2022-05-31_14-45-53'):
 
                 loc_t, loc_H = load_loc_poses(join(dataset.data_path, 'runs'), day)
-                print(loc_H.shape)
+                print('Using initial alignement from online session')
                 
                 # init_H = np.array([[0.0, -1.0, 0.0, 3.5],
                 #                    [1.0, 0.0, 0.0, 11.4],
@@ -1984,7 +1984,7 @@ def annotation_process(dataset,
                 #                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
                 init_H = loc_H[0]
 
-            print(init_H)
+                print(init_H)
 
             odom_H = [np.linalg.inv(init_H) for _ in map_t]
             odom_H = np.stack(odom_H, 0)

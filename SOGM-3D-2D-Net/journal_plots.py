@@ -22,6 +22,7 @@
 #
 
 # Common libs
+from gettext import find
 import os
 import shutil
 import torch
@@ -50,18 +51,251 @@ from utils.ply import read_ply, write_ply
 from models.architectures import FakeColliderLoss, KPCollider
 from utils.tester import ModelTester
 from utils.mayavi_visu import fast_save_future_anim, save_zoom_img, colorize_collisions, zoom_collisions, superpose_gt, \
-    show_local_maxima, show_risk_diffusion, superpose_gt_contour, superpose_and_merge
+    show_local_maxima, show_risk_diffusion, superpose_gt_contour, superpose_and_merge, SRM_colors
+
+from gt_annotation_video import loading_session, motion_rectified, open_3d_vid
 
 # Datasets
+from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate
+from train_MyhalCollision import MyhalCollisionConfig
 from datasets.MultiCollision import MultiCollisionDataset, MultiCollisionSampler, MultiCollisionCollate, MultiCollisionSamplerTest
-from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, oldMyhal5_sessions
+from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, oldMyhal5_sessions, Myhal5_sessions_v2
 
+from scipy import ndimage
+import scipy.ndimage.filters as filters
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
 #           Utility functions
 #       \***********************/
 #
+
+
+def get_local_maxima(data, neighborhood_size=5, threshold=0.1):
+    
+    # Get maxima positions as a mask
+    data_max = filters.maximum_filter(data, neighborhood_size)
+    max_mask = (data == data_max)
+
+    # Remove maxima if their peak is not higher than threshold in the neighborhood
+    data_min = filters.minimum_filter(data, neighborhood_size)
+    diff = ((data_max - data_min) > threshold)
+    max_mask[diff == 0] = 0
+
+    return max_mask
+
+
+def mask_to_pix(mask):
+    
+    # Get positions in world coordinates
+    labeled, num_objects = ndimage.label(mask)
+    slices = ndimage.find_objects(labeled)
+    x, y = [], []
+
+    mask_pos = []
+    for dy, dx in slices:
+
+        x_center = (dx.start + dx.stop - 1) / 2
+        y_center = (dy.start + dy.stop - 1) / 2
+        mask_pos.append(np.array([x_center, y_center], dtype=np.float32))
+
+    return mask_pos
+
+
+def diffusing_convolution(obstacle_range, dl, norm_p, dim1D=False):
+    
+    k_range = int(np.ceil(obstacle_range / dl))
+    k = 2 * k_range + 1
+
+    if dim1D:
+        dist_kernel = np.zeros((k, 1, 1))
+        for i in range(k):
+            dist_kernel[i, 0, 0] = abs(i - k_range)
+
+    else:
+        dist_kernel = np.zeros((k, k))
+        for i, vv in enumerate(dist_kernel):
+            for j, v in enumerate(vv):
+                dist_kernel[i, j] = np.sqrt((i - k_range) ** 2 + (j - k_range) ** 2)
+
+
+    dist_kernel = np.clip(1.0 - dist_kernel * (dl / obstacle_range), 0, 1) ** norm_p
+
+    if dim1D:
+        fixed_conv = torch.nn.Conv3d(1, 1, (k, 1, 1),
+                                     stride=1,
+                                     padding=(k_range, 0, 0),
+                                     padding_mode='replicate',
+                                     bias=False)
+
+    else:
+        fixed_conv = torch.nn.Conv2d(1, 1, k, stride=1, padding=k_range, bias=False)
+
+    fixed_conv.weight.requires_grad = False
+    fixed_conv.weight *= 0
+
+    fixed_conv.weight += torch.from_numpy(dist_kernel)
+
+    return fixed_conv
+
+
+def get_diffused_risk(config, collision_preds, dynamic_t_range=1.0, norm_p=3, normalization=True):
+
+    # Get the GPU for PyTorch
+    device = torch.device("cuda:0")
+    collision_preds = collision_preds.to(device)
+    
+    static_range = 1.2
+    dynamic_range = 1.2
+    # dynamic_t_range = 1.0
+    # norm_p = 3
+    norm_invp = 1 / norm_p
+    maxima_layers = [15]
+
+
+    # Convolution for Collision risk diffusion
+    static_conv = diffusing_convolution(static_range, config.dl_2D, norm_p)
+    static_conv.to(device)
+    dynamic_conv = diffusing_convolution(dynamic_range, config.dl_2D, norm_p)
+    dynamic_conv.to(device)
+
+    # Convolution for time diffusion
+    dt = config.T_2D / config.n_2D_layers
+    time_conv = diffusing_convolution(dynamic_t_range, dt, norm_p, dim1D=True)
+    time_conv.to(device)
+
+                                
+    # # Remove residual preds (hard hysteresis)
+    # collision_risk *= (collision_risk > 0.06).type(collision_risk.dtype)
+                
+    # Remove residual preds (soft hysteresis)
+    # lim1 = 0.06
+    # lim2 = 0.09
+    lim1 = 0.15
+    lim2 = 0.2
+    dlim = lim2 - lim1
+    mask0 = collision_preds <= lim1
+    mask1 = torch.logical_and(collision_preds < lim2, collision_preds > lim1)
+    collision_preds[mask0] *= 0
+    collision_preds[mask1] *= (1 - ((collision_preds[mask1] - lim2) / dlim) ** 2) ** 2
+
+    # Static risk
+    # ***********
+
+    # Get risk from static objects, [1, 1, W, H]
+    static_preds = torch.unsqueeze(torch.max(collision_preds[:1, :, :, :2], dim=-1)[0], 1)
+
+    if normalization:
+        # Normalize risk values between 0 and 1 depending on density
+        static_risk = static_preds / (static_conv(static_preds) + 1e-6)
+
+    else:
+        # No Normalization
+        static_risk = static_preds / (static_conv(static_preds) * 0.0 + 1.0)
+
+
+    # Diffuse the risk from normalized static objects
+    diffused_0 = static_conv(static_risk).cpu().detach().numpy()
+
+    # Do not repeat we only keep it for the first layer: [1, 1, W, H] -> [W, H]
+    diffused_0 = np.squeeze(diffused_0)
+    
+    # Inverse power for p-norm
+    diffused_0 = np.power(np.maximum(0, diffused_0), norm_invp)
+
+    # Dynamic risk
+    # ************
+
+    # Get dynamic risk [T, W, H]
+    dynamic_risk = collision_preds[..., 2]
+
+    # Get high risk area
+    high_risk_threshold = 0.4
+    high_risk_mask = dynamic_risk > high_risk_threshold
+    high_risk = torch.zeros_like(dynamic_risk)
+    # high_risk[high_risk_mask] = dynamic_risk[high_risk_mask]
+    high_risk[high_risk_mask] = 1
+
+    # On the whole dynamic_risk, convolution
+    # Higher value for larger area of risk even if low risk
+    dynamic_risk = torch.unsqueeze(dynamic_risk, 1)
+    diffused_1 = torch.squeeze(dynamic_conv(dynamic_risk))
+
+    # Inverse power for p-norm
+    diffused_1 = torch.pow(torch.clamp(diffused_1, min=0), norm_invp)
+
+    # Rescale this low_risk at smaller value
+    low_risk_value = 0.4
+    diffused_1 = low_risk_value * diffused_1 / (torch.max(diffused_1) + 1e-6)
+
+    # On the high risk, we normalize to have similar value of highest risk (around 1.0)
+    high_risk_norm = torch.squeeze(dynamic_conv(torch.unsqueeze(high_risk, 1)))
+    high_risk_norm = torch.unsqueeze(torch.unsqueeze(high_risk_norm, 0), 0)
+    high_risk_norm = torch.squeeze(time_conv(high_risk_norm))
+    high_risk_normalized = high_risk / (high_risk_norm + 1e-6)
+
+    # We only diffuse time for high risk (as this is useful for the beginning of predictions)
+    diffused_2 = torch.squeeze(dynamic_conv(torch.unsqueeze(high_risk_normalized, 1)))
+    diffused_2 = torch.unsqueeze(torch.unsqueeze(diffused_2, 0), 0)
+    diffused_2 = torch.squeeze(time_conv(diffused_2))
+
+    # Inverse power for p-norm
+    diffused_2 = torch.pow(torch.clamp(diffused_2, min=0), norm_invp)
+
+    # Rescale and combine risk
+    # ************************
+    
+    # Combine dynamic risks
+    diffused_1 = torch.maximum(diffused_1, diffused_2).detach().cpu().numpy()
+
+    # Rescale risk with a fixed value, because thx to normalization, the mx should be close to one, 
+    # There are peak at border so we divide by 1.1 to take it into consideration
+    diffused_1 *= 1.0 / 1.1
+    diffused_0 *= 1.0 / 1.1
+
+    if not normalization:
+        diffused_0 *= 1.0 / np.max(diffused_0)
+
+
+    # merge the static risk as the first layer of the vox grid (with the delay this layer is useless for dynamic)
+    diffused_1[0, :, :] = diffused_0
+
+    # Convert to uint8 for message 0-254 = prob, 255 = fixed obstacle
+    diffused_risk = np.minimum(diffused_1 * 255, 255).astype(np.uint8)
+    
+    # # Save walls for debug
+    # debug_walls = np.minimum(diffused_risk[10] * 255, 255).astype(np.uint8)
+    # cm = plt.get_cmap('viridis')
+    # print(batch.t0)
+    # print(type(batch.t0))
+    # im_name = join(ENV_HOME, 'catkin_ws/src/collision_trainer/results/debug_walls_{:.3f}.png'.format(batch.t0))
+    # imageio.imwrite(im_name, zoom_collisions(cm(debug_walls), 5))
+
+    # Get local maxima in moving obstacles
+    obst_mask = None
+    for layer_i in maxima_layers:
+        if obst_mask is None:
+            obst_mask = get_local_maxima(diffused_1[layer_i])
+        else:
+            obst_mask = np.logical_or(obst_mask, get_local_maxima(diffused_1[layer_i]))
+
+    # Use max pool to get obstacles in one cell over two [H, W] => [H//2, W//2]
+    stride = 2
+    pool = torch.nn.MaxPool2d(stride, stride=stride, return_indices=True)
+    unpool = torch.nn.MaxUnpool2d(stride, stride=stride)
+    output, indices = pool(static_preds.detach())
+    static_preds_2 = unpool(output, indices, output_size=static_preds.shape)
+
+    # Merge obstacles
+    obst_mask[np.squeeze(static_preds_2.cpu().numpy()) > 0.3] = 1
+
+    # Convert to pixel positions
+    obst_pos = mask_to_pix(obst_mask)
+
+    # Get mask of static obstacles for visu
+    static_mask = np.squeeze(static_preds.detach().cpu().numpy()) > 0.3
+    
+    return diffused_risk, obst_pos, static_mask
 
 
 def print_sorted_val_table(logs_names, log_val_days, sorted_val_days, data_folders):
@@ -695,7 +929,8 @@ def comparison_metrics_multival(list_of_paths, list_of_names, sorted_val_days, d
         # Table
         #######
 
-        metric_names = ['AP_1', 'AP_2', 'AP_3', 'mAP']
+        metric_names = ['AP_1', 'AP_2', 'AP_3', 'AP_tot']
+        metric_names = ['mAP_1', 'mAP_2', 'mAP_3', 'mAP_tot']
         # metric_names = ['MSE_1', 'MSE_2', 'MSE_3', 'mMSE']
 
         # Get width of first and next columns
@@ -718,17 +953,11 @@ def comparison_metrics_multival(list_of_paths, list_of_names, sorted_val_days, d
         # Plot last PR curve for each log
         for i, name in enumerate(list_of_names):
 
-            # [val_n][frames_n, T, nt, 3]
+            # TP_FP_FN per frames [val_n][frames_n, T, nt, 3]
             all_TP_FP_FN = [comp_TP_FP_FN[-1] for comp_TP_FP_FN in comparison_TP_FP_FN[i]]
 
             # Init x-axis values
             times = log_times[i]
-            
-            # All stats from real and sim sequences [val_n, T, nt, 3]
-            all_TP_FP_FN = np.stack([np.sum(tpfpfn, axis=0) for tpfpfn in all_TP_FP_FN], axis=0)
-
-            # Chosen timestamps [val_n, nt, T, 3]
-            all_TP_FP_FN = np.transpose(all_TP_FP_FN, (0, 2, 1, 3))
 
             # MSE [T]
             all_MSE = [comp_MSE[-1] for comp_MSE in comparison_MSE[i]]
@@ -736,44 +965,116 @@ def comparison_metrics_multival(list_of_paths, list_of_names, sorted_val_days, d
             
             s = ''
             for ax_i, (chosen_TP_FP_FN, MSE) in enumerate(zip(all_TP_FP_FN, all_MSE)):
-                tps = chosen_TP_FP_FN[..., 0]
-                fps = chosen_TP_FP_FN[..., 1]
-                fns = chosen_TP_FP_FN[..., 2]
 
-                pre = tps / (fns + tps + 1e-6)
-                rec = tps / (fps + tps + 1e-6)
-                f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+                
+                if 'mAP_1' in metric_names:
 
-                best_mean = np.argmax(np.mean(f1s, axis=1))
-                best_last = np.argmax(np.mean(f1s[:, -10:], axis=1))
+                    # [nt, frames, T]
+                    chosen_TP_FP_FN = np.transpose(chosen_TP_FP_FN, (2, 0, 1, 3))
+                    tps = chosen_TP_FP_FN[..., 0]
+                    fps = chosen_TP_FP_FN[..., 1]
+                    fns = chosen_TP_FP_FN[..., 2]
+                    pre = tps / (fns + tps + 1e-6)
+                    rec = tps / (fps + tps + 1e-6)
+                    f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+                    
+                    # Reverse for AP
+                    rec = rec[::-1]
+                    pre = pre[::-1]
 
-                rec = rec[::-1]
-                pre = pre[::-1]
+                    # Correct last recs that become zero
+                    end_rec = rec[-10:]
+                    end_rec[end_rec < 0.01] = 1.0
+                    pre = np.vstack((np.ones_like(pre[:1]), pre))
+                    rec = np.vstack((np.zeros_like(rec[:1]), rec))
 
-                # Correct last recs that become zero
-                end_rec = rec[-10:, :]
-                end_rec[end_rec < 0.01] = 1.0
-                pre = np.vstack((np.ones_like(pre[:1]), pre))
-                rec = np.vstack((np.zeros_like(rec[:1]), rec))
+                    # Average precision as computed by scikit [frames, T]
+                    AP = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
 
-                # Average precision as computed by scikit
-                AP = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
+                    # Mean to get to [T]
+                    AP = np.mean(AP, axis=0)
+
+                    # AP on full SOGMs [frames]
+                    full_TP_FP_FN = np.sum(chosen_TP_FP_FN, axis=2)
+                    tps = full_TP_FP_FN[..., 0]
+                    fps = full_TP_FP_FN[..., 1]
+                    fns = full_TP_FP_FN[..., 2]
+                    pre = tps / (fns + tps + 1e-6)
+                    rec = tps / (fps + tps + 1e-6)
+                    f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+                    rec = rec[::-1]
+                    pre = pre[::-1]
+                    AP_tot = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
+                    AP_tot = np.mean(AP_tot)
+
+                    
+                else:
+                    
+                    # All stats from real and sim sequences combined [nt, T, 3]
+                    combined_TP_FP_FN = np.sum(chosen_TP_FP_FN, axis=0)
+                    combined_TP_FP_FN = np.transpose(combined_TP_FP_FN, (1, 0, 2))
+                    
+                    # [nt, T]
+                    tps = combined_TP_FP_FN[..., 0]
+                    fps = combined_TP_FP_FN[..., 1]
+                    fns = combined_TP_FP_FN[..., 2]
+
+                    pre = tps / (fns + tps + 1e-6)
+                    rec = tps / (fps + tps + 1e-6)
+                    f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+
+                    best_mean = np.argmax(np.mean(f1s, axis=1))
+                    best_last = np.argmax(np.mean(f1s[:, -10:], axis=1))
+
+                    rec = rec[::-1]
+                    pre = pre[::-1]
+                    
+                    # Correct last recs that become zero
+                    end_rec = rec[-10:, :]
+                    end_rec[end_rec < 0.01] = 1.0
+                    pre = np.vstack((np.ones_like(pre[:1]), pre))
+                    rec = np.vstack((np.zeros_like(rec[:1]), rec))
+
+                    # Average precision as computed by scikit [T]
+                    AP = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
+                    
+                    # AP on full SOGMs [1]
+                    full_TP_FP_FN = np.sum(combined_TP_FP_FN, axis=1)
+                    tps = full_TP_FP_FN[..., 0]
+                    fps = full_TP_FP_FN[..., 1]
+                    fns = full_TP_FP_FN[..., 2]
+                    pre = tps / (fns + tps + 1e-6)
+                    rec = tps / (fps + tps + 1e-6)
+                    f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+                    rec = rec[..., ::-1]
+                    pre = pre[..., ::-1]
+
+                    # Correct last recs that become zero
+                    end_rec = rec[-10:]
+                    end_rec[end_rec < 0.01] = 1.0
+                    pre = np.concatenate((np.ones_like(pre[:1]), pre), axis=0)
+                    rec = np.concatenate((np.zeros_like(rec[:1]), rec), axis=0)
+
+                    AP_tot = np.sum((rec[..., 1:] - rec[..., :-1]) * pre[..., 1:], axis=-1)
+
+
 
                 if ax_i == 0:
                     s += '{:^{width}s} '.format(name, width=n_fmt0)
                 else:
                     s += '  '
 
-                ind1 = np.argmin(np.abs(times - 1.0))
+                ind1 = np.argmin(np.abs(times - 0.0))
                 ind2 = np.argmin(np.abs(times - 2.0))
                 ind3 = np.argmin(np.abs(times - 3.0))
                 ind4 = np.argmin(np.abs(times - np.min(horizons)))
 
-                if 'mAP' in metric_names:
+                if 'AP_1' in metric_names or 'mAP_1' in metric_names:
                     s += '{:^{width}.1f}'.format(100*AP[ind1], width=n_fmt1)
                     s += '{:^{width}.1f}'.format(100*AP[ind2], width=n_fmt1)
                     s += '{:^{width}.1f}'.format(100*AP[ind3], width=n_fmt1)
                     s += '{:^{width}.1f}'.format(100*np.mean(AP[:ind4]), width=n_fmt1)
+                    # s += '{:^{width}.1f}'.format(100*AP_tot, width=n_fmt1)
 
                 else:
                     s += '{:^{width}.2f}'.format(1000*MSE[ind1], width=n_fmt1)
@@ -783,71 +1084,71 @@ def comparison_metrics_multival(list_of_paths, list_of_names, sorted_val_days, d
 
             print(s)
 
-        #######
-        # Plot
-        #######
+        # #######
+        # # Plot
+        # #######
 
-        # Figure
-        n_val = len(dataset_folders)
-        figC, axesC = plt.subplots(1, n_val, figsize=(9, 4))
+        # # Figure
+        # n_val = len(dataset_folders)
+        # figC, axesC = plt.subplots(1, n_val, figsize=(9, 4))
 
-        # Plot last PR curve for each log
-        for i, name in enumerate(list_of_names):
+        # # Plot last PR curve for each log
+        # for i, name in enumerate(list_of_names):
 
-            # [val_n][frames_n, T, nt, 3]
-            all_TP_FP_FN = [comp_TP_FP_FN[-1] for comp_TP_FP_FN in comparison_TP_FP_FN[i]]
+        #     # [val_n][frames_n, T, nt, 3]
+        #     all_TP_FP_FN = [comp_TP_FP_FN[-1] for comp_TP_FP_FN in comparison_TP_FP_FN[i]]
 
-            # Init x-axis values
-            times = log_times[i]
+        #     # Init x-axis values
+        #     times = log_times[i]
             
-            # All stats from real and sim sequences [val_n, T, nt, 3]
-            all_TP_FP_FN = np.stack([np.sum(tpfpfn, axis=0) for tpfpfn in all_TP_FP_FN], axis=0)
+        #     # All stats from real and sim sequences [val_n, T, nt, 3]
+        #     all_TP_FP_FN = np.stack([np.sum(tpfpfn, axis=0) for tpfpfn in all_TP_FP_FN], axis=0)
 
-            # Chosen timestamps [val_n, nt, T, 3]
-            all_TP_FP_FN = np.transpose(all_TP_FP_FN, (0, 2, 1, 3))
+        #     # Chosen timestamps [val_n, nt, T, 3]
+        #     all_TP_FP_FN = np.transpose(all_TP_FP_FN, (0, 2, 1, 3))
 
-            # MSE [T]
-            all_MSE = [comp_MSE[-1] for comp_MSE in comparison_MSE[i]]
-            all_MSE = np.stack([np.mean(mse, axis=0) for mse in all_MSE], axis=0)
+        #     # MSE [T]
+        #     all_MSE = [comp_MSE[-1] for comp_MSE in comparison_MSE[i]]
+        #     all_MSE = np.stack([np.mean(mse, axis=0) for mse in all_MSE], axis=0)
             
-            s = ''
-            for ax_i, (chosen_TP_FP_FN, MSE, ax) in enumerate(zip(all_TP_FP_FN, all_MSE, axesC)):
-                tps = chosen_TP_FP_FN[..., 0]
-                fps = chosen_TP_FP_FN[..., 1]
-                fns = chosen_TP_FP_FN[..., 2]
+        #     s = ''
+        #     for ax_i, (chosen_TP_FP_FN, MSE, ax) in enumerate(zip(all_TP_FP_FN, all_MSE, axesC)):
+        #         tps = chosen_TP_FP_FN[..., 0]
+        #         fps = chosen_TP_FP_FN[..., 1]
+        #         fns = chosen_TP_FP_FN[..., 2]
 
 
-                pre = tps / (fns + tps + 1e-6)
-                rec = tps / (fps + tps + 1e-6)
-                f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
+        #         pre = tps / (fns + tps + 1e-6)
+        #         rec = tps / (fps + tps + 1e-6)
+        #         f1s = 2 * tps / (2 * tps + fps + fns + 1e-6)
 
-                rec = rec[::-1]
-                pre = pre[::-1]
+        #         rec = rec[::-1]
+        #         pre = pre[::-1]
 
-                # Correct last recs that become zero
-                end_rec = rec[-10:, :]
-                end_rec[end_rec < 0.01] = 1.0
-                pre = np.vstack((np.ones_like(pre[:1]), pre))
-                rec = np.vstack((np.zeros_like(rec[:1]), rec))
+        #         # Correct last recs that become zero
+        #         end_rec = rec[-10:, :]
+        #         end_rec[end_rec < 0.01] = 1.0
+        #         pre = np.vstack((np.ones_like(pre[:1]), pre))
+        #         rec = np.vstack((np.zeros_like(rec[:1]), rec))
 
-                # Average precision as computed by scikit
-                AP = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
+        #         # Average precision as computed by scikit
+        #         AP = np.sum((rec[1:] - rec[:-1]) * pre[1:], axis=0)
 
-                ax.plot(times[:-1], AP[:-1], linewidth=1, label=name)
-                #ax.plot(times, f1s[best_mean], linewidth=1, label=name)
+        #         ax.plot(times[:-1], AP[:-1], linewidth=1, label=name)
+        #         #ax.plot(times, f1s[best_mean], linewidth=1, label=name)
                 
-        for ax in axesC:
-            ax.grid(linestyle='-.', which='both')
-            # axA.set_ylim(0, 1)
-            ax.set_xlabel('Time Layer in SOGM (sec)')
-            ax.set_ylabel('AP')
+        # for ax in axesC:
+        #     ax.grid(linestyle='-.', which='both')
+        #     # axA.set_ylim(0, 1)
+        #     ax.set_xlabel('Time Layer in SOGM (sec)')
+        #     ax.set_ylabel('AP')
 
-        # Display legends and title
-        plt.legend()
+        # # Display legends and title
+        # plt.legend()
 
-        fname = 'results/AP_fig.pdf'
-        plt.savefig(fname,
-                    bbox_inches='tight')
+        # fname = 'results/AP_fig.pdf'
+        # plt.savefig(fname,
+        #             bbox_inches='tight')
 
 
     plt.show()
@@ -903,7 +1204,7 @@ def comparison_gifs(list_of_paths, list_of_names, sorted_val_days, dataset_paths
             config.augment_scale_max = 1.0
             config.augment_symmetries = [False, False, False]
             config.augment_rotation = 'none'
-            config.validation_size = 1000
+            config.validation_size = 5000
 
             # Find all checkpoints in the chosen training folder
             chkp_path = join(chosen_log, 'checkpoints')
@@ -973,8 +1274,9 @@ def comparison_gifs(list_of_paths, list_of_names, sorted_val_days, dataset_paths
 
             ####################
             print('\n')
-            print(log_name)
-            print('*' * len(log_name))
+            title = '{:s} ({:s})'.format(log_name, chosen_log)
+            print(title)
+            print('*' * len(title))
             print('\n')
 
             n_fmt0 = np.max([len(chkp[:-4].split('/')[-1]) for chkp in chkps]) + 2
@@ -1027,6 +1329,7 @@ def comparison_gifs(list_of_paths, list_of_names, sorted_val_days, dataset_paths
                         ind_gts, ind_ingts = pickle.load(wfile)
                     all_gts.append(np.copy(ind_gts))
                     all_ingts.append(np.copy(ind_ingts))
+
                 all_gts = np.stack(all_gts, axis=0)
                 all_ingts = np.stack(all_ingts, axis=0)
 
@@ -1214,10 +1517,10 @@ def comparison_gifs(list_of_paths, list_of_names, sorted_val_days, dataset_paths
                                 if not exists(wanted_ind_file):
                                     with open(wanted_ind_file, 'wb') as wfile:
                                         pickle.dump((np.copy(all_gts[ind_i]), np.copy(all_ingts[ind_i])),
-                                                    wfile)
+                                                    wfile)                   
 
                         # Stack chkp predictions [frames_n, T, H, W, 3]
-                        chkp_preds = np.stack(chkp_preds, axis=0)
+                        chkp_preds = np.stack([ccc for ccc in chkp_preds if ccc.ndim > 0], axis=0)
 
                         # Store all predictions
                         all_preds.append(np.copy(chkp_preds))
@@ -1240,38 +1543,182 @@ def comparison_gifs(list_of_paths, list_of_names, sorted_val_days, dataset_paths
     return comparison_preds, comparison_gts, comparison_ingts
 
 
-def show_SOGM_gifs():
+def show_SRM_gifs(list_of_paths, list_of_names,
+                  sorted_val_days, dataset_paths, wanted_inds,
+                  comparison_preds, comparison_gts, comparison_ingts):
+
+    horizons = []
+    n_2D_layers = []
+    for chosen_log, log_name in zip(list_of_paths, list_of_names):
+        # Load parameters
+        config = Config()
+        config.load(list_of_paths[0])
+        n_2D_layers.append(config.n_2D_layers)
+        horizons.append(config.T_2D)
 
 
-    # ####################### DEBUG #######################
-    # #
-    # # Show the diffusing function here
-    # #
+    # [log_n][chkp_n, frames_n, T, H, W, 3]
+    # print(len(comparison_preds))
+    # print(comparison_preds[0].shape)
 
-    # for frame_i, w_i in enumerate(wanted_inds):
-    #     collision_risk = comparison_preds[0][frame_i]
+    # Select one SOGM
+    frame_i = 1
+    sogm_visu = comparison_preds[0][0, frame_i]
 
-    #     fig1, anim1 = show_local_maxima(collision_risk[..., 2], neighborhood_size=5, threshold=0.1, show=False)
-    #     fig2, anim2 = show_risk_diffusion(collision_risk, dl=0.12, diff_range=2.5, show=False)
-    #     plt.show()
 
-    # a = 1/0
+    ###############
+    # Old functions
+    ###############
 
-    # #
-    # #
-    # ####################### DEBUG #######################
+    # [T, H, W, 3]
+    # print(sogm_visu.shape)
+    # fig1, anim1 = show_local_maxima(sogm_visu[..., 2], neighborhood_size=5, threshold=0.1, show=False)
+    # fig2, anim2 = show_risk_diffusion(sogm_visu, dl=0.12, diff_range=2.5, show=False)
+    # plt.show()
+
+
+    #############
+    # Static SRMs
+    #############
+
+    # Diffuse the risk
+    diffused_normal, _, _ = get_diffused_risk(config, torch.from_numpy(sogm_visu))
+    diffused_no_t, _, _ = get_diffused_risk(config, torch.from_numpy(sogm_visu), dynamic_t_range=0.0001)
+    diffused_no_norm, _, _ = get_diffused_risk(config, torch.from_numpy(sogm_visu), normalization=False)
+    diffused_p1, _, _ = get_diffused_risk(config, torch.from_numpy(sogm_visu), norm_p=1)
+
+    # Show static images
+    statics = [0, 0, 0, 0]
+    statics[0] = diffused_normal[0]
+    statics[1] = diffused_no_t[0]
+    statics[2] = diffused_no_norm[0]
+    statics[3] = diffused_p1[0]
+
+    zoom = 5
+    fig, axes = plt.subplots(1, 4)
+    for ax_i, static in enumerate(statics):
+
+        im = np.squeeze(zoom_collisions(np.expand_dims(static, -1), zoom))
+        im = SRM_colors(im, static=True)
+
+        axes[ax_i].imshow(im)
+        statics[ax_i] = im
+
+    # Get the color map by name:
+    cm = plt.get_cmap('viridis')
+    imageio.imsave('results/static_normal.png', statics[0])
+    imageio.imsave('results/static_no_norm.png', statics[2])
+    imageio.imsave('results/static_p1.png', statics[3])
+
+
+    ##############
+    # Dynamic SRMs
+    ##############
+
+    # Show dynamic images
+    dynamics = [0, 0, 0, 0]
+    dyn_i = 5
+    dynamics[0] = diffused_normal[dyn_i]
+    dynamics[1] = diffused_no_t[dyn_i]
+    dynamics[2] = diffused_no_norm[dyn_i]
+    dynamics[3] = diffused_p1[dyn_i]
+
+    fig, axes2 = plt.subplots(1, 4)
+    for ax_i, dynamic in enumerate(dynamics):
+
+        im = np.squeeze(zoom_collisions(np.expand_dims(dynamic, -1), zoom))
+        im = SRM_colors(im)
+
+        axes2[ax_i].imshow(im)
+        dynamics[ax_i] = im
+
+    # Get the color map by name:
+    cm = plt.get_cmap('viridis')
+    imageio.imsave('results/dynamic_normal.png', dynamics[0])
+    imageio.imsave('results/dynamic_no_t.png', dynamics[1])
+
+    sogm_im = np.expand_dims(zoom_collisions(sogm_visu, zoom), 0)
+    sogm_im = superpose_gt_contour(sogm_im, sogm_im * 0, sogm_im * 0, no_in=True)
+
+
+    fig, axes3 = plt.subplots(1, 1)
+    axes3.imshow(sogm_im[0, dyn_i])
+    imageio.imsave('results/sogm.png', sogm_im[0, dyn_i])
+
+    plt.show()
+
+
+
+
+
+    a = 1/0
+
+    # Repeat gt for all checkpoints and merge with preds
+    showed_gts = np.expand_dims(showed_gts, 0)
+    showed_gts = np.tile(showed_gts, (showed_preds.shape[0], 1, 1, 1, 1))
+    showed_ingts = np.expand_dims(showed_ingts, 0)
+    showed_ingts = np.tile(showed_ingts, (showed_preds.shape[0], 1, 1, 1, 1))
+
+    # Merge colors
+    # merged_imgs = superpose_gt(showed_preds, showed_gts, showed_ingts)
+    merged_imgs = superpose_gt_contour(showed_preds, showed_gts, showed_ingts, no_in=True)
+    
+    # # To show gt images
+    # showed_preds = np.copy(showed_gts)
+    # showed_preds[..., 2] *= 0.6
+    # merged_imgs = superpose_gt(showed_preds, showed_gts * 0, showed_ingts, ingts_fade=(100, -5))
+
+    # Reverse image height axis so that imshow is consistent with plot
+    merged_imgs = merged_imgs[:, :, ::-1, :, :]
+
+
+
+
+
+
+    # Show SOGM with RGB colrs
+
+    # Show static risk
+
+
+
+
+
+
+    return
+
+
+def show_SOGM_gifs(list_of_paths, list_of_names,
+                   sorted_val_days, dataset_paths, wanted_inds,
+                   comparison_preds, comparison_gts, comparison_ingts):
+
+
+    horizons = []
+    n_2D_layers = []
+    visu_paths = []
+    for chosen_log, log_name in zip(list_of_paths, list_of_names):
+        # Load parameters
+        config = Config()
+        config.load(list_of_paths[0])
+        n_2D_layers.append(config.n_2D_layers)
+        horizons.append(config.T_2D)
+    
+        # Result folder
+        visu_path = join(config.saving_path, 'test_visu')
+        visu_paths.append(visu_path)
 
     #############
     # Preparation
     #############
-    
-    test_dataset = MyhalCollisionDataset(config,
-                                         real_val_days,
+
+    # Dataset
+    test_dataset = MultiCollisionDataset(config,
+                                         sorted_val_days,
                                          chosen_set='validation',
-                                         dataset_path=dataset_path,
-                                         add_sim_path=sim_path,
-                                         add_sim_days=sim_val_days,
-                                         balance_classes=False)
+                                         dataset_paths=dataset_paths,
+                                         simulated=['Simulation' in dataset_path for dataset_path in dataset_paths],
+                                         balance_classes=False,)
+    
     wanted_s_inds = [test_dataset.all_inds[ind][0] for ind in wanted_inds]
     wanted_f_inds = [test_dataset.all_inds[ind][1] for ind in wanted_inds]
 
@@ -1332,6 +1779,8 @@ def show_SOGM_gifs():
     # comparison_preds = np.minimum(comparison_preds, 0.99)
 
     all_merged_imgs = []
+    all_blob_imgs = []
+    all_blob_gts = []
     # Advanced display
     N = len(wanted_inds)
     progress_n = 30
@@ -1352,8 +1801,13 @@ def show_SOGM_gifs():
         showed_ingts = np.tile(showed_ingts, (showed_preds.shape[0], 1, 1, 1, 1))
 
         # Merge colors
-        # merged_imgs = superpose_gt(showed_preds, showed_gts, showed_ingts)
-        merged_imgs = superpose_gt_contour(showed_preds, showed_gts, showed_ingts, no_in=True)
+        # merged_imgs = superpose_gt_contour(showed_preds, showed_gts, showed_ingts, no_in=True)
+
+        # Merge Times and apply specific color
+        blob_preds = np.max(showed_preds, axis=1, keepdims=True)
+        blob_gts = np.max(showed_gts, axis=1, keepdims=True)
+        blob_ingts = np.max(showed_ingts, axis=1, keepdims=True)
+        blob_imgs = superpose_gt_contour(blob_preds, blob_gts, blob_ingts, no_in=True)
         
         # # To show gt images
         # showed_preds = np.copy(showed_gts)
@@ -1361,9 +1815,17 @@ def show_SOGM_gifs():
         # merged_imgs = superpose_gt(showed_preds, showed_gts * 0, showed_ingts, ingts_fade=(100, -5))
 
         # Reverse image height axis so that imshow is consistent with plot
-        merged_imgs = merged_imgs[:, :, ::-1, :, :]
+        # merged_imgs = merged_imgs[:, :, ::-1, :, :]
+        blob_imgs = blob_imgs[:, 0, ::-1, :, :]
 
-        all_merged_imgs.append(merged_imgs)
+        # => [log_n, H, W, 3]
+        all_blob_imgs.append(blob_imgs)
+
+        
+        blob_gtims = superpose_gt_contour(blob_gts, blob_gts, blob_ingts, no_in=True, gt_im=True)
+        blob_gtims = blob_gtims[0, 0, ::-1, :, :]
+        all_blob_gts.append(blob_gtims)
+        # all_merged_imgs.append(merged_imgs)
 
         print('', end='\r')
         print(fmt_str.format('#' * (((frame_i + 1) * progress_n) // N), 100 * (frame_i + 1) / N), end='', flush=True)
@@ -1373,147 +1835,482 @@ def show_SOGM_gifs():
     print(fmt_str.format('#' * progress_n, 100), flush=True)
     print('\n')
 
-    c_showed = np.arange(all_merged_imgs[0].shape[0])
-    n_showed = len(c_showed)
-    frame_i = 0
 
-    fig, axes = plt.subplots(1, n_showed)
-    if n_showed == 1:
-        axes = [axes]
+    # Save the collection of images
+    png_folder = join(test_dataset.path, 'sogm_preds', 'pngs')
+    if not exists(png_folder):
+        makedirs(png_folder)
+    for frame_i, w_i in enumerate(wanted_inds):     
+        seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+        frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+        im_name = join(png_folder, '{:s}_{:s}.png'.format(seq_name, frame_name))
+        imageio.imsave(im_name, all_blob_imgs[frame_i][-1])
 
-    images = []
-    for ax_i, log_i in enumerate(c_showed):
 
-        # Init plt
-        images.append(axes[ax_i].imshow(all_merged_imgs[frame_i][log_i, 0]))
-        # plt.axis('off')
+    ###########
+    # Selection
+    ###########
 
-        axes[ax_i].text(.5, -0.02, logs_names[log_i],
-                        horizontalalignment='center',
-                        verticalalignment='top',
-                        transform=axes[ax_i].transAxes)
+    selec = ['2022-04-01_15-06-55_1648825749.127623',
+             '2022-03-09_15-58-56_1646841621.120567',
+             '2022-03-09_16-03-21_1646841889.915430',
+             '2022-03-09_16-03-21_1646841916.315663',
+             '2022-03-09_16-03-21_1646841949.116121',
+             '2022-03-22_14-12-20_1647958437.008770',
+             '2022-03-22_14-12-20_1647958444.607082',
+             '2022-03-22_16-08-09_1647965337.589514',
+             '2022-03-28_14-53-33_1648479336.715213',
+             '2022-03-28_16-56-52_1648486619.915243',
+             '2022-04-01_14-00-06_1648821611.208367',
+             '2022-04-01_15-06-55_1648825618.530766',
+             '2022-04-01_15-06-55_1648825625.127977',
+             '2022-04-01_15-06-55_1648825694.629342',
+             '2022-04-01_15-06-55_1648825713.329629']
 
-        axes[ax_i].axis('off')
+    # Save the collection of images
+    selec_folder = join(test_dataset.path, 'sogm_preds', 'selection')
+    if not exists(selec_folder):
+        makedirs(selec_folder)
+    for frame_i, w_i in enumerate(wanted_inds):
+        seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
+        frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
+        selec_name = '{:s}_{:s}'.format(seq_name, frame_name)
+        if selec_name in selec:
+            for log_i, log_name in enumerate(list_of_names):
+                im_name = join(selec_folder, selec_name + '_{:d}_{:s}.png'.format(log_i, log_name))
+                imageio.imsave(im_name, all_blob_imgs[frame_i][log_i])
+            im_name = join(selec_folder, selec_name + '_{:d}_{:s}.png'.format(len(list_of_names), 'GT'))
+            imageio.imsave(im_name, all_blob_gts[frame_i])
+            
 
-        # # Save gif for the videos
-        # seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-        # frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
 
-        # sogm_folder = join(test_dataset.path, 'sogm_preds/Log_{:s}'.format(seq_name))
-        # if not exists(sogm_folder):
-        #     makedirs(sogm_folder)
-        # im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, ax_i))
-        # imageio.mimsave(im_name, all_merged_imgs[frame_i][log_i], fps=20)
-      
-    seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-    frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
-    title = [fig.suptitle('Example {:d}/{:d} > {:s} {:s}'.format(frame_i + 1, len(all_merged_imgs), seq_name, frame_name))]
+    return
 
-    # Make a vertically oriented slider to control the amplitude
-    Nt = all_merged_imgs[frame_i].shape[-4] - 1
-    allowed_times = (np.arange(Nt, dtype=np.float32) + 1) * config.T_2D / config.n_2D_layers
-    time_step = config.T_2D / config.n_2D_layers
-    axslide = plt.axes([0.02, 0.2, 0.01, 0.6])
-    time_slider = Slider(ax=axslide,
-                         label="T",
-                         valmin=allowed_times[0],
-                         valmax=allowed_times[-1],
-                         valinit=allowed_times[0],
-                         orientation="vertical")
+
+def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
+
+    
+    # Threshold
+    high_d = 2.0
+    risky_d = 1.5
+    collision_d = 0.6
+
+
+    print('\n')
+    print('------------------------------------------------------------------------------')
+    print('\n')
+    print('Start session inspection')
+    print('************************')
+    print('\nInitial map run:', map_day)
+    print('\nInspected runs:')
+    for d, day in enumerate(train_days):
+        print(' >', day)
+    print('')
+
+    # Reduce number of runs to inspect
+    print('You can choose to inspect only the last X runs (enter nothing to inspect all runs)')
+    
+    # n_runs = input("Enter the number X of runs to inspect:\n")
+    n_runs = '6'
+
+    if len(n_runs) > 0:
+        n_runs = int(n_runs)
+    else:
+        n_runs = len(train_days)
+    
+    print('You choose to inspect only the last X runs')
+    print(n_runs)
+
+    if n_runs < len(train_days):
+        train_days = train_days[-n_runs:]
+        train_comments = train_comments[-n_runs:]
+
+    config = MyhalCollisionConfig()
+
+    # Initialize datasets (dummy validation)
+    dataset = MyhalCollisionDataset(config,
+                                    train_days,
+                                    chosen_set='training',
+                                    dataset_path=dataset_path,
+                                    balance_classes=True)
+
+
+    # convertion from labels to colors
+    im_lim = config.radius_2D / np.sqrt(2)
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+
+    # We care about the dynamic class
+    i_l = 4
+
+    # Loading data for quantitative metrics
+    all_times = []
+    all_colli_mask = []
+    all_risky_mask = []
+    all_dists = []
+
+    for s_ind, seq in enumerate(train_days):
+        data = loading_session(dataset, s_ind, i_l, im_lim, colormap)
+        all_pts, all_colors, all_labels, class_mask_opened, class_mask_eroded, seq_mask = data
+        #    all_pts [frames][N, 3]
+        # all_labels [frames][N,]
+
+        min_dists = []
+        for f_ind, pts in enumerate(all_pts):
+
+
+            # Get distances on points that contain dynamic obstacles
+            dyn_mask = np.sum(np.abs(all_colors[f_ind] - colormap[i_l]), axis=1) < 0.1
+
+
+            # Manually correct some distances that are wrong
+            if seq == '2022-06-01_18-15-07' and 1200 <= f_ind <= 1250:
+                dyn_mask = np.logical_and(dyn_mask, pts[:, 0] < 0)
+
+                
+            if seq == '2022-06-01_20-36-03' and 774 <= f_ind <= 777:
+                dyn_mask = np.logical_and(dyn_mask, pts[:, 1] < 0.5 * pts[:, 0])
+            if seq == '2022-06-01_20-36-03' and 778 <= f_ind <= 800:
+                dyn_mask = np.logical_and(dyn_mask, pts[:, 0] > 1.2)
+
+            if np.any(dyn_mask):
+                min_dists.append(np.min(np.linalg.norm(pts[dyn_mask, :2], axis=1)))
+            else:
+                min_dists.append(high_d)
+
+        min_dists = np.array(min_dists, dtype=np.float32)
+        min_dists = np.minimum(min_dists, high_d)
+
+        # Manually correct some distances that are wrong
+        if seq == '2022-06-01_18-23-28':
+            tmp_dists = min_dists[233:265]
+            error_mask = tmp_dists > 0.99 * high_d
+            tmp_dists[error_mask] = np.min(tmp_dists)
+            min_dists[233:265] = tmp_dists
+            min_dists[1180:1215] = high_d
+            
+        if seq == '2022-06-01_18-20-40':
+            min_dists[:130] = high_d
+            
+        if seq == '2022-06-01_20-36-03':
+            tmp_dists = min_dists[417:435]
+            error_mask = tmp_dists > 0.99 * high_d
+            tmp_dists[error_mask] = np.min(tmp_dists)
+            min_dists[417:435] = tmp_dists
+            min_dists[1100:] = high_d
+            
+
+        
+        # Threshold
+        colli_mask = min_dists < collision_d
+        risky_mask = min_dists < risky_d
+        # risky_mask = np.logical_and(min_dists > collision_d, min_dists < risky_d)
+
+        all_colli_mask.append(colli_mask)
+        all_risky_mask.append(risky_mask)
+        all_dists.append(min_dists)
+
+
+
+    for s_ind, seq in enumerate(train_days):
+
+        colli_mask = all_colli_mask[s_ind]
+        risky_mask = all_risky_mask[s_ind]
+
+
+        #########################
+        # Min encounters distance
+        #########################
+
+        # Get blobs for encounters
+        risky_mask_int = risky_mask.astype(np.int32)
+        fronts = np.where(np.abs(risky_mask_int[1:] - risky_mask_int[:-1]) > 0)[0]
+        splitted_dists = np.split(all_dists[s_ind], fronts + 1)
+        splitted_dists = splitted_dists[1::2]
+
+        # Get time to finish (from first encounter to last encounter)
+        finish_time = float(dataset.frames[s_ind][fronts[-1]]) - float(dataset.frames[s_ind][fronts[0]])
+
+        # Ge risk only during encounter times
+        reduced_colli_mask = colli_mask[fronts[0]:fronts[-1]]
+        reduced_risky_mask = risky_mask[fronts[0]:fronts[-1]]
+        colli_index = np.sum(reduced_colli_mask.astype(np.int32)) / reduced_colli_mask.shape[0]
+        risky_index = np.sum(reduced_risky_mask.astype(np.int32)) / reduced_risky_mask.shape[0]
+
+        # Get encouter stats
+        min_enc_dist = [np.min(sub_dist) for sub_dist in splitted_dists]
+        enc_length = [len(sub_dist) for sub_dist in splitted_dists]
+        
+        fmt_str = '{:s} | {:7.1f}% {:7.2f}% {:5.1f}s | {:2d} encounters: {:5.1f} cm {:4.1f}s'
+        print(fmt_str.format(seq,
+                             100 * risky_index,
+                             100 * colli_index,
+                             finish_time,
+                             len(splitted_dists),
+                             100 * np.mean(min_enc_dist),
+                             np.mean(enc_length),
+                             ))
+
+
+    #########################
+    # Create a display window
+    #########################
+    
+    # Init data
+    s_ind = 0
+    data = loading_session(dataset, s_ind, i_l, im_lim, colormap)
+    all_pts, all_colors, all_labels, class_mask_opened, class_mask_eroded, seq_mask = data
+
+
+
+    figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+    plt.subplots_adjust(left=0.1, bottom=0.27, top=0.99)
+
+    # Plot first frame of seq
+    plotsA = [axA.scatter(all_pts[0][:, 0],
+                          all_pts[0][:, 1],
+                          s=2.0,
+                          c=all_colors[0])]
+
+    # Show a circle of the loop closure area
+    axA.add_patch(patches.Circle((0, 0), radius=0.2,
+                                 edgecolor=[0.2, 0.2, 0.2],
+                                 facecolor=[1.0, 0.79, 0],
+                                 fill=True,
+                                 lw=1))
+
+    # # Customize the graph
+    # axA.grid(linestyle='-.', which='both')
+    axA.set_xlim(-im_lim, im_lim)
+    axA.set_ylim(-im_lim, im_lim)
+    axA.set_aspect('equal', adjustable='box')
+
+    # Make a horizontal slider to control the frequency.
+    axcolor = 'lightgoldenrodyellow'
+    axtime = plt.axes([0.1, 0.2, 0.8, 0.015], facecolor=axcolor)
+    time_slider = Slider(ax=axtime,
+                         label='ind',
+                         valmin=0,
+                         valmax=len(all_pts) - 1,
+                         valinit=0,
+                         valstep=1)
 
     # The function to be called anytime a slider's value changes
-    def slider_update(val, stop_loop=True):
-        nonlocal frame_i, loop_running
-        if stop_loop and loop_running:
-            anim.event_source.stop()
-            loop_running = False
-        t_i = int(np.floor(val / time_step))
-        for ax_i, log_i in enumerate(c_showed):
-            images[ax_i].set_array(all_merged_imgs[frame_i][log_i, t_i])
-        return images
-        
+    def update_points(val):
+        global f_i
+        f_i = (int)(val)
+        for plot_i, plot_obj in enumerate(plotsA):
+            plot_obj.set_offsets(all_pts[f_i])
+            plot_obj.set_color(all_colors[f_i])
+
     # register the update function with each slider
-    time_slider.on_changed(slider_update)
+    time_slider.on_changed(update_points)
 
-    loop_running = True
+    # Ax with the presence of dynamic points
+    class_mask = np.zeros_like(dataset.all_inds[:, 0], dtype=bool)
+    class_mask[dataset.class_frames[i_l]] = True
+    seq_mask = dataset.all_inds[:, 0] == s_ind
+    seq_class_frames = class_mask[seq_mask]
+    seq_class_frames = np.expand_dims(seq_class_frames, 0)
+    axdyn0 = plt.axes([0.1, 0.18, 0.8, 0.015])
+    axdyn0.imshow(seq_class_frames, cmap='GnBu', aspect='auto')
+    axdyn0.set_axis_off()
 
-    def animate(i):
-        nonlocal frame_i
-        for ax_i, log_i in enumerate(c_showed):
-            images[ax_i].set_array(all_merged_imgs[frame_i][log_i, i])
-        return images
-        
-    # Register event
+    # # Ax with the presence of dynamic points at least 10
+    # dyn_img = np.vstack(all_labels).T
+    # dyn_img = dyn_img[-1:]
+    # dyn_img[dyn_img > 10] = 10
+    # dyn_img[dyn_img > 0] += 10
+    # axdyn1 = plt.axes([0.1, 0.06, 0.8, 0.015])
+    # axdyn1.imshow(dyn_img, cmap='OrRd', aspect='auto')
+    # axdyn1.set_axis_off()
+
+    # # Ax with opened
+    # axdyn2 = plt.axes([0.1, 0.04, 0.8, 0.015])
+    # axdyn2.imshow(class_mask_opened, cmap='OrRd', aspect='auto')
+    # axdyn2.set_axis_off()
+
+    # Ax with eroded
+    axdyn1 = plt.axes([0.1, 0.16, 0.8, 0.015])
+    axdyn1.imshow(class_mask_eroded, cmap='OrRd', aspect='auto')
+    axdyn1.set_axis_off()
+
+    axdyn2 = plt.axes([0.1, 0.14, 0.8, 0.015])
+    axdyn2.imshow(np.expand_dims(all_risky_mask[s_ind], 0), cmap='Reds', aspect='auto')
+    axdyn2.set_axis_off()
+
+    axdyn3 = plt.axes([0.1, 0.12, 0.8, 0.015])
+    axdyn3.imshow(np.expand_dims(all_colli_mask[s_ind], 0), cmap='Greys', aspect='auto')
+    axdyn3.set_axis_off()
+
+    axplotdist = plt.axes([0.1, 0.02, 0.8, 0.095])
+    pltodist = axplotdist.plot(all_dists[s_ind])
+    axplotdist.plot(all_dists[s_ind] * 0 + collision_d, 'k', linewidth=0.1)
+    axplotdist.plot(all_dists[s_ind] * 0 + risky_d, 'r', linewidth=0.1)
+    axplotdist.set_xlim(0, len(all_dists[s_ind] - 1))
+    axplotdist.set_ylim(0.5, 2)
+    axplotdist.set_axis_off()
+
+    ###################
+    # Saving function #
+    ###################
+
     def onkey(event):
-        nonlocal frame_i, loop_running
-        
-        if event.key == 'right':
-            frame_i = (frame_i + 1) % len(all_merged_imgs)
-            slider_update(0, stop_loop=False)
+        global f_i
 
-        elif event.key == 'left':
-            frame_i = (frame_i - 1) % len(all_merged_imgs)
-            slider_update(0, stop_loop=False)
-
-        elif event.key == 'enter':
-            if loop_running:
-                anim.event_source.stop()
-                loop_running = False
-            else:
-                anim.event_source.start()
-                loop_running = True
-
-        if event.key in ['right', 'left']:
-                
-            seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-            frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
-            title[0].set_text('Example {:d}/{:d} > {:s} at {:s}'.format(frame_i + 1, len(all_merged_imgs), seq_name, frame_name))
-            plt.draw()
-
-
-        if event.key in ['s', 'S', 'g', 'G']:
+        # Save current as ptcloud
+        if event.key in ['p', 'P']:
             print('Saving in progress')
-            
-            # Save current gif
-            seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
-            frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
-                    
-            for log_i in c_showed:
 
-                sogm_folder = join(test_dataset.path, 'sogm_preds')
-                print(sogm_folder)
-                if not exists(sogm_folder):
-                    makedirs(sogm_folder)
-                im_name = join(sogm_folder, 'gif_{:s}_{:s}_{:d}.gif'.format(seq_name, frame_name, log_i))
-                imageio.mimsave(im_name, all_merged_imgs[frame_i][log_i], fps=20)
-                    
-                gif_folder = join(visu_paths[log_i], 'gifs')
-                if not exists(gif_folder):
-                    makedirs(gif_folder)
-                im_name = join(gif_folder, 'gif_{:s}_{:s}.gif'.format(seq_name, frame_name))
-                imageio.mimsave(im_name, all_merged_imgs[frame_i][log_i], fps=20)
+            seq_name = dataset.sequences[s_ind]
+            frame_name = dataset.frames[s_ind][f_i]
+            sogm_folder = join(dataset.original_path, 'inspect_images')
+            print(sogm_folder)
+            if not exists(sogm_folder):
+                makedirs(sogm_folder)
+
+            # Save pointcloud
+            H0 = dataset.poses[s_ind][f_i - 1]
+            H1 = dataset.poses[s_ind][f_i]
+            data = read_ply(join(dataset.seq_path[s_ind], frame_name + '.ply'))
+            f_points = np.vstack((data['x'], data['y'], data['z'])).T
+            f_ts = data['time']
+            world_points = motion_rectified(f_points, f_ts, H0, H1)
+
+            data = read_ply(join(dataset.annot_path[s_ind], frame_name + '.ply'))
+            sem_labels = data['classif']
+
+            ply_name = join(sogm_folder, 'ply_{:s}_{:s}.ply'.format(seq_name, frame_name))
+            write_ply(ply_name,
+                      [world_points, sem_labels],
+                      ['x', 'y', 'z', 'classif'])
+
             print('Done')
 
-        return title
+        # Save current as ptcloud video
+        if event.key in ['g', 'G']:
 
-    anim = FuncAnimation(fig, animate,
-                         frames=np.arange(all_merged_imgs[frame_i].shape[1]),
-                         interval=50,
-                         blit=True,
-                         repeat=True,
-                         repeat_delay=500)
+            video_i0 = -30
+            video_i1 = 70
+            if f_i + video_i1 >= len(dataset.frames[s_ind]) or f_i + video_i0 < 0:
+                print('Invalid f_i')
+                return
 
-    cid = fig.canvas.mpl_connect('key_press_event', onkey)
-    print('\n---------------------------------------\n')
-    print('Instructions:\n')
-    print('> Use right and left arrows to navigate among examples.')
-    print('> Use enter to start/stop animation loop.')
-    print('> Use "g" to save as gif.')
-    print('\n---------------------------------------\n')
+            sogm_folder = join(dataset.original_path, 'inspect_images')
+            print(sogm_folder)
+            if not exists(sogm_folder):
+                makedirs(sogm_folder)
+
+            # Video path
+            seq_name = dataset.sequences[s_ind]
+            video_path = join(sogm_folder, 'vid_{:s}_{:s}.gif'.format(seq_name, dataset.frames[s_ind][f_i]))
+
+            # Get the pointclouds
+            vid_pts = []
+            vid_labels = []
+            vid_ts = []
+            vid_H0 = []
+            vid_H1 = []
+            for vid_i in range(video_i0, video_i1):
+                frame_name = dataset.frames[s_ind][f_i + vid_i]
+                H0 = dataset.poses[s_ind][f_i + vid_i - 1]
+                H1 = dataset.poses[s_ind][f_i + vid_i]
+                data = read_ply(join(dataset.seq_path[s_ind], frame_name + '.ply'))
+                f_points = np.vstack((data['x'], data['y'], data['z'])).T
+                f_ts = data['time']
+                data = read_ply(join(dataset.annot_path[s_ind], frame_name + '.ply'))
+                sem_labels = data['classif']
+
+                vid_pts.append(f_points)
+                vid_labels.append(sem_labels)
+                vid_ts.append(f_ts)
+                vid_H0.append(H0)
+                vid_H1.append(H1)
+
+            map_folder = join(dataset.original_path, 'slam_offline', map_day)
+            map_names = np.sort([f for f in listdir(map_folder) if f.startswith('map_update_')])
+            last_map = join(map_folder, map_names[-1])
+
+            # Create video
+            open_3d_vid(video_path,
+                        vid_pts,
+                        vid_labels,
+                        vid_ts,
+                        vid_H0,
+                        vid_H1,
+                        map_path=last_map)
+
+            print('Done')
+
+        return
+
+    cid = figA.canvas.mpl_connect('key_press_event', onkey)
+
+
+    #############################
+    # Create a interactive window
+    #############################
+
+
+    def update_display():
+
+        # Redifine sliders
+        time_slider.val = 0
+        time_slider.valmin = 0
+        time_slider.valmax = len(all_pts) - 1
+        time_slider.ax.set_xlim(time_slider.valmin, time_slider.valmax)
+
+        # Redraw masks
+        class_mask = np.zeros_like(dataset.all_inds[:, 0], dtype=bool)
+        class_mask[dataset.class_frames[i_l]] = True
+        seq_mask = dataset.all_inds[:, 0] == s_ind
+        seq_class_frames = class_mask[seq_mask]
+        seq_class_frames = np.expand_dims(seq_class_frames, 0)
+        axdyn0.imshow(seq_class_frames, cmap='GnBu', aspect='auto')
+        axdyn1.imshow(class_mask_eroded, cmap='OrRd', aspect='auto')
+        axdyn2.imshow(np.expand_dims(all_risky_mask[s_ind], 0), cmap='Reds', aspect='auto')
+        axdyn3.imshow(np.expand_dims(all_colli_mask[s_ind], 0), cmap='Greys', aspect='auto')
+        pltodist[0].set_xdata(np.arange(len(all_dists[s_ind])))
+        pltodist[0].set_ydata(all_dists[s_ind])
+        axplotdist.set_xlim(0, len(all_dists[s_ind] - 1))
+
+        # Update points
+        update_points(time_slider.val)
+        
+        plt.draw()
+
+        return pltodist
+
+    # One button for each session
+    figB = plt.figure(figsize=(11, 5))
+    rax = plt.axes([0.05, 0.05, 0.9, 0.9], facecolor='lightgrey')
+    radio_texts = [s + ': ' + train_comments[i] for i, s in enumerate(train_days)]
+    radio_texts_to_i = {s: i for i, s in enumerate(radio_texts)}
+    radio = RadioButtons(rax, radio_texts)
+    
+    def radio_func(label):
+        # Load current sequence data
+        nonlocal all_pts, all_colors, all_labels, class_mask_opened, s_ind, class_mask_eroded, seq_mask
+        s_ind = radio_texts_to_i[label]
+        data = loading_session(dataset, s_ind, i_l, im_lim, colormap)
+        all_pts, all_colors, all_labels, class_mask_opened, class_mask_eroded, seq_mask = data
+        update_display()
+        return
+
+    radio.on_clicked(radio_func)
 
     plt.show()
 
+    print('    > Done')
 
+    print('\n')
+    print('  +-----------------------------------+')
+    print('  | Finished all the annotation tasks |')
+    print('  +-----------------------------------+')
+    print('\n')
 
     return
 
@@ -1666,11 +2463,15 @@ def Fig_SOGM_SRM():
     # Function returning the names of the log folders that we want to plot
     logs, logs_names = trained_models()
 
-    # Only get one model to test
-    ind = np.where(logs_names == 'A+H+Sim_50')[0][0]
-    logs = logs[ind:ind+1]
-    logs_names = logs_names[ind:ind+1]
-
+    # get test models
+    test_model_names = ['Myhal-A1234',
+                        'A+Sim_50',
+                        'A+H',
+                        'A+H+Sim_50']
+    test_model_mask = np.sum([(logs_names == test_model_name) for test_model_name in test_model_names], axis=0)
+    inds = np.where(test_model_mask > 0)
+    logs = logs[inds]
+    logs_names = logs_names[inds]
 
     ############################################
     # Step 2: See what validation we want to use
@@ -1727,7 +2528,7 @@ def Fig_SOGM_SRM():
                     '2022-03-22_14-12-20', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09',
                     '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09', '2022-03-22_16-08-09',
                     '2022-03-22_16-08-09', '2022-03-28_14-53-33', '2022-03-28_14-53-33', '2022-03-28_14-53-33', '2022-03-28_14-53-33', '2022-03-28_14-53-33', '2022-03-28_16-56-52',
-                    '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52',
+                    '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52', '2022-03-28_16-56-52',
                     '2022-04-01_14-00-06', '2022-04-01_14-00-06', '2022-04-01_14-00-06', '2022-04-01_14-00-06', '2022-04-01_14-00-06', '2022-04-01_14-57-35', '2022-04-01_14-57-35',
                     '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55',
                     '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55', '2022-04-01_15-06-55',
@@ -1736,7 +2537,7 @@ def Fig_SOGM_SRM():
                     '2022-04-01_15-06-55', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29',
                     '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29', '2022-04-01_15-11-29']
     all_wanted_f = [1694, 1718, 265, 648, 1171, 1271, 995, 168, 206, 874, 839, 878, 26, 540, 878, 1142, 1369, 1470, 1590, 1598, 1613, 1615, 111, 646, 900, 937, 958, 1034, 1199,
-                    18, 33, 289, 306, 312, 478, 516, 617, 630, 837, 1033, 1538, 1550, 1565, 152, 941, 955, 1191, 1224, 36, 39, 44, 65, 67, 303, 312, 524, 38, 9, 477, 1095, 1117,
+                    18, 33, 289, 306, 312, 478, 516, 617, 630, 837, 1033, 1538, 1550, 1565, 152, 941, 955, 1191, 1224, 36, 39, 44, 65, 67, 303, 312, 38, 9, 477, 1095, 1117,
                     984, 1005, 5, 27, 41, 51, 64, 73, 107, 93, 120, 162, 243, 261, 278, 324, 355, 363, 409, 566, 608, 770, 788, 971, 975, 981, 1020, 1226, 1243, 1291, 1333, 202,
                     242, 226, 468, 563, 573, 585, 598, 604, 615, 628, 641, 882]
 
@@ -1753,8 +2554,27 @@ def Fig_SOGM_SRM():
                                                        sorted_val_days,
                                                        data_paths,
                                                        wanted_inds=wanted_inds,
-                                                       wanted_chkp=[-1])
+                                                       wanted_chkp=[-1],
+                                                       redo=False)
 
+    # show_SRM_gifs(logs, logs_names,
+    #               sorted_val_days, data_paths, wanted_inds,
+    #               comp_preds, comp_gts, comp_ingts)
+
+    show_SOGM_gifs(logs, logs_names,
+                   sorted_val_days, data_paths, wanted_inds,
+                   comp_preds, comp_gts, comp_ingts)
+
+    return
+
+
+def Exp_real_comp():
+
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions_v2()
+
+    inspect_sogm_sessions(dataset_path, map_day, train_sessions, train_comments)
+
+    return
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -1768,7 +2588,9 @@ if __name__ == '__main__':
 
     # Exp_lifelong()
 
-    Fig_SOGM_SRM()
+    # Fig_SOGM_SRM()
+
+    Exp_real_comp()
 
 
 

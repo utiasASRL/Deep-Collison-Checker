@@ -603,6 +603,8 @@ def plot_collision_dist(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         # Axes range
         if ax_i in [1, ]:
             axs[ax_i].set_ylim(bottom=-6.9/20, top=6.9)
+        if ax_i in [0, ]:
+            axs[ax_i].set_ylim(bottom=-28.9/20, top=28.9)
 
         # Title
         # axs[ax_i].set_title(loc_meth)
@@ -958,6 +960,8 @@ def plot_ablation_study(selected_runs, gt_t, gt_H, footprint, actor_times, actor
         # Axes range
         if ax_i in [1, ]:
             axs[ax_i].set_ylim(bottom=-6.9/20, top=6.9)
+        if ax_i in [0, ]:
+            axs[ax_i].set_ylim(bottom=-28.9/20, top=28.9)
 
         # Title
         # axs[ax_i].set_title(loc_meth)

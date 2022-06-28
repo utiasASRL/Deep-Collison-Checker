@@ -1245,7 +1245,47 @@ def superpose_gt(pred_imgs, gt_imgs, ingt_imgs, ingts_fade=(50, -5)):
     return all_imgs
 
 
-def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
+def SRM_colors(srm, static=False):
+
+    srm = srm.astype(np.float32) / 255
+
+    # Define color palette
+    background = np.array([0, 0, 0], dtype=np.float32)
+    if static:
+        high = np.array([0.0, 1.0, 1.0], dtype=np.float32)
+        low = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    else:
+        high = np.array([1.0, 0.5, 0.0], dtype=np.float32)
+        low = np.array([1.0, 1.0, 0.0], dtype=np.float32)
+
+    # Merge color function
+    if np.mean(background) > 0.5:
+        merge_func = np.minimum
+    else:
+        merge_func = np.maximum
+
+    # Define colormaps
+    resolution = 256
+    cmap_low = np.linspace(background, low, resolution)
+    cmap_high = np.linspace(low, high, resolution)
+    cmap_tot = (np.vstack((cmap_low, cmap_high)) * 255).astype(np.uint8)
+    
+    # Color future image
+    colored_img = np.ones(tuple(srm.shape) + (3,), dtype=np.float32)
+    colored_img *= background * 255
+    colored_img = colored_img.astype(np.uint8)
+    for cmap, values in zip([cmap_tot], [srm]):   
+        mask = values > 0.0001
+        pooled_cmap = cmap[np.around(values * (cmap.shape[0] - 1)).astype(np.int32)]
+        colored_img[mask] = merge_func(colored_img[mask], pooled_cmap[mask])
+
+    return colored_img
+
+
+
+
+
+def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True, gt_im=False):
 
     # Pred shape = [..., T, H, W, 3]
     #   gt_shape = [..., T, H, W, 3]
@@ -1259,6 +1299,11 @@ def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
     shortT2 = np.array([1.0, 0.0, 1.0], dtype=np.float32)
     gt_shortT = np.array([0.0, 1.0, 1.0], dtype=np.float32)
     past_shortT = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+
+    if gt_im:
+        shortT1 = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        shortT2 = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+
 
     # Merge color function
     if np.mean(background) > 0.5:
@@ -1290,13 +1335,14 @@ def superpose_gt_contour(pred_imgs, gt_imgs, ingt_imgs, no_in=True):
         future_imgs[mask] = merge_func(future_imgs[mask], pooled_cmap[mask])
 
     # Add GT contour
-    mask = gt_imgs[..., 2] > 0.05
-    close_struct = np.ones((1, 1, 10, 10))
-    erode_struct = np.ones((1, 1, 5, 5))
-    mask = ndimage.binary_closing(mask, structure=close_struct, iterations=2)
-    mask = np.logical_and(mask, np.logical_not(ndimage.binary_erosion(mask, structure=erode_struct)))
-    gt_color = (past_shortT * 255).astype(np.uint8)
-    future_imgs[mask] = merge_func(future_imgs[mask], gt_color)
+    if not gt_im:
+        mask = gt_imgs[..., 2] > 0.05
+        close_struct = np.ones((1, 1, 10, 10))
+        erode_struct = np.ones((1, 1, 5, 5))
+        mask = ndimage.binary_closing(mask, structure=close_struct, iterations=2)
+        mask = np.logical_and(mask, np.logical_not(ndimage.binary_erosion(mask, structure=erode_struct)))
+        gt_color = (past_shortT * 255).astype(np.uint8)
+        future_imgs[mask] = merge_func(future_imgs[mask], gt_color)
 
     # Color past image
     for cmap, values in zip([cmap_perma, cmap_longT, cmap_past_shortT],
