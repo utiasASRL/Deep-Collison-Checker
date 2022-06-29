@@ -155,6 +155,11 @@ RUN make -j8
 RUN make test
 RUN make install
 
+
+# Other pip install
+RUN pip3 install pyvista
+
+
 # Setup user information
 ARG username0=bag
 ARG userid0=1085

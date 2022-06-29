@@ -33,6 +33,8 @@ import time
 from os import listdir, makedirs
 from os.path import join, exists
 
+import pyvista
+
 import open3d as o3d
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, RadioButtons
