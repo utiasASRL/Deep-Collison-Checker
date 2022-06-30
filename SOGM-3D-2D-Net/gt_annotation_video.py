@@ -22,6 +22,8 @@
 #
 
 # Common libs
+from re import S
+from turtle import Turtle
 import numpy as np
 from pandas import options
 from utils.ply import read_ply, write_ply
@@ -33,16 +35,18 @@ import time
 from os import listdir, makedirs
 from os.path import join, exists
 
-import pyvista
+import pyvista as pv
 
 import open3d as o3d
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, RadioButtons
 from matplotlib.patches import Circle
+from matplotlib.colors import ListedColormap
+from matplotlib.animation import FuncAnimation
 #from datasets.MyhalCollision import *
 from scipy.spatial.transform import Rotation as scipyR
 from slam.dev_slam import filter_frame_timestamps, cart2pol
-from slam.PointMapSLAM import motion_rectified
+from slam.PointMapSLAM import motion_rectified, rigid_transform
 
 from scipy import ndimage
 
@@ -780,10 +784,6 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
         train_days = train_days[-n_runs:]
         train_comments = train_comments[-n_runs:]
 
-
-
-
-
     config = MyhalCollisionConfig()
 
     # Initialize datasets (dummy validation)
@@ -890,9 +890,12 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
     # Saving function #
     ###################
 
+    global selected_saves
+    selected_saves = []
+
     # Register event
     def onkey(event):
-        global f_i
+        global f_i, selected_saves
 
         # Save current as ptcloud
         if event.key in ['p', 'P']:
@@ -925,58 +928,103 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
 
         # Save current as ptcloud video
         if event.key in ['g', 'G']:
+            selected_saves.append([f_i, s_ind])
+            print('New list of saves:', len(selected_saves))
+            for f_ind_save, s_ind_save in selected_saves:
+                print(f_ind_save, s_ind_save)
 
-            video_i0 = -30
-            video_i1 = 70
-            if f_i + video_i1 >= len(dataset.frames[s_ind]) or f_i + video_i0 < 0:
-                print('Invalid f_i')
-                return
 
-            sogm_folder = join(dataset.original_path, 'inspect_images')
-            print(sogm_folder)
-            if not exists(sogm_folder):
-                makedirs(sogm_folder)
+        # Save current as ptcloud video
+        if event.key in ['h', 'H']:
 
-            # Video path
-            seq_name = dataset.sequences[s_ind]
-            video_path = join(sogm_folder, 'vid_{:s}_{:s}.gif'.format(seq_name, dataset.frames[s_ind][f_i]))
+            for f_ind_save, s_ind_save in selected_saves:
 
-            # Get the pointclouds
-            vid_pts = []
-            vid_labels = []
-            vid_ts = []
-            vid_H0 = []
-            vid_H1 = []
-            for vid_i in range(video_i0, video_i1):
-                frame_name = dataset.frames[s_ind][f_i + vid_i]
-                H0 = dataset.poses[s_ind][f_i + vid_i - 1]
-                H1 = dataset.poses[s_ind][f_i + vid_i]
-                data = read_ply(join(dataset.seq_path[s_ind], frame_name + '.ply'))
-                f_points = np.vstack((data['x'], data['y'], data['z'])).T
-                f_ts = data['time']
-                data = read_ply(join(dataset.annot_path[s_ind], frame_name + '.ply'))
-                sem_labels = data['classif']
+                video_i0 = -30
+                video_i1 = 70
+                if f_ind_save + video_i1 >= len(dataset.frames[s_ind_save]) or f_ind_save + video_i0 < 0:
+                    print('Invalid f_i')
+                    return
 
-                vid_pts.append(f_points)
-                vid_labels.append(sem_labels)
-                vid_ts.append(f_ts)
-                vid_H0.append(H0)
-                vid_H1.append(H1)
+                sogm_folder = join(dataset.original_path, 'inspect_images')
+                print(sogm_folder)
+                if not exists(sogm_folder):
+                    makedirs(sogm_folder)
 
-            map_folder = join(dataset.original_path, 'slam_offline', map_day)
-            map_names = np.sort([f for f in listdir(map_folder) if f.startswith('map_update_')])
-            last_map = join(map_folder, map_names[-1])
+                # Video path
+                seq_name = dataset.sequences[s_ind_save]
 
-            # Create video
-            open_3d_vid(video_path,
-                        vid_pts,
-                        vid_labels,
-                        vid_ts,
-                        vid_H0,
-                        vid_H1,
-                        map_path=last_map)
+                # Get the pointclouds
+                vid_pts = []
+                vid_labels = []
+                vid_ts = []
+                vid_H0 = []
+                vid_H1 = []
+                for vid_i in range(video_i0, video_i1):
+                    frame_name = dataset.frames[s_ind_save][f_ind_save + vid_i]
+                    H0 = dataset.poses[s_ind_save][f_ind_save + vid_i - 1]
+                    H1 = dataset.poses[s_ind_save][f_ind_save + vid_i]
+                    data = read_ply(join(dataset.seq_path[s_ind_save], frame_name + '.ply'))
+                    f_points = np.vstack((data['x'], data['y'], data['z'])).T
+                    f_ts = data['time']
+                    data = read_ply(join(dataset.annot_path[s_ind_save], frame_name + '.ply'))
+                    sem_labels = data['classif']
 
-            print('Done')
+                    vid_pts.append(f_points)
+                    vid_labels.append(sem_labels)
+                    vid_ts.append(f_ts)
+                    vid_H0.append(H0)
+                    vid_H1.append(H1)
+
+                map_folder = join(dataset.original_path, 'slam_offline', map_day)
+                map_names = np.sort([f for f in listdir(map_folder) if f.startswith('map_update_')])
+                last_map = join(map_folder, map_names[-1])
+
+                # Zero height for poses in 2D
+                vid_H0_2D = []
+                for h0 in vid_H0:
+                    h1 = np.copy(h0)
+                    h1[2, 3] *= 0
+                    vid_H0_2D.append(h1)
+
+                # Get 2D points
+                save_pts2D = True
+                if save_pts2D:
+                    data = loading_session(dataset, s_ind_save, i_l, im_lim, colormap)
+                    all_pts_save, all_colors_save, _, _, _, _ = data
+                    vid_pts2D = all_pts_save[f_ind_save + video_i0:f_ind_save + video_i1]
+                    vid_colors2D = all_colors_save[f_ind_save + video_i0:f_ind_save + video_i1]
+                    gif_name = join(sogm_folder, 'gif_{:s}_{:s}_0.gif'.format(seq_name, dataset.frames[s_ind_save][f_ind_save]))
+                    plt_2D_gif(gif_name, vid_pts2D, vid_colors2D, im_lim)
+
+                # Create video
+                save_all_3D = False
+                if save_all_3D:
+                    video_path = join(sogm_folder, 'vid_{:s}_{:s}_0.mp4'.format(seq_name, dataset.frames[s_ind_save][f_ind_save]))
+                    pyvista_vid_0(video_path,
+                                  vid_pts,
+                                  vid_labels,
+                                  vid_H0,
+                                  colored=False,
+                                  visu_loc=False)
+                    video_path = join(sogm_folder, 'vid_{:s}_{:s}_1.mp4'.format(seq_name, dataset.frames[s_ind_save][f_ind_save]))
+                    pyvista_vid_0(video_path,
+                                  vid_pts,
+                                  vid_labels,
+                                  vid_H0,
+                                  colored=True,
+                                  visu_loc=False)
+                video_path = join(sogm_folder, 'vid_{:s}_{:s}_2.mp4'.format(seq_name, dataset.frames[s_ind_save][f_ind_save]))
+                pyvista_vid_0(video_path,
+                              vid_pts,
+                              vid_labels,
+                              vid_H0,
+                              colored=True,
+                              visu_loc=True)
+
+                print('Done')
+
+            selected_saves = []
+            print('All saves finished')
 
         return
 
@@ -1041,6 +1089,485 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
     print('  | Finished all the annotation tasks |')
     print('  +-----------------------------------+')
     print('\n')
+
+    return
+
+
+def pyvista_vid_0(video_path, vid_pts, vid_labels, vid_H0, colored=True, visu_loc=True):
+    """
+    PyVista video with only lidar frame colored or not
+    """
+
+    ################
+    # Init Varaibles
+    ################
+    
+    # Varaiable for poses
+    pose_color1 = np.array([0, 255, 255, 0], dtype=np.float32) / 255
+    pose_color2 = np.array([0, 255, 0, 255], dtype=np.float32) / 255
+    cmap_pose = ListedColormap(np.linspace(pose_color1, pose_color2, 256))
+
+    # Colormap
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+    
+    # Make the colormap from the listed colors
+    if colored:
+        colormap1 = ListedColormap(colormap[1:])
+    else:
+        colormap1 = ListedColormap(colormap[:1])
+
+    # Get poses as lines
+    pose_centers = np.array([[0, 0, 0],
+                             [0, 0, 0],
+                             [0, 0, 0], ])
+    pose_directions = np.array([[1, 0, 0],
+                                [0, 1, 0],
+                                [0, 0, 1], ])
+
+    # Get all centers and directions in world space
+    all_H0 = np.stack(vid_H0, axis=0)  # [N, 4, 4]
+    all_p0 = all_H0[:, :3, 3]  # [N, 3]
+    all_p0 = np.expand_dims(all_p0, 1)  # [N, 1, 3]
+    pose_centers = np.expand_dims(pose_centers, 0)  # [1, 3, 3]
+    pose_centers = all_p0 + pose_centers  # [N, 3, 3]
+    pose_centers = np.reshape(pose_centers, (-1, 3))  # [N*3, 3]
+    all_R0 = all_H0[:, :3, :3]  # [N, 3, 3]
+    pose_directions = np.copy(all_R0.transpose((0, 2, 1)))
+    pose_directions = np.reshape(pose_directions, (-1, 3))  # [N*3, 3]
+
+
+    ##############
+    # Init plotter
+    ##############
+
+    # Remove unclassified
+    annots = vid_labels[0]
+    rect_points = vid_pts[0][annots > 0.5]
+    annots = annots[annots > 0.5]
+
+    # Window for headless visu
+    
+    pl = pv.Plotter(notebook=False, off_screen=True, window_size=[1600, 912])
+
+    if video_path.endswith(".gif"):
+        pl.open_gif(video_path)
+    else:
+        pl.open_movie(video_path, framerate=30, quality=9)
+
+    # Add initial points
+    pl_points = pl.add_points(rect_points,
+                              render_points_as_spheres=True,
+                              scalars=annots,
+                              cmap=colormap1,
+                              point_size=5.0)
+
+    # Move to first frame space
+    if visu_loc:
+        pose_centers0, pose_directions0 = rigid_transform(all_H0[0],
+                                                          pose_centers,
+                                                          normals=pose_directions,
+                                                          inverse=True)
+        scalars = np.linspace(0, len(vid_pts) - 1, pose_centers0.shape[0] * 31)
+        scalars = np.maximum(1 - np.abs(scalars) / 10, 0)
+        scalars[31:] *= 0
+        scalars = scalars * 3.0 + 1.0
+        arrows = pl.add_arrows(pose_centers0,
+                               pose_directions0,
+                               scalars=scalars,
+                               mag=0.4,
+                               opacity='linear',
+                               cmap=cmap_pose)
+
+    pl.set_background('white')
+
+    pl.set_position([-14, 0, 12])
+    pl.set_focus([0, 0, 0])
+    pl.set_viewup([0, 0, 1])
+
+    # pl.enable_eye_dome_lighting()
+    # pl.show()
+
+
+    #############
+    # Start video
+    #############
+
+    pl.remove_scalar_bar()
+
+    pl.show(auto_close=False)  # only necessary for an off-screen movie
+
+    # Run through each frame
+    # pl.write_frame()  # write initial data
+
+    # Advanced display
+    N = len(vid_pts)
+    progress_n = 30
+    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+    print('\nGenerating PyVista Video')
+
+    # Update scalars on each frame
+    for i, pts in enumerate(vid_pts):
+        if i < 1:
+            continue
+
+        # Remove unclassified
+        annots = vid_labels[i]
+        rect_points = pts[annots > 0.5]
+        annots = annots[annots > 0.5]
+
+        # pl.clear()
+        pl.remove_actor(pl_points)
+        if visu_loc:
+            pl.remove_actor(arrows)
+
+        pl_points = pl.add_points(rect_points,
+                                  render_points_as_spheres=True,
+                                  scalars=annots,
+                                  cmap=colormap1,
+                                  point_size=5.0)
+
+        # Add localization
+        if visu_loc:
+            # Move to first frame space
+            pose_centers0, pose_directions0 = rigid_transform(all_H0[i],
+                                                              pose_centers,
+                                                              normals=pose_directions,
+                                                              inverse=True)
+
+            scalars = np.arange(len(vid_pts))
+            scalars = np.maximum(1 - np.abs(scalars - i) / 10, 0)
+            scalars[i + 1:] *= 0
+            scalars = scalars * 3.0 + 0.99
+            scalars = np.expand_dims(scalars, 1)
+            scalars = np.tile(scalars, (1, 3 * 15))
+            scalars = np.ravel(scalars)
+            arrows = pl.add_arrows(pose_centers0,
+                                   pose_directions0,
+                                   scalars=scalars,
+                                   mag=0.4,
+                                   opacity='linear',
+                                   cmap=cmap_pose)
+
+        pl.remove_scalar_bar()
+
+        pl.write_frame()  # Write this frame
+        
+        print('', end='\r')
+        print(fmt_str.format('#' * (((i + 1) * progress_n) // N), 100 * (i + 1) / N), end='', flush=True)
+
+    # Show a nice 100% progress bar
+    print('', end='\r')
+    print(fmt_str.format('#' * progress_n, 100), flush=True)
+    print('\n')
+
+    # Be sure to close the plotter when finished
+    pl.close()
+
+    return
+
+
+def pyvista_vid(video_path, vid_pts, vid_labels, vid_ts, vid_H0, vid_H1, map_path=None):
+    
+    
+    # Colormap
+    colormap = np.array([[209, 209, 209],
+                        [122, 122, 122],
+                        [255, 255, 0],
+                        [0, 98, 255],
+                        [255, 0, 0]], dtype=np.float32) / 255
+    
+    colormap_map = 1 - (1 - colormap) * 0.3
+
+
+    # Make the colormap from the listed colors
+    colormap1 = ListedColormap(colormap[1:])
+    colormap2 = ListedColormap(colormap_map[1:])
+
+
+    # Only rotate frame to have a hoverer mode
+    H0 = np.copy(vid_H0[0])
+    H1 = np.copy(vid_H1[0])
+    # H0[:3, 3] -= H1[:3, 3]
+    # H1[:3, 3] *= 0
+
+    # Apply transform with motion distorsion
+    rect_points0 = motion_rectified(vid_pts[0], vid_ts[0], H0, H1)
+    annots = vid_labels[0]
+
+    # Remove ground if we have map
+    if (map_path):
+        rect_points = rect_points0[annots > 1.5]
+        annots = annots[annots > 1.5]
+    else:
+        rect_points = rect_points0[annots > 0.5]
+        annots = annots[annots > 0.5]
+
+    # Window for headless visu
+    pl = pv.Plotter(window_size=[1600, 900])
+    # filename = "pyvista_test.mp4"
+    # pl.open_movie(filename)
+
+    # Add map points
+    if (map_path):
+        data = read_ply(map_path)
+        map_points = np.vstack((data['x'], data['y'], data['z'])).T
+        # map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+        map_classif = data['classif']
+
+        # # Only keep ground points for map
+        # map_mask = np.logical_and(map_classif > 0.5, map_classif < 1.5)
+        # map_points = map_points[map_mask]
+        # # map_normals = map_normals[map_mask]
+        # map_classif = map_classif[map_mask]
+
+        # # Reduce to visible space
+        # visible_mask = get_visble_pts(np.copy(map_points), rect_points0, (H0[:3, 3] + H1[:3, 3]) / 2)
+        # map_points_vis = np.copy(map_points[visible_mask])
+        # # map_normals_vis = map_normals[visible_mask]
+        # map_classif_vis = np.copy(map_classif[visible_mask])
+        
+        pl.add_points(map_points,
+                      render_points_as_spheres=False,
+                      scalars=map_classif,
+                      cmap=colormap2,
+                      point_size=3.0)
+
+                      
+
+    # Add initial points
+    pl.add_points(rect_points,
+                  render_points_as_spheres=True,
+                  scalars=annots,
+                  cmap=colormap1,
+                  point_size=5.0)
+
+    # Add Robot mesh
+    robot_pts, robot_annots, colormap_robot = robot_point_model()
+    color_robot = colormap_robot[0]
+    pl.add_points(robot_pts,
+                  render_points_as_spheres=True,
+                  color=color_robot,
+                  point_size=5.0)
+
+    pl.set_background('white')
+    pl.enable_eye_dome_lighting()
+    pl.show()
+
+    a = 1/0
+
+
+    # # only necessary for an off-screen movie    
+    # pl.show(auto_close=False)  
+
+
+
+
+
+
+
+
+
+
+    
+    # Window for headless visu
+    vis = o3d.visualization.Visualizer()
+    # vis.create_window(visible=True, width=2560, height=1440, left=0, top=0)
+    # vis.create_window(visible=True, width=1920, height=1080, left=0, top=0)
+    vis.create_window(visible=True, width=1600, height=900, left=0, top=0)
+    # vis.create_window(visible=True, width=1280, height=720, left=0, top=0)
+    
+    # Load the first frame in the window
+    vis.clear_geometries()
+    pcd = o3d.geometry.PointCloud()
+    
+
+    # Only rotate frame to have a hoverer mode
+    H0 = np.copy(vid_H0[0])
+    H1 = np.copy(vid_H1[0])
+    H0[:3, 3] -= H1[:3, 3]
+    H1[:3, 3] *= 0
+
+    # Apply transform with motion distorsion
+    rect_points0 = motion_rectified(vid_pts[0], vid_ts[0], H0, H1)
+    annots = vid_labels[0]
+
+    # Remove ground if we have map
+    if (map_path):
+        rect_points = rect_points0[annots > 1.5]
+        annots = annots[annots > 1.5]
+    else:
+        rect_points = rect_points0[annots > 0.5]
+        annots = annots[annots > 0.5]
+
+    # Update pcd
+    pcd_update_from_data(rect_points, annots, pcd, colormap)
+    vis.add_geometry(pcd)
+
+    # Create a pcd for the map
+    pcd_map = o3d.geometry.PointCloud()
+    if (map_path):
+        
+        data = read_ply(map_path)
+        map_points = np.vstack((data['x'], data['y'], data['z'])).T
+        # map_normals = np.vstack((data['nx'], data['ny'], data['nz'])).T
+        map_classif = data['classif']
+
+        # Only keep ground points for map
+        map_mask = np.logical_and(map_classif > 0.5, map_classif < 1.5)
+        map_points = map_points[map_mask]
+        # map_normals = map_normals[map_mask]
+        map_classif = map_classif[map_mask]
+
+        # Reduce to visible space
+        visible_mask = get_visble_pts(np.copy(map_points), rect_points0, (H0[:3, 3] + H1[:3, 3]) / 2)
+        map_points_vis = np.copy(map_points[visible_mask])
+        # map_normals_vis = map_normals[visible_mask]
+        map_classif_vis = np.copy(map_classif[visible_mask])
+
+        pcd_map = o3d.geometry.PointCloud()
+        pcd_update_from_data(map_points_vis, map_classif_vis, pcd_map, colormap_map)
+        vis.add_geometry(pcd_map)
+
+    # Add Robot mesh
+    pcd_robot = o3d.geometry.PointCloud()
+    robot_pts, robot_annots, colormap_robot = robot_point_model()
+    pcd_update_from_data(robot_pts, robot_annots, pcd_robot, colormap_robot)
+    vis.add_geometry(pcd_robot)
+
+    # Apply render options
+    render_option = vis.get_render_option()
+    render_option.light_on = True
+    render_option.point_size = 3
+    render_option.show_coordinate_frame = True
+
+    # Prepare view point
+    view_control = vis.get_view_control()
+    target = H1[:3, 3]
+    front = target + np.array([-3.0, -2.0, 4.0])  # scale of this does not matter it is just for direction
+    view_control.set_front(front)
+    view_control.set_lookat(target)
+    view_control.set_up([0.0, 0.0, 1.0])
+    view_control.set_zoom(0.15)
+    # view_control.change_field_of_view(0.45)
+    
+    pinhole0 = view_control.convert_to_pinhole_camera_parameters()
+    follow_H0 = np.copy(pinhole0.extrinsic)
+
+    # Advanced display
+    N = len(vid_pts)
+    progress_n = 30
+    fmt_str = '[{:<' + str(progress_n) + '}] {:5.1f}%'
+    print('\nGenerating Open3D screenshots')
+    video_list = []
+    for i, pts in enumerate(vid_pts):
+
+        # if i < 1:
+        #     continue
+
+        if i > len(vid_H1) - 1:
+            break
+
+        H0 = np.copy(vid_H0[i])
+        H1 = np.copy(vid_H1[i])
+
+        p0 = np.copy(H1[:3, 3])
+
+        # # Only rotate frame to have a hoverer mode
+        # T_map = np.copy(H1[:3, 3])
+        # H0[:3, 3] -= T_map
+        # H1[:3, 3] *= 0
+
+        # Apply transform with motion distorsion
+        rect_points0 = motion_rectified(pts, vid_ts[i], H0, H1)
+        annots = vid_labels[i]
+
+        # Remove ground if we have map
+        if (map_path):
+            rect_points = rect_points0[annots > 1.5]
+            annots = annots[annots > 1.5]
+        else:
+            rect_points = rect_points0[annots > 0.5]
+            annots = annots[annots > 0.5]
+
+        # Recenter for hoverer mode
+        rect_points = rect_points - p0
+
+        # Update pcd
+        pcd_update_from_data(rect_points, annots, pcd, colormap)
+        vis.update_geometry(pcd)
+
+        # Update pcd for the map
+        if (map_path):
+
+            # Reduce to visible space
+            visible_mask = get_visble_pts(np.copy(map_points), rect_points0, (H0[:3, 3] + H1[:3, 3]) / 2)
+            map_points_vis = np.copy(map_points[visible_mask])
+            # map_normals_vis = map_normals[visible_mask]
+            map_classif_vis = np.copy(map_classif[visible_mask])
+
+            pcd_update_from_data(map_points_vis - p0, map_classif_vis, pcd_map, colormap_map)
+            vis.update_geometry(pcd_map)
+
+        # Update Robot mesh
+        H1_robot = np.copy(H1)
+        robot_ts = vid_ts[i][:robot_pts.shape[0]]
+        new_robot_pts = motion_rectified(np.copy(robot_pts), robot_ts, H1_robot, H1_robot)
+        pcd_update_from_data(new_robot_pts - p0, robot_annots, pcd_robot, colormap_robot)
+        vis.update_geometry(pcd_robot)
+
+        # Render
+        vis.poll_events()
+        vis.update_renderer()
+
+        # Screenshot
+        image = vis.capture_screen_float_buffer(True)
+        npimage = (np.asarray(image) * 255).astype(np.uint8)
+        if npimage.shape[0] % 2 == 1:
+            npimage = npimage[:-1, :]
+        if npimage.shape[1] % 2 == 1:
+            npimage = npimage[:, :-1]
+        video_list.append(npimage)
+        # plt.imsave('test_{:d}.png'.format(i), image, dpi=1)
+
+        print('', end='\r')
+        print(fmt_str.format('#' * (((i + 1) * progress_n) // N), 100 * (i + 1) / N), end='', flush=True)
+
+    # Show a nice 100% progress bar
+    print('', end='\r')
+    print(fmt_str.format('#' * progress_n, 100), flush=True)
+    print('\n')
+
+
+
+
+    if video_path.endswith('.gif'):
+        imageio.mimsave(video_path, video_list, fps=30)
+
+    elif video_path.endswith('.mp4'):
+        # Write video file
+        print('\nWriting video file')
+        kargs = {'macro_block_size': None}
+        with imageio.get_writer(video_path, mode='I', fps=30, quality=10, **kargs) as writer:
+            N = len(video_list)
+            for i, frame in enumerate(video_list):
+                writer.append_data(frame)
+
+                print('', end='\r')
+                print(fmt_str.format('#' * (((i + 1) * progress_n) // N), 100 * (i + 1) / N), end='', flush=True)
+
+        # Show a nice 100% progress bar
+        print('', end='\r')
+        print(fmt_str.format('#' * progress_n, 100), flush=True)
+        print('\n')
+
+    else:
+        raise ValueError('Unknown video extension: \"{:s}\"'.format(video_path[-4:]))
+    
+    vis.destroy_window()
 
     return
 
@@ -1303,6 +1830,51 @@ def get_visble_pts(pts, ray_pts, ray_origin, min_radius=1.0, max_radius=40.0):
     visi_mask = rtp[:, 0] < max_radiuses[ai]
     visi_mask[rtp[:, 0] < min_radius] = True
     return visi_mask
+
+
+def plt_2D_gif(gif_name, all_pts, all_colors, im_lim):
+
+
+    figA, axA = plt.subplots(1, 1, figsize=(10, 7))
+    plt.subplots_adjust(left=0.1, bottom=0.2)
+    
+    # Plot first frame of seq
+    plotss = [axA.scatter(all_pts[0][:, 0],
+                          all_pts[0][:, 1],
+                          s=2.0,
+                          c=all_colors[0])]
+
+    # Show a circle of the loop closure area
+    axA.add_patch(Circle((0, 0), radius=0.2,
+                         edgecolor=[0.2, 0.2, 0.2],
+                         facecolor=[1.0, 0.79, 0],
+                         fill=True,
+                         lw=1))
+
+    # # Customize the graph
+    # axA.grid(linestyle='-.', which='both')
+    axA.set_xlim(-im_lim, im_lim)
+    axA.set_ylim(-im_lim, im_lim)
+    axA.set_aspect('equal', adjustable='box')
+
+    def animate(f_i):
+        for plot_i, plot_obj in enumerate(plotss):
+            plot_obj.set_offsets(all_pts[f_i])
+            plot_obj.set_color(all_colors[f_i])
+        return plotss
+
+    anim = FuncAnimation(figA, animate,
+                         frames=np.arange(len(all_pts)),
+                         interval=50,
+                         blit=True)
+    anim.save(gif_name, fps=30)
+
+    plt.close(figA)
+
+    return
+
+
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------

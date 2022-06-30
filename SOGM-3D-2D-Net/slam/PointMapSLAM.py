@@ -368,6 +368,28 @@ def apply_motion_distortion_old(points, phi0, last_H, new_H, normals=None):
         return world_pts, world_normals, phi1
 
 
+def rigid_transform(H0, points, normals=None, inverse=False):
+
+    R0 = H0[:3, :3]
+    T0 = H0[:3, 3:].T
+
+    if inverse:
+
+        world_pts = np.matmul(points - T0, R0).astype(np.float32)
+        if normals is not None:
+            world_normals = np.matmul(normals, R0).astype(np.float32)
+            return world_pts, world_normals
+
+    else:
+
+        world_pts = np.matmul(points, R0.T).astype(np.float32) + T0
+        if normals is not None:
+            world_normals = np.matmul(normals, R0.T).astype(np.float32)
+            return world_pts, world_normals
+
+    return world_pts
+
+
 def motion_rectified(points, times, H0, H1, normals=None):
 
     # get linear interpolation alphas

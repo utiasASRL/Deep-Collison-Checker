@@ -1801,7 +1801,7 @@ def show_SOGM_gifs(list_of_paths, list_of_names,
         showed_ingts = np.tile(showed_ingts, (showed_preds.shape[0], 1, 1, 1, 1))
 
         # Merge colors
-        # merged_imgs = superpose_gt_contour(showed_preds, showed_gts, showed_ingts, no_in=True)
+        merged_imgs = superpose_gt_contour(showed_preds, showed_gts, showed_ingts, no_in=True)
 
         # Merge Times and apply specific color
         blob_preds = np.max(showed_preds, axis=1, keepdims=True)
@@ -1815,7 +1815,7 @@ def show_SOGM_gifs(list_of_paths, list_of_names,
         # merged_imgs = superpose_gt(showed_preds, showed_gts * 0, showed_ingts, ingts_fade=(100, -5))
 
         # Reverse image height axis so that imshow is consistent with plot
-        # merged_imgs = merged_imgs[:, :, ::-1, :, :]
+        merged_imgs = merged_imgs[:, :, ::-1, :, :]
         blob_imgs = blob_imgs[:, 0, ::-1, :, :]
 
         # => [log_n, H, W, 3]
@@ -1825,7 +1825,7 @@ def show_SOGM_gifs(list_of_paths, list_of_names,
         blob_gtims = superpose_gt_contour(blob_gts, blob_gts, blob_ingts, no_in=True, gt_im=True)
         blob_gtims = blob_gtims[0, 0, ::-1, :, :]
         all_blob_gts.append(blob_gtims)
-        # all_merged_imgs.append(merged_imgs)
+        all_merged_imgs.append(merged_imgs)
 
         print('', end='\r')
         print(fmt_str.format('#' * (((frame_i + 1) * progress_n) // N), 100 * (frame_i + 1) / N), end='', flush=True)
@@ -1838,13 +1838,19 @@ def show_SOGM_gifs(list_of_paths, list_of_names,
 
     # Save the collection of images
     png_folder = join(test_dataset.path, 'sogm_preds', 'pngs')
+    gif_folder = join(test_dataset.path, 'sogm_preds', 'gifs')
     if not exists(png_folder):
         makedirs(png_folder)
+    if not exists(gif_folder):
+        makedirs(gif_folder)
     for frame_i, w_i in enumerate(wanted_inds):     
         seq_name = test_dataset.sequences[wanted_s_inds[frame_i]]
         frame_name = test_dataset.frames[wanted_s_inds[frame_i]][wanted_f_inds[frame_i]]
         im_name = join(png_folder, '{:s}_{:s}.png'.format(seq_name, frame_name))
         imageio.imsave(im_name, all_blob_imgs[frame_i][-1])
+
+        gif_name = join(gif_folder, '{:s}_{:s}.gif'.format(seq_name, frame_name))
+        imageio.mimsave(gif_name, all_merged_imgs[frame_i][-1], fps=20)
 
 
     ###########
@@ -2588,9 +2594,9 @@ if __name__ == '__main__':
 
     # Exp_lifelong()
 
-    # Fig_SOGM_SRM()
+    Fig_SOGM_SRM()
 
-    Exp_real_comp()
+    # Exp_real_comp()
 
 
 

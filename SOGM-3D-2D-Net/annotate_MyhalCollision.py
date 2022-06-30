@@ -141,7 +141,8 @@ if __name__ == '__main__':
     # dataset_path, map_day, refine_sessions, train_sessions = Myhal5_sessions()
 
     # Sessions from Myhal first floor
-    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions_v2()
+    # dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions_v2()
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal1_sessions()
 
     # Start Annotation
     # ****************
