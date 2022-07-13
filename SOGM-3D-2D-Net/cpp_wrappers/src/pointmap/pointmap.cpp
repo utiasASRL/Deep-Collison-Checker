@@ -424,7 +424,7 @@ void PointMap::update_movable_pts(vector<PointXYZ> &frame_points,
 	////////////////
 	
 
-	// We approximate buy considering alphas are increasing 
+	// We approximate by considering alphas are increasing 
 	vector<size_t> slice_inds;
 	slice_inds.reserve(n_slices);
 	float d_alpha = 1.0f / (float)n_slices;
