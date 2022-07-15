@@ -59,7 +59,7 @@ from gt_annotation_video import loading_session, motion_rectified, open_3d_vid
 from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate
 from train_MyhalCollision import MyhalCollisionConfig
 from datasets.MultiCollision import MultiCollisionDataset, MultiCollisionSampler, MultiCollisionCollate, MultiCollisionSamplerTest
-from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, oldMyhal5_sessions, Myhal5_sessions_v2
+from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, old_A_sessions, UTI3D_A_sessions_v2
 
 from scipy import ndimage
 import scipy.ndimage.filters as filters
@@ -2048,15 +2048,15 @@ def inspect_sogm_sessions(dataset_path, map_day, train_days, train_comments):
 
         # Get encouter stats
         min_enc_dist = [np.min(sub_dist) for sub_dist in splitted_dists]
-        enc_length = [len(sub_dist) for sub_dist in splitted_dists]
+        enc_length = [len(sub_dist)/10 for sub_dist in splitted_dists]
         
-        fmt_str = '{:s} | {:7.1f}% {:7.2f}% {:5.1f}s | {:2d} encounters: {:5.1f} cm {:4.1f}s'
+        fmt_str = '{:s} | {:7.1f}% {:7.2f}% {:5.1f}s | {:2d} encounters: {:4.2f} m {:4.2f}s'
         print(fmt_str.format(seq,
                              100 * risky_index,
                              100 * colli_index,
                              finish_time,
                              len(splitted_dists),
-                             100 * np.mean(min_enc_dist),
+                             np.mean(min_enc_dist),
                              np.mean(enc_length),
                              ))
 
@@ -2405,8 +2405,8 @@ def Exp_lifelong():
 
 
     # List all possible datasets
-    # data_folders = ['old_Myhal5', 'Simulation']
-    data_folders = ['old_Myhal5', 'Myhal1', 'Simulation']
+    # data_folders = ['UTI3D_A', 'Simulation']
+    data_folders = ['UTI3D_A', 'UTI3D_H', 'Simulation']
     data_paths = [join('../Data', f) for f in data_folders]
 
     sorted_val_days = []
@@ -2497,8 +2497,8 @@ def Fig_SOGM_SRM():
 
 
     # List all possible datasets
-    # data_folders = ['old_Myhal5', 'Simulation']
-    data_folders = ['old_Myhal5', 'Myhal1', 'Simulation']
+    # data_folders = ['UTI3D_A', 'Simulation']
+    data_folders = ['UTI3D_A', 'UTI3D_H', 'Simulation']
     data_paths = [join('../Data', f) for f in data_folders]
 
     sorted_val_days = []
@@ -2576,9 +2576,156 @@ def Fig_SOGM_SRM():
 
 def Exp_real_comp():
 
-    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions_v2()
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = UTI3D_A_sessions_v2()
 
     inspect_sogm_sessions(dataset_path, map_day, train_sessions, train_comments)
+
+    return
+
+
+def test_data_compression():
+
+
+    # Get a list of test frame
+    dataset_path, _, _, train_sessions, train_comments = UTI3D_A_sessions_v2()
+
+    n_runs = 2
+    if n_runs < len(train_sessions):
+        train_sessions = train_sessions[-n_runs:]
+        train_comments = train_comments[-n_runs:]
+
+    # Initialize datasets (dummy validation)
+    config = MyhalCollisionConfig()
+    dataset = MyhalCollisionDataset(config,
+                                    train_sessions,
+                                    chosen_set='training',
+                                    dataset_path=dataset_path,
+                                    balance_classes=True)
+
+
+    # Get a list of test frames
+    s_ind = 0
+    n_f = 10
+
+    print('------------------')
+    print('Test_frames:')
+    test_frames = []
+    test_names = []
+    for frame_name in dataset.frames[s_ind][:n_f]:
+        test_frames.append(join(dataset.seq_path[s_ind], frame_name + '.ply'))
+        test_names.append(frame_name)
+        print(test_frames[-1])
+    print('------------------')
+
+    # Measure total size
+    size0 = 0
+    for frame_path in test_frames:
+        size0 += os.path.getsize(frame_path)
+    print('Total size: {:12d}  - {:6.1f}%%'.format(size0, 100))
+
+    # Read points
+    f_points = []
+    f_ts = []
+    f_is = []
+    f_rs = []
+    for frame_path in test_frames:
+        data = read_ply(frame_path)
+        f_points.append(np.vstack((data['x'], data['y'], data['z'])).T)
+        f_ts.append(data['time'])
+        f_is.append(data['intensity'])
+        f_rs.append(data['ring'])
+
+
+
+    # Save normal
+    dir1 = join('results', 'zip_1')
+    if not exists(dir1):
+        makedirs(dir1)
+    for f_ind, frame_name in enumerate(test_names):
+        write_ply(join(dir1, '{:s}.ply'.format(frame_name)),
+                  [f_points[f_ind], f_ts[f_ind], f_is[f_ind], f_rs[f_ind]],
+                  ['x', 'y', 'z', 'time', 'intensity', 'ring'])
+    shutil.make_archive(dir1, 'zip', dir1)
+    size1 = os.path.getsize(dir1 + '.zip')
+    print(' zip1 size: {:12d}  - {:6.1f}%%'.format(size1, 100 * size1 / size0))
+
+    # Save with ring as uint8
+    dir2 = join('results', 'zip_2')
+    if not exists(dir2):
+        makedirs(dir2)
+    for f_ind, frame_name in enumerate(test_names):
+        write_ply(join(dir2, '{:s}.ply'.format(frame_name)),
+                  [f_points[f_ind], f_ts[f_ind], f_is[f_ind], f_rs[f_ind].astype(np.uint8)],
+                  ['x', 'y', 'z', 'time', 'intensity', 'ring'])
+    shutil.make_archive(dir2, 'zip', dir2)
+    size2 = os.path.getsize(dir2 + '.zip')
+    print(' zip2 size: {:12d}  - {:6.1f}%%'.format(size2, 100 * size2 / size0))
+
+
+    # Save as npz compressed
+    dir3 = join('results', 'zip_3')
+    if not exists(dir3):
+        makedirs(dir3)
+    for f_ind, frame_name in enumerate(test_names):
+        np.savez_compressed(join(dir3, '{:s}.npz'.format(frame_name)),
+                            xyz=f_points[f_ind],
+                            time=f_ts[f_ind],
+                            intensity=f_is[f_ind],
+                            ring=f_rs[f_ind].astype(np.uint8))
+    shutil.make_archive(dir3, 'zip', dir3)
+    size3 = os.path.getsize(dir3 + '.zip')
+    print(' zip3 size: {:12d}  - {:6.1f}%%'.format(size3, 100 * size3 / size0))
+
+    print('------------------')
+    print('Time for ply loading')
+
+    t1 = time.time()
+    total = 0
+    for step in range(2):
+        f_points = []
+        f_ts = []
+        f_is = []
+        f_rs = []
+        for f_ind, frame_name in enumerate(test_names):
+            data = read_ply(join(dir2, '{:s}.ply'.format(frame_name)))
+            f_points.append(np.vstack((data['x'], data['y'], data['z'])).T)
+            f_ts.append(data['time'])
+            f_is.append(data['intensity'])
+            f_rs.append(data['ring'])
+        total += len(f_points)
+    t2 = time.time()
+    print('{:.1f} ms / frame'.format(1000 * (t2 - t1) / total))
+    print('------------------')
+
+
+    print('------------------')
+    print('Time for npz loading')
+
+    t1 = time.time()
+    total = 0
+    for step in range(2):
+        f_points = []
+        f_ts = []
+        f_is = []
+        f_rs = []
+        for f_ind, frame_name in enumerate(test_names):
+            data = np.load(join(dir3, '{:s}.npz'.format(frame_name)))
+            f_points.append(data['xyz'])
+            f_ts.append(data['time'])
+            f_is.append(data['intensity'])
+            f_rs.append(data['ring'])
+        total += len(f_points)
+    t2 = time.time()
+    print('{:.1f} ms / frame'.format(1000 * (t2 - t1) / total))
+    print('------------------')
+
+
+    print('\n****************************\n')
+    print('Conclusion')
+    print('The npz format is better but not so much better than the ply format after zip')
+    print('we keep ply and zip as it is much more simple')
+    print('\n****************************\n')
+
 
     return
 
@@ -2596,7 +2743,13 @@ if __name__ == '__main__':
 
     Fig_SOGM_SRM()
 
-    # Exp_real_comp()
+    # Exp_real_comp()  # Remember to uncomment the runs in UTI3D-A
+
+    # test_data_compression()
+
+
+
+
 
 
 

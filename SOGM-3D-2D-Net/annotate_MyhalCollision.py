@@ -38,7 +38,7 @@ os.environ.update(OMP_NUM_THREADS='1',
                   MKL_NUM_THREADS='1',)
 
 # Dataset
-from MyhalCollision_sessions import Myhal1_sessions, Myhal5_sessions, Myhal55_sessions, Myhal5_sessions_v2
+from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, Test_A_sessions, UTI3D_A_sessions_v2
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -138,11 +138,11 @@ if __name__ == '__main__':
     # ***************
 
     # # Sessions from Myhal fifth floor
-    # dataset_path, map_day, refine_sessions, train_sessions = Myhal5_sessions()
+    # dataset_path, map_day, refine_sessions, train_sessions = UTI3D_A_sessions()
 
     # Sessions from Myhal first floor
-    # dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal5_sessions_v2()
-    dataset_path, map_day, refine_sessions, train_sessions, train_comments = Myhal1_sessions()
+    # dataset_path, map_day, refine_sessions, train_sessions, train_comments = UTI3D_A_sessions_v2()
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = UTI3D_H_sessions()
 
     # Start Annotation
     # ****************
