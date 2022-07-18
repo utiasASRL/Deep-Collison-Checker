@@ -158,6 +158,7 @@ RUN make install
 
 # Other pip install
 RUN pip3 install pyvista
+RUN pip3 install --upgrade gdown
 
 
 # Setup user information
