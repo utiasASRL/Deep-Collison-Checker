@@ -59,7 +59,7 @@ from gt_annotation_video import loading_session, motion_rectified, open_3d_vid
 from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate
 from train_MyhalCollision import MyhalCollisionConfig
 from datasets.MultiCollision import MultiCollisionDataset, MultiCollisionSampler, MultiCollisionCollate, MultiCollisionSamplerTest
-from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, old_A_sessions, UTI3D_A_sessions_v2
+from MyhalCollision_sessions import UTIn3D_H_sessions, UTIn3D_A_sessions, old_A_sessions, UTIn3D_A_sessions_v2
 
 from scipy import ndimage
 import scipy.ndimage.filters as filters
@@ -2405,8 +2405,8 @@ def Exp_lifelong():
 
 
     # List all possible datasets
-    # data_folders = ['UTI3D_A', 'Simulation']
-    data_folders = ['UTI3D_A', 'UTI3D_H', 'Simulation']
+    # data_folders = ['UTIn3D_A', 'Simulation']
+    data_folders = ['UTIn3D_A', 'UTIn3D_H', 'Simulation']
     data_paths = [join('../Data', f) for f in data_folders]
 
     sorted_val_days = []
@@ -2497,8 +2497,8 @@ def Fig_SOGM_SRM():
 
 
     # List all possible datasets
-    # data_folders = ['UTI3D_A', 'Simulation']
-    data_folders = ['UTI3D_A', 'UTI3D_H', 'Simulation']
+    # data_folders = ['UTIn3D_A', 'Simulation']
+    data_folders = ['UTIn3D_A', 'UTIn3D_H', 'Simulation']
     data_paths = [join('../Data', f) for f in data_folders]
 
     sorted_val_days = []
@@ -2576,7 +2576,7 @@ def Fig_SOGM_SRM():
 
 def Exp_real_comp():
 
-    dataset_path, map_day, refine_sessions, train_sessions, train_comments = UTI3D_A_sessions_v2()
+    dataset_path, map_day, refine_sessions, train_sessions, train_comments = UTIn3D_A_sessions_v2()
 
     inspect_sogm_sessions(dataset_path, map_day, train_sessions, train_comments)
 
@@ -2587,7 +2587,7 @@ def test_data_compression():
 
 
     # Get a list of test frame
-    dataset_path, _, _, train_sessions, train_comments = UTI3D_A_sessions_v2()
+    dataset_path, _, _, train_sessions, train_comments = UTIn3D_A_sessions_v2()
 
     n_runs = 2
     if n_runs < len(train_sessions):
@@ -2743,7 +2743,7 @@ if __name__ == '__main__':
 
     Fig_SOGM_SRM()
 
-    # Exp_real_comp()  # Remember to uncomment the runs in UTI3D-A
+    # Exp_real_comp()  # Remember to uncomment the runs in UTIn3D-A
 
     # test_data_compression()
 

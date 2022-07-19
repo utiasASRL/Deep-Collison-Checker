@@ -54,7 +54,7 @@ from utils.mayavi_visu import fast_save_future_anim, save_zoom_img, colorize_col
 
 # Datasets
 from datasets.MyhalCollision import MyhalCollisionDataset, MyhalCollisionSampler, MyhalCollisionCollate, MyhalCollisionSamplerTest
-from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, old_A_sessions
+from MyhalCollision_sessions import UTIn3D_H_sessions, UTIn3D_A_sessions, old_A_sessions
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -3253,9 +3253,9 @@ def Controlled_v2_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_H_v1_logs():
+def UTIn3D_H_v1_logs():
     """
-    Here we use the data UTI3D_H v1
+    Here we use the data UTIn3D_H v1
     """
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
@@ -3353,9 +3353,9 @@ def UTI3D_H_v1_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_H_v2_logs():
+def UTIn3D_H_v2_logs():
     """
-    Here we use the data UTI3D_H v2 (data until 2022-03-22)
+    Here we use the data UTIn3D_H v2 (data until 2022-03-22)
     """
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
@@ -3435,9 +3435,9 @@ def UTI3D_H_v2_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_H_v3_logs():
+def UTIn3D_H_v3_logs():
     """
-    Here we use the data UTI3D_H v2 (data until 2022-04-01)
+    Here we use the data UTIn3D_H v2 (data until 2022-04-01)
     """
 
     # Using the dates of the logs, you can easily gather consecutive ones. All logs should be of the same dataset.
@@ -3521,7 +3521,7 @@ def UTI3D_H_v3_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_H_v4_logs():
+def UTIn3D_H_v4_logs():
     """
     Here we did not change the data but compare models with dl=0.12
     """
@@ -3604,7 +3604,7 @@ def UTI3D_H_v4_logs():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_A_retrain():
+def UTIn3D_A_retrain():
     """
     Here we did not change the data but compare models with dl=0.12
     """
@@ -3675,7 +3675,7 @@ def UTI3D_A_retrain():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_A_lifelong():
+def UTIn3D_A_lifelong():
     """
     Here we did not change the data but compare models with dl=0.12
     """
@@ -3756,7 +3756,7 @@ def UTI3D_A_lifelong():
     return logs, logs_names, all_wanted_s, all_wanted_f
 
 
-def UTI3D_A1_combined():
+def UTIn3D_A1_combined():
     """
     Here we use both dataset combined
     """
@@ -3871,7 +3871,7 @@ if __name__ == '__main__':
     ##################################################
 
     # Function returning the names of the log folders that we want to plot
-    logs, logs_names, all_wanted_s, all_wanted_f = UTI3D_A_lifelong()
+    logs, logs_names, all_wanted_s, all_wanted_f = UTIn3D_A_lifelong()
 
     # Check that all logs are of the same dataset. Different object can be compared
     plot_dataset = None

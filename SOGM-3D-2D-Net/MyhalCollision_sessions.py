@@ -37,7 +37,7 @@ def old_A_sessions():
     # '2021-12-15_19-13-03']    3 people
     #
     
-    dataset_path = '../Data/UTI3D_A'
+    dataset_path = '../Data/UTIn3D_A'
     sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
                              ['2021-12-06_08-38-16', ' mapping > '],    # -  \
                              ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
@@ -105,7 +105,7 @@ def old_A_sessions_v2():
     # '2021-12-15_19-13-03']    3 people
     #
     
-    dataset_path = '../Data/UTI3D_A'
+    dataset_path = '../Data/UTIn3D_A'
     sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
                              ['2021-12-06_08-38-16', ' mapping > '],    # -  \
                              ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
@@ -170,7 +170,7 @@ def old_A_sessions_v2():
     return dataset_path, map_day, refine_sessions, train_sessions, train_comments
 
 
-def UTI3D_A_sessions():
+def UTIn3D_A_sessions():
 
     # Mapping sessions
     # ****************
@@ -187,7 +187,7 @@ def UTI3D_A_sessions():
     # '2021-12-15_19-09-57',    4 people
     # '2021-12-15_19-13-03']    3 people
     
-    dataset_path = '../Data/UTI3D_A'
+    dataset_path = '../Data/UTIn3D_A'
     sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
                              ['2021-12-06_08-38-16', ' mapping > '],    # -  \
                              ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
@@ -251,7 +251,7 @@ def UTI3D_A_sessions():
     return dataset_path, map_day, refine_sessions, train_sessions, train_comments
 
 
-def UTI3D_A_sessions_v2():
+def UTIn3D_A_sessions_v2():
 
     # Mapping sessions
     # ****************
@@ -269,7 +269,7 @@ def UTI3D_A_sessions_v2():
     # '2021-12-15_19-13-03']    3 people
 
     # batch 1: 9 sessions
-    dataset_path = '../Data/UTI3D_A'
+    dataset_path = '../Data/UTIn3D_A'
     sessions_and_comments = [['2021-12-06_08-12-39', ' mapping > '],    # - \
                              ['2021-12-06_08-38-16', ' mapping > '],    # -  \
                              ['2021-12-06_08-44-07', ' mapping > '],    # -   > First runs with controller for mapping of the environment
@@ -357,12 +357,12 @@ def UTI3D_A_sessions_v2():
     return dataset_path, map_day, refine_sessions, train_sessions, train_comments
 
 
-def UTI3D_H_sessions():
+def UTIn3D_H_sessions():
 
     # Mapping sessions
     # ****************
 
-    dataset_path = '../Data/UTI3D_H'
+    dataset_path = '../Data/UTIn3D_H'
     sessions_and_comments = [['2022-03-08_12-34-12', ''],  # - \
                              ['2022-03-08_12-51-26', ''],  # -  \  First runs with controller for mapping of the environment
                              ['2022-03-08_12-52-56', ''],  # -  /  Include refinement runs for table and elevator doors
@@ -493,7 +493,7 @@ def Test_A_sessions():
     # Mapping sessions
     # ****************
 
-    dataset_path = '../Data/new_UTI3D_A'
+    dataset_path = '../Data/new_UTIn3D_A'
     sessions_and_comments = [['2022-05-17_19-05-27', 'mapping']]  # - /
 
     # Actual sessions for training

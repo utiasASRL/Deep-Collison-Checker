@@ -44,7 +44,7 @@ from models.architectures import KPCollider
 from os.path import exists, join
 from os import makedirs
 
-from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, UTI3D_A_sessions_v2
+from MyhalCollision_sessions import UTIn3D_H_sessions, UTIn3D_A_sessions, UTIn3D_A_sessions_v2
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -371,7 +371,7 @@ if __name__ == '__main__':
     ###################
 
     # Get sessions from the annotation script
-    dataset_path, map_day, refine_sessions, train_days, train_comments = UTI3D_A_sessions_v2()
+    dataset_path, map_day, refine_sessions, train_days, train_comments = UTIn3D_A_sessions_v2()
 
     # Get training and validation sets
     val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])

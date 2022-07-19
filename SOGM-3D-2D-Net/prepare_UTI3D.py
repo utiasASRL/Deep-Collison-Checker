@@ -51,7 +51,7 @@ import pickle
 if __name__ == '__main__':
     
     # Parameters
-    roots = ['../Data/UTI3D_A', '../Data/UTI3D_H']
+    roots = ['../Data/UTIn3D_A', '../Data/UTIn3D_H']
     folders = ['annotated_frames',
                'annotation',
                'calibration',

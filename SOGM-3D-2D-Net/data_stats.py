@@ -36,7 +36,7 @@ import numpy as np
 from os.path import exists, join
 from os import makedirs
 
-from MyhalCollision_sessions import UTI3D_H_sessions, UTI3D_A_sessions, UTI3D_A_sessions_v2
+from MyhalCollision_sessions import UTIn3D_H_sessions, UTIn3D_A_sessions, UTIn3D_A_sessions_v2
 from datasets.MultiCollision import MultiCollisionDataset, MultiCollisionSampler, MultiCollisionCollate
 
 from train_MultiCollision import MultiCollisionConfig
@@ -51,7 +51,7 @@ from train_MultiCollision import MultiCollisionConfig
 if __name__ == '__main__':
 
 
-    for sessions in [UTI3D_A_sessions_v2, UTI3D_H_sessions]:
+    for sessions in [UTIn3D_A_sessions_v2, UTIn3D_H_sessions]:
 
         print('\n\n************************************')
 
@@ -74,16 +74,16 @@ if __name__ == '__main__':
             print(seq, 'val' in train_comments[s_ind].split('>')[0], all_frames[s_ind][0], all_frames[s_ind][-1], float(all_frames[s_ind][-1]) - float(all_frames[s_ind][0]), len(all_frames[s_ind]))
 
 
-    for sessions in [UTI3D_A_sessions_v2, UTI3D_H_sessions]:
+    for sessions in [UTIn3D_A_sessions_v2, UTIn3D_H_sessions]:
 
-        dataset_path, map_day, refine_sessions, train_days, train_comments = UTI3D_A_sessions_v2()
-        dataset_path, map_day, refine_sessions, train_days, train_comments = UTI3D_A_sessions_v2()
+        dataset_path, map_day, refine_sessions, train_days, train_comments = UTIn3D_A_sessions_v2()
+        dataset_path, map_day, refine_sessions, train_days, train_comments = UTIn3D_A_sessions_v2()
         val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])
         train_inds = [i for i in range(len(train_days)) if i not in val_inds]
 
     # Get sessions from the annotation script
-    dataset_path, map_day, refine_sessions, train_days, train_comments = UTI3D_A_sessions_v2()
-    dataset_path2, map_day2, refine_sessions2, train_days2, train_comments2 = UTI3D_H_sessions()
+    dataset_path, map_day, refine_sessions, train_days, train_comments = UTIn3D_A_sessions_v2()
+    dataset_path2, map_day2, refine_sessions2, train_days2, train_comments2 = UTIn3D_H_sessions()
 
     # Get training and validation sets
     val_inds = np.array([i for i, c in enumerate(train_comments) if 'val' in c.split('>')[0]])
